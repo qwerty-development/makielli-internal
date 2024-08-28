@@ -88,11 +88,11 @@ export default function ClientDetailsPage({ params }: { params: { clientId: stri
     <div className="p-8">
       <h1 className="text-3xl font-bold mb-6">Client Details</h1>
       {client && (
-        <div className="bg-white shadow-md rounded-lg p-6">
+        <div className="bg-gray shadow-md rounded-lg p-6">
           {isEditing ? (
             <form onSubmit={(e) => { e.preventDefault(); handleSaveEdit(); }}>
               <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="name">
+                <label className="block text-white text-sm font-bold mb-2" htmlFor="name">
                   Name
                 </label>
                 <input
@@ -101,11 +101,11 @@ export default function ClientDetailsPage({ params }: { params: { clientId: stri
                   name="name"
                   value={editedClient?.name || ''}
                   onChange={handleInputChange}
-                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-white leading-tight focus:outline-none focus:shadow-outline"
                 />
               </div>
               <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="email">
+                <label className="block text-white text-sm font-bold mb-2" htmlFor="email">
                   Email
                 </label>
                 <input
@@ -114,11 +114,11 @@ export default function ClientDetailsPage({ params }: { params: { clientId: stri
                   name="email"
                   value={editedClient?.email || ''}
                   onChange={handleInputChange}
-                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-white leading-tight focus:outline-none focus:shadow-outline"
                 />
               </div>
               <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="phone">
+                <label className="block text-white text-sm font-bold mb-2" htmlFor="phone">
                   Phone
                 </label>
                 <input
@@ -127,11 +127,11 @@ export default function ClientDetailsPage({ params }: { params: { clientId: stri
                   name="phone"
                   value={editedClient?.phone || ''}
                   onChange={handleInputChange}
-                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-white leading-tight focus:outline-none focus:shadow-outline"
                 />
               </div>
               <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="address">
+                <label className="block text-white text-sm font-bold mb-2" htmlFor="address">
                   Address
                 </label>
                 <input
@@ -140,7 +140,7 @@ export default function ClientDetailsPage({ params }: { params: { clientId: stri
                   name="address"
                   value={editedClient?.address || ''}
                   onChange={handleInputChange}
-                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-white leading-tight focus:outline-none focus:shadow-outline"
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -162,29 +162,29 @@ export default function ClientDetailsPage({ params }: { params: { clientId: stri
           ) : (
             <>
               <div className="mb-4">
-                <h2 className="text-xl font-semibold">Name</h2>
-                <p>{client.name}</p>
+                <h2 className="text-3xl text-black ">Name</h2>
+                <p className='text-white text-xl font-semibold mt-2'>{client.name}</p>
               </div>
               <div className="mb-4">
-                <h2 className="text-xl font-semibold">Email</h2>
-                <p>{client.email}</p>
+              <h2 className="text-3xl text-black ">Email</h2>
+                <p className='text-white text-xl font-semibold mt-2'>{client.email}</p>
               </div>
               <div className="mb-4">
-                <h2 className="text-xl font-semibold">Phone</h2>
-                <p>{client.phone}</p>
+              <h2 className="text-3xl text-black ">Phone</h2>
+                <p className='text-white text-xl font-semibold mt-2'>{client.phone}</p>
               </div>
               <div className="mb-4">
-                <h2 className="text-xl font-semibold">Address</h2>
-                <p>{client.address}</p>
+              <h2 className="text-3xl text-black ">Address</h2>
+                <p className='text-white text-xl font-semibold mt-2'>{client.address}</p>
               </div>
               <div className="mb-4">
-                <h2 className="text-xl font-semibold">Balance</h2>
-                <p>${client.balance.toFixed(2)}</p>
+                <h2 className="text-3xl text-black ">Balance</h2>
+                <p className='text-white text-xl font-semibold mt-2'>${client.balance.toFixed(2)}</p>
               </div>
-              <div className="flex items-center justify-between mt-6">
+              <div className="flex items-center text-white justify-between mt-6">
                 <button
                   onClick={handleEdit}
-                  className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+                  className="bg-blue hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
                 >
                   Edit Client
                 </button>

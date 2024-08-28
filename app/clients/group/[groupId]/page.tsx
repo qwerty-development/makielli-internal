@@ -113,31 +113,31 @@ export default function GroupDetailsPage({ params }: { params: { groupId: string
           {!isEditing && (
             <button
               onClick={handleEdit}
-              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mr-2"
+              className="bg-blue hover:bg-blue-700 text-white font-bold  px-4 rounded mr-2"
             >
               Edit Group
             </button>
           )}
           <button
             onClick={handleDelete}
-            className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
+            className="bg-red-600 hover:bg-red-700 text-white font-bold  px-4 rounded"
           >
             Delete Group
           </button>
         </div>
       </div>
-      <div className="bg-white shadow-md rounded-lg overflow-hidden">
-        <ul className="divide-y divide-gray-200">
+      <div className="bg-gray  rounded-lg overflow-hidden">
+        <ul className="divide-y divide-white">
           {clients.map((client) => (
             <li key={client.client_id}>
               <Link href={`/clients/details/${client.client_id}`}>
                 <div className="block hover:bg-gray-50 p-4">
                   <div className="flex items-center space-x-4">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
+                      <p className="text-l font-medium text-white truncate">
                         {client.name}
                       </p>
-                      <p className="text-sm text-gray-500 truncate">
+                      <p className="text-sm text-white truncate">
                         {client.email}
                       </p>
                     </div>

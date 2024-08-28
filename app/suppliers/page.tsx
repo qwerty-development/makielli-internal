@@ -16,7 +16,7 @@ export default function SuppliersPage() {
   }, []);
 
   useEffect(() => {
-    const filtered = suppliers.filter(supplier => 
+    const filtered = suppliers.filter(supplier =>
       supplier.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       supplier.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
       supplier.phone.includes(searchQuery)
@@ -53,7 +53,7 @@ export default function SuppliersPage() {
         Supplier Management
       </h1>
 
-      <div className="mb-4">
+      <div className="mb-4 flex">
         <input
           type="text"
           placeholder="Search suppliers..."
@@ -61,22 +61,23 @@ export default function SuppliersPage() {
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full p-2 border rounded"
         />
+        <Link href="/suppliers/new" className="ml-2">
+          <button className="bg-blue hover:bg-black text-white font-bold h-full px-5 py-3 rounded-full">
+            +
+          </button>
+        </Link>
       </div>
 
-      <Link href="/suppliers/new">
-        <button className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded mb-4">
-          Add New Supplier
-        </button>
-      </Link>
+
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {filteredSuppliers.map((supplier) => (
           <Link href={`/suppliers/${supplier.id}`} key={supplier.id}>
-            <div className="bg-white rounded-lg shadow-md p-6 cursor-pointer hover:shadow-lg transition-shadow duration-200">
-              <h2 className="text-xl font-semibold mb-2">{supplier.name}</h2>
-              <p className="text-gray-600 mb-2">Location: {supplier.location}</p>
-              <p className="text-gray-600 mb-2">Phone: {supplier.phone}</p>
-              <p className="text-gray-600 mb-4">Balance: ${supplier.balance.toFixed(2)}</p>
+            <div className="bg-gray rounded-lg shadow-md p-6 cursor-pointer hover:shadow-lg transition-shadow duration-200">
+              <h2 className="text-xl text-white font-semibold mb-2">{supplier.name}</h2>
+              <p className="text-white mb-2">Location: {supplier.location}</p>
+              <p className="text-white mb-2">Phone: {supplier.phone}</p>
+              <p className="text-white mb-4">Balance: ${supplier.balance.toFixed(2)}</p>
             </div>
           </Link>
         ))}

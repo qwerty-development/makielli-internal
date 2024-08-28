@@ -70,9 +70,9 @@ export default function SupplierDetailsPage({ params }: { params: { id: string }
     <div className="p-8">
       <h1 className="text-3xl font-bold mb-8">Supplier Details</h1>
       {isEditing ? (
-        <form onSubmit={handleUpdateSupplier} className="bg-white rounded-lg shadow-md p-6">
+        <form onSubmit={handleUpdateSupplier} className="bg-gray rounded-lg shadow-md p-6">
           <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="name">
+            <label className="block text-white text-sm font-bold mb-2" htmlFor="name">
               Name
             </label>
             <input
@@ -80,12 +80,12 @@ export default function SupplierDetailsPage({ params }: { params: { id: string }
               id="name"
               value={supplier.name}
               onChange={(e) => setSupplier({...supplier, name: e.target.value})}
-              className="w-full p-2 border rounded"
+              className="w-full  p-2 border rounded"
               required
             />
           </div>
           <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="location">
+            <label className="block text-white text-sm font-bold mb-2" htmlFor="location">
               Location
             </label>
             <input
@@ -93,11 +93,11 @@ export default function SupplierDetailsPage({ params }: { params: { id: string }
               id="location"
               value={supplier.location}
               onChange={(e) => setSupplier({...supplier, location: e.target.value})}
-              className="w-full p-2 border rounded"
+              className="w-full p-2 border  rounded"
             />
           </div>
           <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="phone">
+            <label className="block text-white text-sm font-bold mb-2" htmlFor="phone">
               Phone
             </label>
             <input
@@ -109,7 +109,7 @@ export default function SupplierDetailsPage({ params }: { params: { id: string }
             />
           </div>
           <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="balance">
+            <label className="block text-white text-sm font-bold mb-2" htmlFor="balance">
               Balance
             </label>
             <input
@@ -125,28 +125,28 @@ export default function SupplierDetailsPage({ params }: { params: { id: string }
             <button
               type="button"
               onClick={() => setIsEditing(false)}
-              className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded mr-2"
+              className="bg-red-500 hover:bg-red-800 text-white font-bold py-2 px-4 rounded mr-2"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded"
+              className="bg-blue hover:bg-black text-white font-bold py-2 px-4 rounded"
             >
               Save Changes
             </button>
           </div>
         </form>
       ) : (
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-2xl font-semibold mb-4">{supplier.name}</h2>
-          <p className="text-gray-600 mb-2">Location: {supplier.location}</p>
-          <p className="text-gray-600 mb-2">Phone: {supplier.phone}</p>
-          <p className="text-gray-600 mb-4">Balance: ${supplier.balance.toFixed(2)}</p>
+        <div className="bg-gray rounded-lg shadow-md p-6">
+          <h2 className="text-2xl text-white font-semibold mb-4">{supplier.name}</h2>
+          <p className="text-white mb-2">Location: {supplier.location}</p>
+          <p className="text-white mb-2">Phone: {supplier.phone}</p>
+          <p className="text-white mb-4">Balance: ${supplier.balance.toFixed(2)}</p>
           <div className="flex justify-end">
             <button
               onClick={() => setIsEditing(true)}
-              className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded mr-2"
+              className="bg-blue hover:bg-black text-white font-bold py-2 px-4 rounded mr-2"
             >
               Edit
             </button>

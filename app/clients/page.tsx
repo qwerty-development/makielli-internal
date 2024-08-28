@@ -82,28 +82,29 @@ export default function ClientsPage() {
 
   return (
     <div className="p-8">
-      <h1 className="text-3xl font-bold text-center mb-8">
+      <h1 className="text-3xl text-black font-bold text-center mb-8">
         Client Management
       </h1>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+      <div className="flex justify-end gap-4 mb-8">
         <button
           onClick={() => setShowClientForm(!showClientForm)}
-          className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition duration-300"
+          className="bg-blue hover:bg-black text-white font-bold py-1 px-2 text-sm rounded transition duration-300"
         >
           {showClientForm ? 'Cancel' : 'Create Client'}
         </button>
         <button
           onClick={() => setShowGroupForm(!showGroupForm)}
-          className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition duration-300"
+          className="bg-blue hover:bg-black text-white font-bold py-1 px-2 text-sm rounded transition duration-300"
         >
           {showGroupForm ? 'Cancel' : 'Create Group'}
         </button>
       </div>
 
+
       {showClientForm && (
-        <form onSubmit={handleCreateClient} className="mb-8 p-4 bg-gray-100 rounded-lg">
-          <h2 className="text-xl font-bold mb-4">Create New Client</h2>
+        <form onSubmit={handleCreateClient} className="mb-8 p-4 bg-gray border border-white rounded-lg">
+          <h2 className="text-xl text-white font-bold mb-4">Create New Client</h2>
           <input
             type="text"
             placeholder="Name"
@@ -147,15 +148,15 @@ export default function ClientsPage() {
               <option key={group.group_id} value={group.group_id}>{group.name}</option>
             ))}
           </select>
-          <button type="submit" className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+          <button type="submit" className="bg-blue hover:bg-black text-white font-bold py-2 px-4 rounded">
             Create Client
           </button>
         </form>
       )}
 
       {showGroupForm && (
-        <form onSubmit={handleCreateGroup} className="mb-8 p-4 bg-gray-100 rounded-lg">
-          <h2 className="text-xl font-bold mb-4">Create New Group</h2>
+        <form onSubmit={handleCreateGroup} className="mb-8 border border-white p-4 bg-gray-100 rounded-lg">
+          <h2 className="text-xl text-white font-bold mb-4">Create New Group</h2>
           <input
             type="text"
             placeholder="Group Name"
@@ -164,23 +165,24 @@ export default function ClientsPage() {
             className="w-full p-2 mb-2 border rounded"
             required
           />
-          <button type="submit" className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">
+          <button type="submit" className="bg-blue  hover:bg-black text-white font-bold py-2 px-4 rounded">
             Create Group
           </button>
         </form>
       )}
 
       <Link href="/clients/all">
-        <p className="block w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded text-center mb-8 transition duration-300">
-          All Clients
+        <p className="inline-block text-black  font-extrabold py-2 px-4 rounded text-center mb-4 transition duration-300">
+          See all clients
         </p>
       </Link>
+
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
         {groups.map((group) => (
           <Link key={group.group_id} href={`/clients/group/${group.group_id}`}>
-            <p className="block bg-white hover:bg-gray-100 rounded-lg shadow-md p-6 transition duration-300 transform hover:-translate-y-1 hover:shadow-lg">
-              <h2 className="text-xl font-semibold">{group.name}</h2>
+            <p className="block bg-gray hover:bg-gray-100 rounded-lg shadow-md p-6 transition duration-300 transform hover:-translate-y-1 hover:shadow-lg">
+              <h2 className="text-xl text-white font-semibold">{group.name}</h2>
             </p>
           </Link>
         ))}

@@ -1,6 +1,6 @@
 import './globals.css';
 import { Inter } from 'next/font/google';
-import Link from 'next/link';
+import Navbar from '../components/Navbar';  // We'll create this component next
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -17,24 +17,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <nav className="bg-gray-800 p-4">
-          <div className="container mx-auto flex justify-between items-center">
-            <Link href="/" className="text-white font-bold text-xl">
-              Home
-            </Link>
-            <div className="space-x-4">
-              <Link href="/clients" className="text-white hover:text-gray-300">
-                Clients
-              </Link>
-              <Link href="/inventory" className="text-white hover:text-gray-300">
-                Inventory
-              </Link>
-              <Link href="/suppliers" className="text-white hover:text-gray-300">
-                Suppliers
-              </Link>
-            </div>
-          </div>
-        </nav>
+        <Navbar />
         {children}
       </body>
     </html>
