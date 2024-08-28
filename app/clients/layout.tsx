@@ -14,7 +14,7 @@ export default function ClientsLayout({ children }: { children: React.ReactNode 
           </Link>
         </Toolbar>
       </AppBar>
-      <Container maxWidth="lg" style={{ marginTop: '2rem' }}>
+      <Container maxWidth="lg"  style={{ marginTop: '2rem' }}>
         {children}
       </Container>
     </>

@@ -64,5 +64,69 @@ export const clientFunctions = {
     
     if (error) throw error;
     return data || [];
+  },
+
+  async createClient(clientData: Omit<Client, 'client_id'>): Promise<Client> {
+    const { data, error } = await supabase
+      .from('Clients')
+      .insert([clientData])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async createGroup(groupData: Omit<ClientGroup, 'group_id'>): Promise<ClientGroup> {
+    const { data, error } = await supabase
+      .from('ClientGroups')
+      .insert([groupData])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async updateClient(id: number, clientData: Partial<Client>): Promise<Client> {
+    const { data, error } = await supabase
+      .from('Clients')
+      .update(clientData)
+      .eq('client_id', id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async deleteClient(id: number): Promise<void> {
+    const { error } = await supabase
+      .from('Clients')
+      .delete()
+      .eq('client_id', id);
+    
+    if (error) throw error;
+  },
+
+  async updateClientGroup(id: number, groupData: Partial<ClientGroup>): Promise<ClientGroup> {
+    const { data, error } = await supabase
+      .from('ClientGroups')
+      .update(groupData)
+      .eq('group_id', id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async deleteClientGroup(id: number): Promise<void> {
+    const { error } = await supabase
+      .from('ClientGroups')
+      .delete()
+      .eq('group_id', id);
+    
+    if (error) throw error;
   }
 };
