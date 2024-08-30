@@ -1,15 +1,6 @@
 'use client'
-import React, { useState, useEffect } from 'react'
-import {
-	Tabs,
-	Tab,
-	Button,
-	Modal,
-	Form,
-	Table,
-	Pagination,
-	Dropdown
-} from 'react-bootstrap'
+
+import React, { useState, useEffect, ChangeEvent } from 'react'
 import { supabase } from '../../utils/supabase'
 import { toast } from 'react-hot-toast'
 import DatePicker from 'react-datepicker'
@@ -17,7 +8,15 @@ import 'react-datepicker/dist/react-datepicker.css'
 import { Client } from '../../utils/functions/clients'
 import { Supplier } from '../../utils/functions/suppliers'
 import { Product, ProductVariant } from '../../utils/functions/products'
-import { FaSort, FaEdit, FaTrash, FaFilter, FaPlus } from 'react-icons/fa'
+import {
+	FaSort,
+	FaEdit,
+	FaTrash,
+	FaFilter,
+	FaPlus,
+	FaFile,
+	FaDownload
+} from 'react-icons/fa'
 
 interface Invoice {
 	id: number
@@ -60,6 +59,8 @@ const InvoicesPage: React.FC = () => {
 	})
 	const [filterStartDate, setFilterStartDate] = useState<any>(null)
 	const [filterEndDate, setFilterEndDate] = useState<any>(null)
+	const [selectedFile, setSelectedFile] = useState<File | null>(null)
+	const [uploadingFile, setUploadingFile] = useState(false)
 
 	useEffect(() => {
 		fetchInvoices()
@@ -67,6 +68,7 @@ const InvoicesPage: React.FC = () => {
 		fetchSuppliers()
 		fetchProducts()
 	}, [activeTab, currentPage, sortField, sortOrder, filterDate, filterEntity])
+
 	const fetchInvoices = async () => {
 		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
 		let query = supabase.from(table).select('*', { count: 'exact' })
@@ -217,6 +219,7 @@ const InvoicesPage: React.FC = () => {
 			fetchInvoices()
 		}
 	}
+
 	const updateProductQuantities = async (
 		products: { product_variant_id: string; quantity: number }[],
 		isIncrease = false
@@ -262,31 +265,40 @@ const InvoicesPage: React.FC = () => {
 			toast.error(`Error updating ${activeTab} balance: ${updateError.message}`)
 		}
 	}
+
 	const handleDeleteInvoice = async (id: number) => {
-		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
-		const { data: invoiceData, error: fetchError } = await supabase
-			.from(table)
-			.select('*')
-			.eq('id', id)
-			.single()
+		if (window.confirm('Are you sure you want to delete this invoice?')) {
+			const table =
+				activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
+			const { data: invoiceData, error: fetchError } = await supabase
+				.from(table)
+				.select('*')
+				.eq('id', id)
+				.single()
 
-		if (fetchError) {
-			toast.error(`Error fetching invoice: ${fetchError.message}`)
-			return
-		}
+			if (fetchError) {
+				toast.error(`Error fetching invoice: ${fetchError.message}`)
+				return
+			}
 
-		const { error: deleteError } = await supabase
-			.from(table)
-			.delete()
-			.eq('id', id)
+			// Delete associated files
+			for (const fileUrl of invoiceData.files) {
+				await handleFileDelete(fileUrl)
+			}
 
-		if (deleteError) {
-			toast.error(`Error deleting invoice: ${deleteError.message}`)
-		} else {
-			toast.success('Invoice deleted successfully')
-			updateEntityBalance(-invoiceData.total_price)
-			updateProductQuantities(invoiceData.products, true)
-			fetchInvoices()
+			const { error: deleteError } = await supabase
+				.from(table)
+				.delete()
+				.eq('id', id)
+
+			if (deleteError) {
+				toast.error(`Error deleting invoice: ${deleteError.message}`)
+			} else {
+				toast.success('Invoice deleted successfully')
+				updateEntityBalance(-invoiceData.total_price)
+				updateProductQuantities(invoiceData.products, true)
+				fetchInvoices()
+			}
 		}
 	}
 
@@ -303,6 +315,7 @@ const InvoicesPage: React.FC = () => {
 		setNewInvoice(invoice)
 		setShowModal(true)
 	}
+
 	const handleInvoiceClick = (invoice: Invoice) => {
 		setSelectedInvoice(invoice)
 	}
@@ -316,6 +329,7 @@ const InvoicesPage: React.FC = () => {
 		setFilterEntity(id)
 		setCurrentPage(1)
 	}
+
 	const handleAddProduct = () => {
 		const updatedProducts = [
 			...(newInvoice.products || []),
@@ -366,6 +380,79 @@ const InvoicesPage: React.FC = () => {
 		})
 	}
 
+	const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+		if (e.target.files && e.target.files.length > 0) {
+			setSelectedFile(e.target.files[0])
+		}
+	}
+
+	const handleFileUpload = async () => {
+		if (!selectedFile) {
+			toast.error('No file selected')
+			return
+		}
+
+		setUploadingFile(true)
+
+		try {
+			const fileName = `${Date.now()}_${selectedFile.name}`
+			const { data, error } = await supabase.storage
+				.from('Files')
+				.upload(fileName, selectedFile)
+
+			if (error) {
+				throw error
+			}
+
+			const { data: publicURLData } = supabase.storage
+				.from('Files')
+				.getPublicUrl(fileName)
+
+			if (!publicURLData) {
+				throw new Error('Error getting public URL: No data returned')
+			}
+
+			const updatedFiles = [
+				...(newInvoice.files || []),
+				publicURLData.publicUrl
+			]
+			setNewInvoice({ ...newInvoice, files: updatedFiles })
+			toast.success('File uploaded successfully')
+			setSelectedFile(null)
+		} catch (error) {
+			console.error('Error uploading file:', error)
+			toast.error('Error uploading file. Please try again.')
+		} finally {
+			setUploadingFile(false)
+		}
+	}
+
+	const handleFileDelete = async (fileUrl: string) => {
+		try {
+			const decodedUrl = decodeURIComponent(fileUrl)
+			const fileName = decodedUrl.split('/').pop()
+
+			if (!fileName) {
+				throw new Error('Could not extract file name from URL')
+			}
+
+			const { error: deleteError } = await supabase.storage
+				.from('Files')
+				.remove([fileName])
+
+			if (deleteError) {
+				throw deleteError
+			}
+
+			const updatedFiles = newInvoice.files?.filter(file => file !== fileUrl)
+			setNewInvoice({ ...newInvoice, files: updatedFiles })
+			toast.success('File deleted successfully')
+		} catch (error) {
+			console.error('Error deleting file:', error)
+			toast.error('Error deleting file. Please try again.')
+		}
+	}
+
 	const renderInvoiceTable = () => (
 		<div className='overflow-x-auto bg-white rounded-lg shadow'>
 			<table className='w-full table-auto'>
@@ -388,6 +475,7 @@ const InvoicesPage: React.FC = () => {
 							{sortField === 'total_price' && <FaSort className='inline' />}
 						</th>
 						<th className='py-3 px-6 text-left'>Note</th>
+						<th className='py-3 px-6 text-center'>Files</th>
 						<th className='py-3 px-6 text-center'>Actions</th>
 					</tr>
 				</thead>
@@ -408,9 +496,16 @@ const InvoicesPage: React.FC = () => {
 							</td>
 							<td className='py-3 px-6 text-left'>{invoice.note}</td>
 							<td className='py-3 px-6 text-center'>
+								{invoice.files.length > 0 ? (
+									<FaFile className='inline text-blue-500' />
+								) : (
+									'-'
+								)}
+							</td>
+							<td className='py-3 px-6 text-center'>
 								<div className='flex item-center justify-center'>
 									<button
-										className='w-4 mr-2 transform hover:text-purple-500 hover:scale-110'
+										className='w-4 mr-2 transform text-blue hover:text-purple-500 hover:scale-110'
 										onClick={e => {
 											e.stopPropagation()
 											handleEditInvoice(invoice)
@@ -418,7 +513,7 @@ const InvoicesPage: React.FC = () => {
 										<FaEdit />
 									</button>
 									<button
-										className='w-4 mr-2 transform hover:text-red-500 hover:scale-110'
+										className='w-4 mr-2 transform text-blue hover:text-red-500 hover:scale-110'
 										onClick={e => {
 											e.stopPropagation()
 											handleDeleteInvoice(invoice.id)
@@ -433,6 +528,7 @@ const InvoicesPage: React.FC = () => {
 			</table>
 		</div>
 	)
+
 	const renderPagination = () => {
 		const totalPages = Math.ceil(totalInvoices / itemsPerPage)
 		return (
@@ -443,7 +539,7 @@ const InvoicesPage: React.FC = () => {
 					<button
 						onClick={() => setCurrentPage(1)}
 						disabled={currentPage === 1}
-						className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${
+						className={`relative inline-flex items-center text-blue px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${
 							currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>First</span>⟪
@@ -451,7 +547,7 @@ const InvoicesPage: React.FC = () => {
 					<button
 						onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
 						disabled={currentPage === 1}
-						className={`relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${
+						className={`relative inline-flex text-blue items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${
 							currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>Previous</span>⟨
@@ -464,7 +560,7 @@ const InvoicesPage: React.FC = () => {
 							setCurrentPage(Math.min(totalPages, currentPage + 1))
 						}
 						disabled={currentPage === totalPages}
-						className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${
+						className={`relative inline-flex items-center text-blue px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${
 							currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>Next</span>⟩
@@ -650,7 +746,7 @@ const InvoicesPage: React.FC = () => {
 										/>
 										<button
 											type='button'
-											className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
+											className='bg-red-500 hover:bg-red-700 text-blue  font-bold py-1 px-2 rounded text-xs'
 											onClick={() => {
 												const updatedProducts = newInvoice.products?.filter(
 													(_, i) => i !== index
@@ -701,6 +797,42 @@ const InvoicesPage: React.FC = () => {
 									readOnly
 								/>
 							</div>
+							<div className='mb-4'>
+								<label className='block text-gray-700 text-sm font-bold mb-2'>
+									Files
+								</label>
+								<input
+									type='file'
+									onChange={handleFileChange}
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+								/>
+								{selectedFile && (
+									<button
+										type='button'
+										onClick={handleFileUpload}
+										disabled={uploadingFile}
+										className='mt-2 bg-blue-500 hover:bg-blue-700 text-blue  font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline'>
+										{uploadingFile ? 'Uploading...' : 'Upload File'}
+									</button>
+								)}
+								{newInvoice.files?.map((file, index) => (
+									<div key={index} className='flex items-center mt-2'>
+										<a
+											href={file}
+											target='_blank'
+											rel='noopener noreferrer'
+											className='text-blue-500 hover:underline mr-2'>
+											{file.split('/').pop()}
+										</a>
+										<button
+											type='button'
+											onClick={() => handleFileDelete(file)}
+											className='text-red-500 hover:text-red-700'>
+											<FaTrash />
+										</button>
+									</div>
+								))}
+							</div>
 						</form>
 					</div>
 					<div className='bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse'>
@@ -712,7 +844,7 @@ const InvoicesPage: React.FC = () => {
 						</button>
 						<button
 							type='button'
-							className='mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
+							className='mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-blue text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
 							onClick={() => {
 								setShowModal(false)
 								setNewInvoice({
@@ -731,6 +863,7 @@ const InvoicesPage: React.FC = () => {
 			</div>
 		</div>
 	)
+
 	const renderInvoiceDetails = () => {
 		if (!selectedInvoice) return null
 
@@ -763,11 +896,25 @@ const InvoicesPage: React.FC = () => {
 									</li>
 								))}
 							</ul>
+							<h4 className='text-sm font-medium text-gray-900 mt-4'>Files:</h4>
+							<ul className='list-disc list-inside'>
+								{selectedInvoice.files.map((file, index) => (
+									<li key={index} className='text-sm text-gray-500'>
+										<a
+											href={file}
+											target='_blank'
+											rel='noopener noreferrer'
+											className='text-blue-500 hover:underline'>
+											{file.split('/').pop()}
+										</a>
+									</li>
+								))}
+							</ul>
 						</div>
 						<div className='items-center px-4 py-3'>
 							<button
 								id='ok-btn'
-								className='px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300'
+								className='px-4 py-2 text-blue bg-blue-500  text-base font-medium rounded-md w-full shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300'
 								onClick={() => setSelectedInvoice(null)}>
 								Close
 							</button>
@@ -779,17 +926,17 @@ const InvoicesPage: React.FC = () => {
 	}
 
 	return (
-		<div className=' mx-auto px-4 py-8 text-gray'>
+		<div className='mx-auto px-4 py-8 text-gray'>
 			<h1 className='text-3xl font-bold text-gray-800 mb-6'>
 				Invoice Management
 			</h1>
-			<div className='bg-white shadow-md rounded-lg '>
+			<div className='bg-white shadow-md rounded-lg'>
 				<div className='flex border-b'>
 					<button
 						className={`flex-1 py-4 px-6 text-center ${
 							activeTab === 'client'
-								? 'bg-blue-500 text-white'
-								: 'bg-gray-100 text-gray-700'
+								? 'bg-blue text-white'
+								: 'bg-gray text-blue'
 						}`}
 						onClick={() => setActiveTab('client')}>
 						Client Invoices
@@ -797,8 +944,8 @@ const InvoicesPage: React.FC = () => {
 					<button
 						className={`flex-1 py-4 px-6 text-center ${
 							activeTab === 'supplier'
-								? 'bg-blue-500 text-white'
-								: 'bg-gray-100 text-gray-700'
+								? 'bg-blue text-white'
+								: 'bg-gray text-blue'
 						}`}
 						onClick={() => setActiveTab('supplier')}>
 						Supplier Invoices
@@ -811,7 +958,7 @@ const InvoicesPage: React.FC = () => {
 				</div>
 			</div>
 			<button
-				className='mt-6 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110'
+				className='mt-6 bg-blue-500 hover:bg-blue-600  text-blue font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110'
 				onClick={() => {
 					setNewInvoice({
 						created_at: new Date().toISOString(),
