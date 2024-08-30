@@ -1,25 +1,26 @@
-import './globals.css';
-import { Inter } from 'next/font/google';
-import Navbar from '../components/Navbar';  // We'll create this component next
-
-const inter = Inter({ subsets: ['latin'] });
+import './globals.css'
+import { Inter } from 'next/font/google'
+import Navbar from '../components/Navbar' // We'll create this component next
+import { Toaster } from 'react-hot-toast'
+const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
-  title: 'Management System',
-  description: 'Your comprehensive management solution',
-};
+	title: 'Management System',
+	description: 'Your comprehensive management solution'
+}
 
 export default function RootLayout({
-  children,
+	children
 }: {
-  children: React.ReactNode;
+	children: React.ReactNode
 }) {
-  return (
-    <html lang="en">
-      <body className={inter.className}>
-        <Navbar />
-        {children}
-      </body>
-    </html>
-  );
+	return (
+		<html lang='en'>
+			<body className={inter.className}>
+				<Toaster position='top-center' />
+				<Navbar />
+				{children}
+			</body>
+		</html>
+	)
 }
