@@ -30,6 +30,9 @@ export default function Navbar() {
 					<Link href='/invoices' className='text-white hover:text-black'>
 						Invoices
 					</Link>
+					<Link href='/quotations' className='text-white hover:text-black'>
+						Quotations
+					</Link>
 				</div>
 			</div>
 		</nav>
