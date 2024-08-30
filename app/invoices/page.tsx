@@ -936,7 +936,7 @@ const InvoicesPage: React.FC = () => {
 						className={`flex-1 py-4 px-6 text-center ${
 							activeTab === 'client'
 								? 'bg-blue text-white'
-								: 'bg-gray text-blue'
+								: 'bg-gray text-white'
 						}`}
 						onClick={() => setActiveTab('client')}>
 						Client Invoices
@@ -945,7 +945,7 @@ const InvoicesPage: React.FC = () => {
 						className={`flex-1 py-4 px-6 text-center ${
 							activeTab === 'supplier'
 								? 'bg-blue text-white'
-								: 'bg-gray text-blue'
+								: 'bg-gray text-white'
 						}`}
 						onClick={() => setActiveTab('supplier')}>
 						Supplier Invoices
