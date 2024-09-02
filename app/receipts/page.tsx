@@ -729,9 +729,23 @@ const ReceiptsPage: React.FC = () => {
 
 	return (
 		<div className='mx-auto px-4 py-8 text-black'>
-			<h1 className='text-3xl font-bold text-gray-800 mb-6'>
-				Receipt Management
-			</h1>
+			<div className='flex flex-row justify-between items-center align-middle mb-5'>
+				<h1 className='text-3xl font-bold text-gray'>Receipt Management</h1>
+				<button
+					className=' bg-blue hover:bg-gray text-white font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110'
+					onClick={() => {
+						setNewReceipt({
+							paid_at: new Date().toISOString(),
+							amount: 0,
+							files: []
+						})
+						setIsEditing(false)
+						setShowModal(true)
+					}}>
+					<FaPlus className='inline-block mr-2' /> Create New Receipt
+				</button>
+			</div>
+
 			<div className='bg-white shadow-md rounded-lg'>
 				<div className='flex border-b'>
 					<button
@@ -759,19 +773,7 @@ const ReceiptsPage: React.FC = () => {
 					{renderPagination()}
 				</div>
 			</div>
-			<button
-				className='mt-6 bg-blue hover:bg-gray text-white font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110'
-				onClick={() => {
-					setNewReceipt({
-						paid_at: new Date().toISOString(),
-						amount: 0,
-						files: []
-					})
-					setIsEditing(false)
-					setShowModal(true)
-				}}>
-				<FaPlus className='inline-block mr-2' /> Create New Receipt
-			</button>
+
 			{renderReceiptModal()}
 			{renderReceiptDetails()}
 		</div>
