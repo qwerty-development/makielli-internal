@@ -1,26 +1,35 @@
+import {
+	ClerkProvider,
+	RedirectToSignIn,
+	SignInButton,
+	SignedIn,
+	SignedOut,
+	UserButton
+} from '@clerk/nextjs'
 import './globals.css'
-import { Inter } from 'next/font/google'
-import Navbar from '../components/Navbar' // We'll create this component next
 import { Toaster } from 'react-hot-toast'
-const inter = Inter({ subsets: ['latin'] })
-
-export const metadata = {
-	title: 'Management System',
-	description: 'Your comprehensive management solution'
-}
-
+import Navbar from '@/components/Navbar'
 export default function RootLayout({
 	children
 }: {
 	children: React.ReactNode
 }) {
 	return (
-		<html lang='en'>
-			<body className={inter.className}>
-				<Toaster position='top-center' />
-				<Navbar />
-				{children}
-			</body>
-		</html>
+		<ClerkProvider>
+			<html lang='en'>
+				<body>
+					<Toaster position='top-center' />
+					<div className='min-h-screen pt-20 lg:pt-24 bg-background'>
+						<SignedIn>
+							<Navbar />
+							{children}
+						</SignedIn>
+						<SignedOut>
+							<RedirectToSignIn />
+						</SignedOut>
+					</div>
+				</body>
+			</html>
+		</ClerkProvider>
 	)
 }
