@@ -1,4 +1,5 @@
 'use cl'
+import Navbar from '@/components/Navbar'
 import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs'
 import { Sign } from 'crypto'
 import Image from 'next/image'

@@ -19,15 +19,13 @@ export default function RootLayout({
 			<html lang='en'>
 				<body>
 					<Toaster position='top-center' />
-					<div className='min-h-screen pt-20 lg:pt-24 bg-background'>
-						<SignedIn>
-							<Navbar />
-							{children}
-						</SignedIn>
-						<SignedOut>
-							<RedirectToSignIn />
-						</SignedOut>
-					</div>
+					<SignedIn>
+						<Navbar />
+						{children}
+					</SignedIn>
+					<SignedOut>
+						<RedirectToSignIn />
+					</SignedOut>
 				</body>
 			</html>
 		</ClerkProvider>
