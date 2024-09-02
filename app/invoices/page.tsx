@@ -17,6 +17,7 @@ import {
 	FaFile,
 	FaDownload
 } from 'react-icons/fa'
+import { generatePDF } from '@/utils/pdfGenerator'
 
 interface Invoice {
 	id: number
@@ -913,8 +914,12 @@ const InvoicesPage: React.FC = () => {
 						</div>
 						<div className='items-center px-4 py-3'>
 							<button
-								id='ok-btn'
-								className='px-4 py-2 text-blue bg-blue-500  text-base font-medium rounded-md w-full shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300'
+								className='px-4 py-2 bg-blue text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 mb-2'
+								onClick={() => generatePDF('invoice', selectedInvoice)}>
+								Download PDF
+							</button>
+							<button
+								className='px-4 py-2 bg-gray text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300'
 								onClick={() => setSelectedInvoice(null)}>
 								Close
 							</button>
