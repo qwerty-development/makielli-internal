@@ -5,7 +5,7 @@ import { clientFunctions, Client } from '../../../../utils/functions/clients'
 import { supabase } from '../../../../utils/supabase'
 import { format } from 'date-fns'
 import { FaSort, FaFile, FaDownload } from 'react-icons/fa'
-
+import { generatePDF } from '@/utils/pdfGenerator'
 interface Invoice {
 	id: number
 	created_at: string
@@ -182,6 +182,16 @@ export default function ClientDetailsPage({
 	return (
 		<div className='p-8 bg-white text-black'>
 			<h1 className='text-3xl font-bold mb-6'>Client Details</h1>
+			<button
+				onClick={() =>
+					generatePDF('clientFinancialReport', {
+						clientId: client?.client_id,
+						clientName: client?.name
+					})
+				}
+				className='bg-blue hover:bg-black text-white font-bold py-2 px-4 rounded mr-2 mb-5'>
+				Download Financial Report
+			</button>
 			{client && (
 				<div>
 					<div className='mb-4'>

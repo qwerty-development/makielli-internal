@@ -3,7 +3,9 @@ import { pdf } from '@react-pdf/renderer'
 import InvoicePDF from './pdfTemplates/InvoicePDF'
 import ReceiptPDF from './pdfTemplates/ReceiptPDF'
 import QuotationPDF from './pdfTemplates/QuotationPDF'
+import ClientFinancialReportPDF from './pdfTemplates/ClientFinancialReportPDF'
 import { supabase } from './supabase'
+import { fetchClientFinancialData } from './functions/clients'
 
 const fetchProductDetails = async (productVariantId: string) => {
 	const { data, error } = await supabase
@@ -48,7 +50,7 @@ const fetchInvoiceForReceipt = async (receiptId: number) => {
 }
 
 export const generatePDF = async (
-	type: 'invoice' | 'receipt' | 'quotation',
+	type: 'invoice' | 'receipt' | 'quotation' | 'clientFinancialReport',
 	data: any
 ) => {
 	let component: any
@@ -75,7 +77,7 @@ export const generatePDF = async (
 				})
 			)
 		}
-	} else {
+	} else if (type === 'invoice' || type === 'quotation') {
 		productsWithDetails = await Promise.all(
 			data.products.map(async (product: any) => {
 				const details: any = await fetchProductDetails(
@@ -107,6 +109,14 @@ export const generatePDF = async (
 		case 'quotation':
 			component = QuotationPDF({ quotation: enhancedData })
 			fileName = `quotation_${enhancedData.id}.pdf`
+			break
+		case 'clientFinancialReport':
+			const financialData = await fetchClientFinancialData(data.clientId)
+			component = ClientFinancialReportPDF({
+				clientName: data.clientName,
+				financialData
+			})
+			fileName = `financial_report_${data.clientName.replace(/\s+/g, '_')}.pdf`
 			break
 		default:
 			throw new Error('Invalid PDF type')
