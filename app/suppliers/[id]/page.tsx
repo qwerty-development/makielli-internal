@@ -3,9 +3,10 @@
 import React, { useState, useEffect } from 'react'
 import { supplierFunctions, Supplier } from '../../../utils/functions/suppliers'
 import { supabase } from '../../../utils/supabase'
-import { useRouter } from 'next/navigation'
+import { redirect, useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { FaSort, FaFile, FaDownload } from 'react-icons/fa'
+import { checkRoleAdmin } from '@/utils/checkRoleAdmin'
 
 interface Invoice {
 	id: number
@@ -30,6 +31,9 @@ export default function SupplierDetailsPage({
 }: {
 	params: { id: string }
 }) {
+	if (!checkRoleAdmin('admin')) {
+		redirect('/')
+	}
 	const [supplier, setSupplier] = useState<Supplier | null>(null)
 	const [isLoading, setIsLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
