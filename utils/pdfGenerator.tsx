@@ -6,6 +6,8 @@ import QuotationPDF from './pdfTemplates/QuotationPDF'
 import ClientFinancialReportPDF from './pdfTemplates/ClientFinancialReportPDF'
 import { supabase } from './supabase'
 import { fetchClientFinancialData } from './functions/clients'
+import { fetchSupplierFinancialData } from './functions/suppliers'
+import SupplierFinancialReportPDF from './pdfTemplates/SupplierFinancialReportPDF'
 
 const fetchProductDetails = async (productVariantId: string) => {
 	const { data, error } = await supabase
@@ -50,7 +52,12 @@ const fetchInvoiceForReceipt = async (receiptId: number) => {
 }
 
 export const generatePDF = async (
-	type: 'invoice' | 'receipt' | 'quotation' | 'clientFinancialReport',
+	type:
+		| 'invoice'
+		| 'receipt'
+		| 'quotation'
+		| 'clientFinancialReport'
+		| 'supplierFinancialReport',
 	data: any
 ) => {
 	let component: any
@@ -111,12 +118,25 @@ export const generatePDF = async (
 			fileName = `quotation_${enhancedData.id}.pdf`
 			break
 		case 'clientFinancialReport':
-			const financialData = await fetchClientFinancialData(data.clientId)
+			const clientFinancialData = await fetchClientFinancialData(data.clientId)
 			component = ClientFinancialReportPDF({
 				clientName: data.clientName,
-				financialData
+				financialData: clientFinancialData
 			})
 			fileName = `financial_report_${data.clientName.replace(/\s+/g, '_')}.pdf`
+			break
+		case 'supplierFinancialReport':
+			const supplierFinancialData = await fetchSupplierFinancialData(
+				data.supplierId
+			)
+			component = SupplierFinancialReportPDF({
+				supplierName: data.supplierName,
+				financialData: supplierFinancialData
+			})
+			fileName = `financial_report_${data.supplierName.replace(
+				/\s+/g,
+				'_'
+			)}.pdf`
 			break
 		default:
 			throw new Error('Invalid PDF type')

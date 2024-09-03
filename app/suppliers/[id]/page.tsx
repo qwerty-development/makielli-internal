@@ -7,6 +7,7 @@ import { redirect, useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { FaSort, FaFile, FaDownload } from 'react-icons/fa'
 import { checkRoleAdmin } from '@/utils/checkRoleAdmin'
+import { generatePDF } from '@/utils/pdfGenerator'
 
 interface Invoice {
 	id: number
@@ -167,6 +168,16 @@ export default function SupplierDetailsPage({
 	return (
 		<div className='p-8 bg-white text-black'>
 			<h1 className='text-3xl font-bold mb-6'>Supplier Details</h1>
+			<button
+				onClick={() =>
+					generatePDF('supplierFinancialReport', {
+						supplierId: supplier.id,
+						supplierName: supplier.name
+					})
+				}
+				className='bg-blue hover:bg-black text-white font-bold py-2 px-4 rounded mr-2 mb-5'>
+				Download Financial Report
+			</button>
 			<div className='mb-4'>
 				<button
 					onClick={() => setActiveTab('details')}
