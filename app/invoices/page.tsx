@@ -165,7 +165,11 @@ const InvoicesPage: React.FC = () => {
 	const handleCreateInvoice = async () => {
 		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
 		const totalPrice = calculateTotalPrice(newInvoice.products || [])
-		const invoiceData = { ...newInvoice, total_price: totalPrice }
+		const invoiceData = {
+			...newInvoice,
+			total_price: totalPrice,
+			remaining_amount: totalPrice
+		}
 
 		let result
 		if (newInvoice.id) {
