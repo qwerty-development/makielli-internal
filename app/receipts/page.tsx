@@ -370,7 +370,10 @@ const ReceiptsPage: React.FC = () => {
 				</thead>
 				<tbody className='text-gray-600 text-sm font-light'>
 					{receipts.map(receipt => (
-						<tr key={receipt.id} className='border-b border-gray hover:bg-gray'>
+						<tr
+							key={receipt.id}
+							className='border-b border-gray hover:bg-gray'
+							onClick={() => setSelectedReceipt(receipt)}>
 							<td className='py-3 px-6 text-left whitespace-nowrap'>
 								{receipt.id}
 							</td>
