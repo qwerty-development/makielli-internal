@@ -8,6 +8,7 @@ export interface Client {
 	address: string
 	group_id: number
 	balance: number
+	company: string
 }
 
 export interface ClientGroup {
