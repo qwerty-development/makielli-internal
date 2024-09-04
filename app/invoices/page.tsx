@@ -135,7 +135,8 @@ const InvoicesPage: React.FC = () => {
 	}
 
 	const calculateTotalPrice = (
-		invoiceProducts: { product_variant_id: string; quantity: number }[]
+		invoiceProducts: { product_variant_id: string; quantity: number }[],
+		isClientInvoice: boolean
 	) => {
 		return invoiceProducts.reduce((total, invoiceProduct) => {
 			const variant = allProductVariants.find(
@@ -158,13 +159,20 @@ const InvoicesPage: React.FC = () => {
 				return total
 			}
 
-			return total + parentProduct.price * invoiceProduct.quantity
+			const unitPrice = isClientInvoice
+				? parentProduct.price
+				: parentProduct.cost
+			return total + unitPrice * invoiceProduct.quantity
 		}, 0)
 	}
 
 	const handleCreateInvoice = async () => {
 		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
-		const totalPrice = calculateTotalPrice(newInvoice.products || [])
+		const isClientInvoice = activeTab === 'client'
+		const totalPrice = calculateTotalPrice(
+			newInvoice.products || [],
+			isClientInvoice
+		)
 		const invoiceData = {
 			...newInvoice,
 			total_price: totalPrice,
@@ -340,7 +348,8 @@ const InvoicesPage: React.FC = () => {
 			...(newInvoice.products || []),
 			{ product_variant_id: '', quantity: 0 }
 		]
-		const newTotalPrice = calculateTotalPrice(updatedProducts)
+		const isClientInvoice = activeTab === 'client'
+		const newTotalPrice = calculateTotalPrice(updatedProducts, isClientInvoice)
 		setNewInvoice({
 			...newInvoice,
 			products: updatedProducts,
@@ -352,7 +361,8 @@ const InvoicesPage: React.FC = () => {
 		setSelectedProduct(productId)
 		const updatedProducts = [...(newInvoice.products || [])]
 		updatedProducts[index] = { product_variant_id: '', quantity: 0 }
-		const newTotalPrice = calculateTotalPrice(updatedProducts)
+		const isClientInvoice = activeTab === 'client'
+		const newTotalPrice = calculateTotalPrice(updatedProducts, isClientInvoice)
 		setNewInvoice({
 			...newInvoice,
 			products: updatedProducts,
@@ -366,7 +376,8 @@ const InvoicesPage: React.FC = () => {
 			...updatedProducts[index],
 			product_variant_id: variantId
 		}
-		const newTotalPrice = calculateTotalPrice(updatedProducts)
+		const isClientInvoice = activeTab === 'client'
+		const newTotalPrice = calculateTotalPrice(updatedProducts, isClientInvoice)
 		setNewInvoice({
 			...newInvoice,
 			products: updatedProducts,
@@ -377,7 +388,8 @@ const InvoicesPage: React.FC = () => {
 	const handleQuantityChange = (index: number, quantity: number) => {
 		const updatedProducts = [...(newInvoice.products || [])]
 		updatedProducts[index] = { ...updatedProducts[index], quantity }
-		const newTotalPrice = calculateTotalPrice(updatedProducts)
+		const isClientInvoice = activeTab === 'client'
+		const newTotalPrice = calculateTotalPrice(updatedProducts, isClientInvoice)
 		setNewInvoice({
 			...newInvoice,
 			products: updatedProducts,
@@ -462,7 +474,7 @@ const InvoicesPage: React.FC = () => {
 		<div className='overflow-x-auto bg-white rounded-lg shadow'>
 			<table className='w-full table-auto'>
 				<thead>
-					<tr className='bg-gray-200 text-gray-600 uppercase text-sm leading-normal'>
+					<tr className='bg-gray text-white uppercase text-sm leading-normal'>
 						<th
 							className='py-3 px-6 text-left cursor-pointer'
 							onClick={() => handleSort('id')}>
@@ -484,11 +496,11 @@ const InvoicesPage: React.FC = () => {
 						<th className='py-3 px-6 text-center'>Actions</th>
 					</tr>
 				</thead>
-				<tbody className='text-gray-600 text-sm font-light'>
+				<tbody className='text-gray text-sm font-light'>
 					{invoices.map(invoice => (
 						<tr
 							key={invoice.id}
-							className='border-b border-gray-200 hover:bg-gray-100 cursor-pointer'
+							className='border-b border-gray  cursor-pointer'
 							onClick={() => handleInvoiceClick(invoice)}>
 							<td className='py-3 px-6 text-left whitespace-nowrap'>
 								{invoice.id}
@@ -502,7 +514,7 @@ const InvoicesPage: React.FC = () => {
 							<td className='py-3 px-6 text-left'>{invoice.note}</td>
 							<td className='py-3 px-6 text-center'>
 								{invoice.files.length > 0 ? (
-									<FaFile className='inline text-blue-500' />
+									<FaFile className='inline text-blue' />
 								) : (
 									'-'
 								)}
@@ -544,7 +556,7 @@ const InvoicesPage: React.FC = () => {
 					<button
 						onClick={() => setCurrentPage(1)}
 						disabled={currentPage === 1}
-						className={`relative inline-flex items-center text-blue px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${
+						className={`relative inline-flex items-center text-blue px-2 py-2 rounded-l-md border border-gray bg-white text-sm font-medium  hover:bg-gray-50 ${
 							currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>First</span>⟪
@@ -552,12 +564,12 @@ const InvoicesPage: React.FC = () => {
 					<button
 						onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
 						disabled={currentPage === 1}
-						className={`relative inline-flex text-blue items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${
+						className={`relative inline-flex text-blue items-center px-2 py-2 border border-gray bg-white text-sm font-medium  hover:bg-gray-50 ${
 							currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>Previous</span>⟨
 					</button>
-					<span className='relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700'>
+					<span className='relative inline-flex items-center px-4 py-2 border border-gray bg-white text-sm font-medium text-gray'>
 						{currentPage} of {totalPages === 0 ? 1 : totalPages}
 					</span>
 					<button
@@ -565,7 +577,7 @@ const InvoicesPage: React.FC = () => {
 							setCurrentPage(Math.min(totalPages, currentPage + 1))
 						}
 						disabled={currentPage === totalPages}
-						className={`relative inline-flex items-center text-blue px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${
+						className={`relative inline-flex items-center text-blue px-2 py-2 rounded-r-md border border-gray bg-white text-sm font-medium  hover:bg-gray-50 ${
 							currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>Next</span>⟩
@@ -585,10 +597,10 @@ const InvoicesPage: React.FC = () => {
 					startDate={filterStartDate}
 					endDate={filterEndDate}
 					placeholderText='Start Date'
-					className='block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm'
+					className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:placeholder-gray focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
 				/>
 				<div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-					<FaFilter className='h-5 w-5 text-gray-400' />
+					<FaFilter className='h-5 w-5 text-gray' />
 				</div>
 			</div>
 			<div className='relative'>
@@ -600,10 +612,10 @@ const InvoicesPage: React.FC = () => {
 					endDate={filterEndDate}
 					minDate={filterStartDate}
 					placeholderText='End Date'
-					className='block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm'
+					className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:placeholder-gray focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
 				/>
 				<div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-					<FaFilter className='h-5 w-5 text-gray-400' />
+					<FaFilter className='h-5 w-5 text-gray' />
 				</div>
 			</div>
 			<select
@@ -612,7 +624,7 @@ const InvoicesPage: React.FC = () => {
 						e.target.value ? Number(e.target.value) : null
 					)
 				}
-				className='block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md'>
+				className='block w-full pl-3 pr-10 py-2 text-base border-gray focus:outline-none focus:ring-blue focus:border-blue sm:text-sm rounded-md'>
 				<option value=''>
 					All {activeTab === 'client' ? 'Clients' : 'Suppliers'}
 				</option>
@@ -640,7 +652,7 @@ const InvoicesPage: React.FC = () => {
 			}`}>
 			<div className='flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0'>
 				<div className='fixed inset-0 transition-opacity' aria-hidden='true'>
-					<div className='absolute inset-0 bg-gray-500 opacity-75'></div>
+					<div className='absolute inset-0 bg-gray opacity-75'></div>
 				</div>
 				<span
 					className='hidden sm:inline-block sm:align-middle sm:h-screen'
@@ -655,7 +667,7 @@ const InvoicesPage: React.FC = () => {
 						<form>
 							<div className='mb-4'>
 								<label
-									className='block text-gray-700 text-sm font-bold mb-2'
+									className='block text-gray text-sm font-bold mb-2'
 									htmlFor='date'>
 									Date
 								</label>
@@ -671,18 +683,18 @@ const InvoicesPage: React.FC = () => {
 											created_at: date ? date.toISOString() : ''
 										})
 									}
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 								/>
 							</div>
 							<div className='mb-4'>
 								<label
-									className='block text-gray-700 text-sm font-bold mb-2'
+									className='block text-gray text-sm font-bold mb-2'
 									htmlFor='entity'>
 									{activeTab === 'client' ? 'Client' : 'Supplier'}
 								</label>
 								<select
 									id='entity'
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 									onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
 										const idField =
 											activeTab === 'client' ? 'client_id' : 'supplier_id'
@@ -705,13 +717,13 @@ const InvoicesPage: React.FC = () => {
 								</select>
 							</div>
 							<div className='mb-4'>
-								<label className='block text-gray-700 text-sm font-bold mb-2'>
+								<label className='block text-gray text-sm font-bold mb-2'>
 									Products
 								</label>
 								{newInvoice.products?.map((product, index) => (
 									<div key={index} className='mb-2 p-2 border rounded'>
 										<select
-											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2'
+											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
 											value={selectedProduct || ''}
 											onChange={e =>
 												handleProductChange(index, e.target.value)
@@ -725,7 +737,7 @@ const InvoicesPage: React.FC = () => {
 										</select>
 										{selectedProduct && (
 											<select
-												className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2'
+												className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
 												value={product.product_variant_id}
 												onChange={e =>
 													handleVariantChange(index, e.target.value)
@@ -742,22 +754,34 @@ const InvoicesPage: React.FC = () => {
 										)}
 										<input
 											type='number'
-											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2'
+											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
 											value={product.quantity}
 											onChange={e =>
 												handleQuantityChange(index, Number(e.target.value))
 											}
 											placeholder='Quantity'
 										/>
+										<div className='text-sm text-gray mt-1'>
+											Unit {activeTab === 'client' ? 'Price' : 'Cost'}: $
+											{activeTab === 'client'
+												? products
+														.find(p => p.id === selectedProduct)
+														?.price.toFixed(2)
+												: products
+														.find(p => p.id === selectedProduct)
+														?.cost.toFixed(2)}
+										</div>
 										<button
 											type='button'
-											className='bg-red-500 hover:bg-red-700 text-blue  font-bold py-1 px-2 rounded text-xs'
+											className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs mt-2'
 											onClick={() => {
 												const updatedProducts = newInvoice.products?.filter(
 													(_, i) => i !== index
 												)
+												const isClientInvoice = activeTab === 'client'
 												const newTotalPrice = calculateTotalPrice(
-													updatedProducts || []
+													updatedProducts || [],
+													isClientInvoice
 												)
 												setNewInvoice({
 													...newInvoice,
@@ -778,13 +802,13 @@ const InvoicesPage: React.FC = () => {
 							</div>
 							<div className='mb-4'>
 								<label
-									className='block text-gray-700 text-sm font-bold mb-2'
+									className='block text-gray text-sm font-bold mb-2'
 									htmlFor='note'>
 									Note
 								</label>
 								<textarea
 									id='note'
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 									value={newInvoice.note}
 									onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
 										setNewInvoice({ ...newInvoice, note: e.target.value })
@@ -792,31 +816,31 @@ const InvoicesPage: React.FC = () => {
 								/>
 							</div>
 							<div className='mb-4'>
-								<label className='block text-gray-700 text-sm font-bold mb-2'>
+								<label className='block text-gray text-sm font-bold mb-2'>
 									Total Price
 								</label>
 								<input
 									type='number'
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 									value={newInvoice.total_price}
 									readOnly
 								/>
 							</div>
 							<div className='mb-4'>
-								<label className='block text-gray-700 text-sm font-bold mb-2'>
+								<label className='block text-gray text-sm font-bold mb-2'>
 									Files
 								</label>
 								<input
 									type='file'
 									onChange={handleFileChange}
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 								/>
 								{selectedFile && (
 									<button
 										type='button'
 										onClick={handleFileUpload}
 										disabled={uploadingFile}
-										className='mt-2 bg-blue-500 hover:bg-blue-700 text-blue  font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline'>
+										className='mt-2 bg-blue hover:bg-blue text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline'>
 										{uploadingFile ? 'Uploading...' : 'Upload File'}
 									</button>
 								)}
@@ -826,7 +850,7 @@ const InvoicesPage: React.FC = () => {
 											href={file}
 											target='_blank'
 											rel='noopener noreferrer'
-											className='text-blue-500 hover:underline mr-2'>
+											className='text-blue hover:underline mr-2'>
 											{file.split('/').pop()}
 										</a>
 										<button
@@ -843,13 +867,13 @@ const InvoicesPage: React.FC = () => {
 					<div className='bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse'>
 						<button
 							type='button'
-							className='w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-blue hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm'
+							className='w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue text-base font-medium text-white hover:bg-blue focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue sm:ml-3 sm:w-auto sm:text-sm'
 							onClick={handleCreateInvoice}>
 							{newInvoice.id ? 'Update Invoice' : 'Create Invoice'}
 						</button>
 						<button
 							type='button'
-							className='mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-blue text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
+							className='mt-3 w-full inline-flex justify-center rounded-md border border-gray shadow-sm px-4 py-2 bg-white text-base font-medium text-gray hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
 							onClick={() => {
 								setShowModal(false)
 								setNewInvoice({
@@ -873,43 +897,57 @@ const InvoicesPage: React.FC = () => {
 		if (!selectedInvoice) return null
 
 		return (
-			<div className='fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full'>
+			<div className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'>
 				<div className='relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white'>
 					<div className='mt-3 text-center'>
 						<h3 className='text-lg leading-6 font-medium text-gray-900'>
 							Invoice Details
 						</h3>
 						<div className='mt-2 px-7 py-3'>
-							<p className='text-sm text-gray-500'>ID: {selectedInvoice.id}</p>
-							<p className='text-sm text-gray-500'>
+							<p className='text-sm text-gray'>ID: {selectedInvoice.id}</p>
+							<p className='text-sm text-gray'>
 								Date:{' '}
 								{new Date(selectedInvoice.created_at).toLocaleDateString()}
 							</p>
-							<p className='text-sm text-gray-500'>
+							<p className='text-sm text-gray'>
 								Total Price: ${selectedInvoice.total_price?.toFixed(2)}
 							</p>
-							<p className='text-sm text-gray-500'>
-								Note: {selectedInvoice.note}
-							</p>
+							<p className='text-sm text-gray'>Note: {selectedInvoice.note}</p>
 							<h4 className='text-sm font-medium text-gray-900 mt-4'>
 								Products:
 							</h4>
 							<ul className='list-disc list-inside'>
-								{selectedInvoice.products.map((product, index) => (
-									<li key={index} className='text-sm text-gray-500'>
-										{product.product_variant_id} - Quantity: {product.quantity}
-									</li>
-								))}
+								{selectedInvoice.products.map((product, index) => {
+									const variant = allProductVariants.find(
+										v => v.id === product.product_variant_id
+									)
+									const parentProduct = products.find(
+										p => p.id === variant?.product_id
+									)
+									const unitPrice =
+										activeTab === 'client'
+											? parentProduct?.price
+											: parentProduct?.cost
+									return (
+										<li key={index} className='text-sm text-gray'>
+											{parentProduct?.name} - {variant?.size} - {variant?.color}{' '}
+											- Quantity: {product.quantity} - Unit{' '}
+											{activeTab === 'client' ? 'Price' : 'Cost'}: $
+											{unitPrice?.toFixed(2)} - Total: $
+											{(unitPrice! * product.quantity).toFixed(2)}
+										</li>
+									)
+								})}
 							</ul>
 							<h4 className='text-sm font-medium text-gray-900 mt-4'>Files:</h4>
 							<ul className='list-disc list-inside'>
 								{selectedInvoice.files.map((file, index) => (
-									<li key={index} className='text-sm text-gray-500'>
+									<li key={index} className='text-sm text-gray'>
 										<a
 											href={file}
 											target='_blank'
 											rel='noopener noreferrer'
-											className='text-blue-500 hover:underline'>
+											className='text-blue hover:underline'>
 											{file.split('/').pop()}
 										</a>
 									</li>
@@ -918,12 +956,12 @@ const InvoicesPage: React.FC = () => {
 						</div>
 						<div className='items-center px-4 py-3'>
 							<button
-								className='px-4 py-2 bg-blue text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 mb-2'
+								className='px-4 py-2 bg-blue text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue focus:outline-none focus:ring-2 focus:ring-blue mb-2'
 								onClick={() => generatePDF('invoice', selectedInvoice)}>
 								Download PDF
 							</button>
 							<button
-								className='px-4 py-2 bg-gray text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300'
+								className='px-4 py-2 bg-gray text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-gray focus:outline-none focus:ring-2 focus:ring-gray'
 								onClick={() => setSelectedInvoice(null)}>
 								Close
 							</button>
@@ -936,9 +974,7 @@ const InvoicesPage: React.FC = () => {
 
 	return (
 		<div className='mx-auto px-4 py-8 text-gray'>
-			<h1 className='text-3xl font-bold text-gray-800 mb-6'>
-				Invoice Management
-			</h1>
+			<h1 className='text-3xl font-bold text-gray mb-6'>Invoice Management</h1>
 			<div className='bg-white shadow-md rounded-lg'>
 				<div className='flex border-b'>
 					<button
@@ -967,7 +1003,7 @@ const InvoicesPage: React.FC = () => {
 				</div>
 			</div>
 			<button
-				className='mt-6 bg-blue-500 hover:bg-blue-600  text-blue font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110'
+				className='mt-6 bg-blue hover:bg-blue  text-white font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110'
 				onClick={() => {
 					setNewInvoice({
 						created_at: new Date().toISOString(),
