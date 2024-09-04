@@ -22,7 +22,8 @@ export default function ProductsPage() {
 	>({
 		name: '',
 		photo: '',
-		price: 0
+		price: 0,
+		cost: 0
 	})
 	const [newVariants, setNewVariants] = useState<
 		Omit<ProductVariant, 'id' | 'product_id'>[]
@@ -113,7 +114,7 @@ export default function ProductsPage() {
 			const productWithPhoto = { ...newProduct, photo: photoUrl }
 			await productFunctions.addProduct(productWithPhoto, newVariants)
 			setShowProductForm(false)
-			setNewProduct({ name: '', photo: '', price: 0 })
+			setNewProduct({ name: '', photo: '', price: 0, cost: 0 })
 			setNewVariants([])
 			setSelectedFile(null)
 			fetchProducts()
@@ -232,10 +233,20 @@ export default function ProductsPage() {
 					/>
 					<input
 						type='number'
-						placeholder='Price (in cents)'
+						placeholder='Price '
 						value={newProduct.price}
 						onChange={e =>
 							setNewProduct({ ...newProduct, price: parseInt(e.target.value) })
+						}
+						className='w-full p-2 mb-2 border rounded'
+						required
+					/>
+					<input
+						type='number'
+						placeholder='Cost'
+						value={newProduct.cost}
+						onChange={e =>
+							setNewProduct({ ...newProduct, cost: parseInt(e.target.value) })
 						}
 						className='w-full p-2 mb-2 border rounded'
 						required
@@ -306,7 +317,10 @@ export default function ProductsPage() {
 							{product.name}
 						</h2>
 						<p className='text-white text-2xl mb-4'>
-							${(product.price / 100).toFixed(2)}
+							${product.price.toFixed(2)}
+						</p>
+						<p className='text-white text-2xl mb-4'>
+							${product.cost.toFixed(2)}
 						</p>
 						<h3 className='font-semibold text-white mb-2'>Variants:</h3>
 						<ul className='mb-4'>
@@ -367,12 +381,25 @@ export default function ProductsPage() {
 							)}
 							<input
 								type='number'
-								placeholder='Price (in cents)'
+								placeholder='Price '
 								value={editingProduct.price}
 								onChange={e =>
 									setEditingProduct({
 										...editingProduct,
 										price: parseInt(e.target.value)
+									})
+								}
+								className='w-full p-2 mb-2 border rounded'
+								required
+							/>
+							<input
+								type='number'
+								placeholder='Cost (in cents)'
+								value={editingProduct.cost}
+								onChange={e =>
+									setEditingProduct({
+										...editingProduct,
+										cost: parseInt(e.target.value)
 									})
 								}
 								className='w-full p-2 mb-2 border rounded'
