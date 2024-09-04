@@ -162,13 +162,32 @@ const InvoicesPage: React.FC = () => {
 			const unitPrice = isClientInvoice
 				? parentProduct.price
 				: parentProduct.cost
-			return total + unitPrice * invoiceProduct.quantity
+			const quantity = isClientInvoice
+				? Math.min(invoiceProduct.quantity, variant.quantity)
+				: invoiceProduct.quantity
+			return total + unitPrice * quantity
 		}, 0)
 	}
 
 	const handleCreateInvoice = async () => {
 		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
 		const isClientInvoice = activeTab === 'client'
+		const invalidProducts = newInvoice.products?.filter(product => {
+			const variant = allProductVariants.find(
+				v => v.id === product.product_variant_id
+			)
+			return (
+				isClientInvoice &&
+				(product.quantity <= 0 || product.quantity > (variant?.quantity || 0))
+			)
+		})
+
+		if (invalidProducts && invalidProducts.length > 0) {
+			toast.error(
+				'Some products have invalid quantities. Please check and try again.'
+			)
+			return
+		}
 		const totalPrice = calculateTotalPrice(
 			newInvoice.products || [],
 			isClientInvoice
@@ -375,9 +394,14 @@ const InvoicesPage: React.FC = () => {
 
 	const handleVariantChange = (index: number, variantId: string) => {
 		const updatedProducts = [...(newInvoice.products || [])]
+		const variant = allProductVariants.find(v => v.id === variantId)
+		const initialQuantity =
+			activeTab === 'client' && variant ? Math.min(1, variant.quantity) : 1
+
 		updatedProducts[index] = {
 			...updatedProducts[index],
-			product_variant_id: variantId
+			product_variant_id: variantId,
+			quantity: initialQuantity
 		}
 		const isClientInvoice = activeTab === 'client'
 		const newTotalPrice = calculateTotalPrice(updatedProducts, isClientInvoice)
@@ -390,14 +414,27 @@ const InvoicesPage: React.FC = () => {
 
 	const handleQuantityChange = (index: number, quantity: number) => {
 		const updatedProducts = [...(newInvoice.products || [])]
-		updatedProducts[index] = { ...updatedProducts[index], quantity }
-		const isClientInvoice = activeTab === 'client'
-		const newTotalPrice = calculateTotalPrice(updatedProducts, isClientInvoice)
-		setNewInvoice({
-			...newInvoice,
-			products: updatedProducts,
-			total_price: newTotalPrice
-		})
+		const currentProduct = updatedProducts[index]
+		const variant = allProductVariants.find(
+			v => v.id === currentProduct.product_variant_id
+		)
+
+		if (variant) {
+			const maxQuantity = activeTab === 'client' ? variant.quantity : Infinity
+			const newQuantity = Math.min(Math.max(quantity, 0), maxQuantity)
+
+			updatedProducts[index] = { ...currentProduct, quantity: newQuantity }
+			const isClientInvoice = activeTab === 'client'
+			const newTotalPrice = calculateTotalPrice(
+				updatedProducts,
+				isClientInvoice
+			)
+			setNewInvoice({
+				...newInvoice,
+				products: updatedProducts,
+				total_price: newTotalPrice
+			})
+		}
 	}
 
 	const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -740,7 +777,7 @@ const InvoicesPage: React.FC = () => {
 										</select>
 										{selectedProduct && (
 											<select
-												className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
+												className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2'
 												value={product.product_variant_id}
 												onChange={e =>
 													handleVariantChange(index, e.target.value)
@@ -748,9 +785,16 @@ const InvoicesPage: React.FC = () => {
 												<option value=''>Select Variant</option>
 												{products
 													.find(p => p.id === selectedProduct)
-													?.variants.map(variant => (
+													?.variants.filter(
+														variant =>
+															activeTab === 'supplier' || variant.quantity > 0
+													)
+													.map(variant => (
 														<option key={variant.id} value={variant.id}>
 															{variant.size} - {variant.color}
+															{activeTab === 'client'
+																? ` (Available: ${variant.quantity})`
+																: ''}
 														</option>
 													))}
 											</select>
