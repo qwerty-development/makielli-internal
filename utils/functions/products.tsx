@@ -6,6 +6,7 @@ export interface Product {
 	photo: string
 	price: number
 	cost: number
+	type: 'Stock' | 'Sample'
 	variants: ProductVariant[]
 }
 

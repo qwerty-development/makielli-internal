@@ -23,7 +23,8 @@ export default function ProductsPage() {
 		name: '',
 		photo: '',
 		price: 0,
-		cost: 0
+		cost: 0,
+		type: 'Stock'
 	})
 	const [newVariants, setNewVariants] = useState<
 		Omit<ProductVariant, 'id' | 'product_id'>[]
@@ -114,7 +115,7 @@ export default function ProductsPage() {
 			const productWithPhoto = { ...newProduct, photo: photoUrl }
 			await productFunctions.addProduct(productWithPhoto, newVariants)
 			setShowProductForm(false)
-			setNewProduct({ name: '', photo: '', price: 0, cost: 0 })
+			setNewProduct({ name: '', photo: '', price: 0, cost: 0, type: 'Stock' })
 			setNewVariants([])
 			setSelectedFile(null)
 			fetchProducts()
@@ -231,6 +232,22 @@ export default function ProductsPage() {
 						onChange={handleFileChange}
 						className='w-full p-2 mb-2 text-white border rounded'
 					/>
+					<select
+						value={newProduct.type}
+						onChange={e =>
+							setNewProduct({
+								...newProduct,
+								type: e.target.value as 'Stock' | 'Sample'
+							})
+						}
+						className='w-full p-2 mb-2 border rounded'
+						required>
+						<option value='' disabled>
+							Select Type
+						</option>
+						<option value='Stock'>Stock</option>
+						<option value='Sample'>Sample</option>
+					</select>
 					<input
 						type='number'
 						placeholder='Price '
@@ -316,6 +333,7 @@ export default function ProductsPage() {
 						<h2 className='text-3xl text-white font-semibold mb-2'>
 							{product.name}
 						</h2>
+						<p className='text-white text-2xl mb-4'>Type: {product.type}</p>
 						<p className='text-white text-2xl mb-4'>
 							${product.price.toFixed(2)}
 						</p>
@@ -367,6 +385,19 @@ export default function ProductsPage() {
 								className='w-full p-2 mb-2 border rounded'
 								required
 							/>
+							<select
+								value={editingProduct.type}
+								onChange={e =>
+									setEditingProduct({
+										...editingProduct,
+										type: e.target.value as 'Stock' | 'Sample'
+									})
+								}
+								className='w-full p-2 mb-2 border rounded'
+								required>
+								<option value='Stock'>Stock</option>
+								<option value='Sample'>Sample</option>
+							</select>
 							<input
 								type='file'
 								onChange={handleFileChange}
