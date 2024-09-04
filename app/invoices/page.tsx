@@ -199,9 +199,9 @@ const InvoicesPage: React.FC = () => {
 				.update(invoiceData)
 				.eq('id', newInvoice.id)
 
-			// Update product quantities
-			await updateProductQuantities(oldInvoice.products, true) // Increase old quantities
-			await updateProductQuantities(newInvoice.products || []) // Decrease new quantities
+			// Revert old quantities and apply new quantities
+			await updateProductQuantities(oldInvoice.products, !isClientInvoice)
+			await updateProductQuantities(newInvoice.products || [], isClientInvoice)
 
 			// Update entity balance
 			await updateEntityBalance(totalPrice - oldInvoice.total_price)
@@ -210,7 +210,7 @@ const InvoicesPage: React.FC = () => {
 			result = await supabase.from(table).insert(invoiceData).single()
 
 			// Update product quantities
-			await updateProductQuantities(newInvoice.products || [])
+			await updateProductQuantities(newInvoice.products || [], isClientInvoice)
 
 			// Update entity balance
 			await updateEntityBalance(totalPrice)
@@ -235,12 +235,15 @@ const InvoicesPage: React.FC = () => {
 
 	const updateProductQuantities = async (
 		products: { product_variant_id: string; quantity: number }[],
-		isIncrease = false
+		isClientInvoice: boolean
 	) => {
 		for (const product of products) {
+			const quantityChange = isClientInvoice
+				? -product.quantity
+				: product.quantity
 			const { error } = await supabase.rpc('update_product_variant_quantity', {
 				variant_id: product.product_variant_id,
-				quantity_change: isIncrease ? product.quantity : -product.quantity
+				quantity_change: quantityChange
 			})
 
 			if (error) {
