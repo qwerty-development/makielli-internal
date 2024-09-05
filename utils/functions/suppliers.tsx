@@ -6,6 +6,7 @@ export interface Supplier {
 	location: string
 	phone: string
 	balance: number
+	email: string
 }
 
 export const supplierFunctions = {

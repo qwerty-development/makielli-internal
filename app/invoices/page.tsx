@@ -442,6 +442,65 @@ const InvoicesPage: React.FC = () => {
 			setSelectedFile(e.target.files[0])
 		}
 	}
+	const handleSendEmail = async (invoice: Invoice) => {
+		const recipientEmail =
+			activeTab === 'client'
+				? clients.find(client => client.client_id === invoice.client_id)?.email
+				: suppliers.find(supplier => supplier.id === invoice.supplier_id)?.email
+
+		const recipientName =
+			activeTab === 'client'
+				? clients.find(client => client.client_id === invoice.client_id)?.name
+				: suppliers.find(supplier => supplier.id === invoice.supplier_id)?.name
+
+		if (!recipientEmail || !recipientName) {
+			toast.error('Recipient information not found')
+			return
+		}
+
+		const productsWithDetails = invoice.products.map(product => {
+			const variant = allProductVariants.find(
+				v => v.id === product.product_variant_id
+			)
+			const parentProduct = products.find(p => p.id === variant?.product_id)
+			return {
+				name: `${parentProduct?.name} - ${variant?.size} - ${variant?.color}`,
+				quantity: product.quantity,
+				unit_price:
+					activeTab === 'client' ? parentProduct?.price : parentProduct?.cost
+			}
+		})
+
+		const invoiceData = {
+			...invoice,
+			products: productsWithDetails,
+			[activeTab === 'client' ? 'client_name' : 'supplier_name']: recipientName
+		}
+
+		try {
+			const response = await fetch('/api/send-invoice-email', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					invoice: invoiceData,
+					recipientEmail,
+					activeTab
+				})
+			})
+
+			if (response.ok) {
+				toast.success('Email sent successfully')
+			} else {
+				const error = await response.json()
+				throw new Error(error.message)
+			}
+		} catch (error) {
+			console.error('Error sending email:', error)
+			toast.error('Failed to send email. Please try again.')
+		}
+	}
 
 	const handleFileUpload = async () => {
 		if (!selectedFile) {
@@ -561,6 +620,14 @@ const InvoicesPage: React.FC = () => {
 							</td>
 							<td className='py-3 px-6 text-center'>
 								<div className='flex item-center justify-center'>
+									<button
+										className='mr-2 bg-blue text-white p-1 rounded-lg text-nowrap transform  hover:scale-110'
+										onClick={e => {
+											e.stopPropagation()
+											handleSendEmail(invoice)
+										}}>
+										Send Email
+									</button>
 									<button
 										className='w-4 mr-2 transform text-blue hover:text-purple-500 hover:scale-110'
 										onClick={e => {

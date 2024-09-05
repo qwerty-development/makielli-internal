@@ -38,6 +38,8 @@ interface Entity {
 	id: number | string
 	name: string
 	balance: number
+	email: string
+	client_id?: number
 }
 
 const ReceiptsPage: React.FC = () => {
@@ -77,6 +79,8 @@ const ReceiptsPage: React.FC = () => {
 		filterEndDate,
 		filterEntity
 	])
+
+	console.log(entities)
 
 	const fetchReceipts = async () => {
 		const table = activeTab === 'client' ? 'ClientReceipts' : 'SupplierReceipts'
@@ -256,6 +260,38 @@ const ReceiptsPage: React.FC = () => {
 		}
 	}
 
+	const handleSendEmail = async (receipt: Receipt) => {
+		const recipientEmail =
+			activeTab === 'client'
+				? entities.find(entity => entity.client_id === receipt.client_id)?.email
+				: entities.find(entity => entity.id === receipt.supplier_id)?.email
+
+		if (!recipientEmail) {
+			toast.error('Recipient email not found')
+			return
+		}
+
+		try {
+			const response = await fetch('/api/send-receipt-email', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ receipt, recipientEmail, activeTab })
+			})
+
+			if (response.ok) {
+				toast.success('Receipt email sent successfully')
+			} else {
+				const error = await response.json()
+				throw new Error(error.message)
+			}
+		} catch (error) {
+			console.error('Error sending receipt email:', error)
+			toast.error('Failed to send receipt email. Please try again.')
+		}
+	}
+
 	const handleSort = (field: keyof Receipt) => {
 		if (field === sortField) {
 			setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
@@ -394,8 +430,16 @@ const ReceiptsPage: React.FC = () => {
 									'-'
 								)}
 							</td>
-							<td className='py-3 px-6 text-center'>
+							<td className='py-3  text-center'>
 								<div className='flex item-center justify-center'>
+									<button
+										className='mr-2 bg-blue text-white p-1 rounded-lg text-nowrap transform  hover:scale-110'
+										onClick={e => {
+											e.stopPropagation()
+											handleSendEmail(receipt)
+										}}>
+										Send Email
+									</button>
 									<button
 										className='w-4 mr-2 transform hover:text-blue hover:scale-110'
 										onClick={() => handleEditReceipt(receipt)}>
