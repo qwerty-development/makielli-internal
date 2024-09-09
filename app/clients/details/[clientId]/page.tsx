@@ -292,6 +292,21 @@ export default function ClientDetailsPage({
 											className='shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:shadow-outline'
 										/>
 									</div>
+									<div className='mb-4'>
+										<label
+											className='block text-white text-sm font-bold mb-2'
+											htmlFor='tax_number'>
+											Tax Number
+										</label>
+										<input
+											type='text'
+											id='tax_number'
+											name='tax_number'
+											value={editedClient?.tax_number || ''}
+											onChange={handleInputChange}
+											className='shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:shadow-outline'
+										/>
+									</div>
 									<div className='flex items-center justify-between'>
 										<button
 											type='submit'
@@ -323,6 +338,10 @@ export default function ClientDetailsPage({
 									<div className='mb-4'>
 										<h2 className='text-xl font-semibold'>Address</h2>
 										<p>{client.address}</p>
+									</div>
+									<div className='mb-4'>
+										<h2 className='text-xl font-semibold'>Tax Number</h2>
+										<p>{client.tax_number}</p>
 									</div>
 									<div className='mb-4'>
 										<h2 className='text-xl font-semibold'>Balance</h2>

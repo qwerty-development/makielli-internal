@@ -23,7 +23,8 @@ export default function ClientsPage() {
 		address: '',
 		group_id: 0,
 		balance: 0,
-		company: 'Frisson International LLC'
+		company: 'Frisson International LLC',
+		tax_number: ''
 	})
 	const [newGroup, setNewGroup] = useState<Omit<ClientGroup, 'group_id'>>({
 		name: ''
@@ -60,7 +61,8 @@ export default function ClientsPage() {
 				address: '',
 				group_id: 0,
 				balance: 0,
-				company: 'Frisson International LLC'
+				company: 'Frisson International LLC',
+				tax_number: ''
 			})
 			// Optionally, refresh the clients list here
 			alert('Client created successfully!')
@@ -153,6 +155,16 @@ export default function ClientsPage() {
 						value={newClient.address}
 						onChange={e =>
 							setNewClient({ ...newClient, address: e.target.value })
+						}
+						className='w-full p-2 mb-2 border rounded'
+						required
+					/>
+					<input
+						type='text'
+						placeholder='Tax Number'
+						value={newClient.tax_number}
+						onChange={e =>
+							setNewClient({ ...newClient, tax_number: e.target.value })
 						}
 						className='w-full p-2 mb-2 border rounded'
 						required

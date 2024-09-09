@@ -9,6 +9,7 @@ export interface Client {
 	group_id: number
 	balance: number
 	company: string
+	tax_number: string
 }
 
 export interface ClientGroup {
