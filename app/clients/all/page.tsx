@@ -1,19 +1,26 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { clientFunctions, Client } from '../../../utils/functions/clients'
+import {
+	clientFunctions,
+	Client,
+	Company
+} from '../../../utils/functions/clients'
 import Link from 'next/link'
+import { toast } from 'react-hot-toast'
 
 export default function AllClientsPage() {
 	const [clients, setClients] = useState<Client[]>([])
+	const [companies, setCompanies] = useState<Company[]>([])
 	const [filteredClients, setFilteredClients] = useState<Client[]>([])
 	const [isLoading, setIsLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
 	const [searchTerm, setSearchTerm] = useState('')
-	const [selectedCompany, setSelectedCompany] = useState<string>('') // State to filter by company
+	const [selectedCompany, setSelectedCompany] = useState<number | ''>('') // State to filter by company
 
 	useEffect(() => {
 		fetchAllClients()
+		fetchCompanies()
 	}, [])
 
 	useEffect(() => {
@@ -22,7 +29,7 @@ export default function AllClientsPage() {
 			client =>
 				(client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
 					client.email.toLowerCase().includes(searchTerm.toLowerCase())) &&
-				(selectedCompany === '' || client.company === selectedCompany) // Filter by company if selected
+				(selectedCompany === '' || client.company_id === selectedCompany)
 		)
 		setFilteredClients(filtered)
 	}, [searchTerm, clients, selectedCompany])
@@ -37,9 +44,25 @@ export default function AllClientsPage() {
 		} catch (error) {
 			console.error('Error fetching clients:', error)
 			setError('Failed to fetch clients. Please try again later.')
+			toast.error('Failed to fetch clients. Please try again later.')
 		} finally {
 			setIsLoading(false)
 		}
+	}
+
+	const fetchCompanies = async () => {
+		try {
+			const companiesData = await clientFunctions.getAllCompanies()
+			setCompanies(companiesData)
+		} catch (error) {
+			console.error('Error fetching companies:', error)
+			toast.error('Failed to fetch companies. Please try again later.')
+		}
+	}
+
+	const getCompanyName = (companyId: number) => {
+		const company = companies.find(c => c.id === companyId)
+		return company ? company.name : 'Unknown Company'
 	}
 
 	if (isLoading) {
@@ -63,13 +86,16 @@ export default function AllClientsPage() {
 				/>
 				<select
 					value={selectedCompany}
-					onChange={e => setSelectedCompany(e.target.value)}
+					onChange={e =>
+						setSelectedCompany(e.target.value ? Number(e.target.value) : '')
+					}
 					className='p-2 border rounded bg-white text-black'>
 					<option value=''>All Companies</option>
-					<option value='Frisson International LLC'>
-						Frisson International LLC
-					</option>
-					<option value='Frisson SARL'>Frisson SARL</option>
+					{companies.map(company => (
+						<option key={company.id} value={company.id}>
+							{company.name}
+						</option>
+					))}
 				</select>
 			</div>
 			<div className='bg-gray rounded-lg overflow-hidden'>
@@ -87,9 +113,8 @@ export default function AllClientsPage() {
 												Email: {client.email} | Phone: {client.phone}
 											</p>
 											<p className='text-sm text-white truncate'>
-												Company: {client.company}
-											</p>{' '}
-											{/* Display company */}
+												Company: {getCompanyName(client.company_id)}
+											</p>
 										</div>
 									</div>
 								</div>

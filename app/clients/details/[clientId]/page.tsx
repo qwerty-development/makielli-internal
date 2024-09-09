@@ -1,11 +1,17 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { clientFunctions, Client } from '../../../../utils/functions/clients'
+import {
+	clientFunctions,
+	Client,
+	Company
+} from '../../../../utils/functions/clients'
 import { supabase } from '../../../../utils/supabase'
 import { format } from 'date-fns'
 import { FaSort, FaFile, FaDownload, FaInfoCircle } from 'react-icons/fa'
 import { generatePDF } from '@/utils/pdfGenerator'
+import { toast } from 'react-hot-toast'
+
 interface InvoiceProduct {
 	product_variant_id: string
 	quantity: number
@@ -35,6 +41,7 @@ export default function ClientDetailsPage({
 	params: { clientId: string }
 }) {
 	const [client, setClient] = useState<Client | null>(null)
+	const [companies, setCompanies] = useState<Company[]>([])
 	const [isLoading, setIsLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
 	const [isEditing, setIsEditing] = useState(false)
@@ -54,6 +61,7 @@ export default function ClientDetailsPage({
 			fetchClientDetails()
 			fetchInvoices()
 			fetchReceipts()
+			fetchCompanies()
 		}
 	}, [params.clientId])
 
@@ -71,6 +79,16 @@ export default function ClientDetailsPage({
 			setError('Failed to fetch client details. Please try again later.')
 		} finally {
 			setIsLoading(false)
+		}
+	}
+
+	const fetchCompanies = async () => {
+		try {
+			const companiesData = await clientFunctions.getAllCompanies()
+			setCompanies(companiesData)
+		} catch (error) {
+			console.error('Error fetching companies:', error)
+			toast.error('Failed to fetch companies. Please try again later.')
 		}
 	}
 
@@ -123,11 +141,11 @@ export default function ClientDetailsPage({
 			setClient(editedClient)
 			setIsEditing(false)
 			setError(null)
-			alert('Client updated successfully')
+			toast.success('Client updated successfully')
 		} catch (error) {
 			console.error('Error updating client:', error)
 			setError('Failed to update client. Please try again.')
-			alert('Failed to update client')
+			toast.error('Failed to update client')
 		}
 	}
 
@@ -137,21 +155,26 @@ export default function ClientDetailsPage({
 		if (window.confirm('Are you sure you want to delete this client?')) {
 			try {
 				await clientFunctions.deleteClient(client.client_id)
-				alert('Client deleted successfully')
+				toast.success('Client deleted successfully')
 				window.location.href = '/clients'
 			} catch (error) {
 				console.error('Error deleting client:', error)
 				setError('Failed to delete client. Please try again.')
-				alert('Failed to delete client')
+				toast.error('Failed to delete client')
 			}
 		}
 	}
 
-	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+	const handleInputChange = (
+		e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+	) => {
 		if (!editedClient) return
 
 		const { name, value } = e.target
-		setEditedClient({ ...editedClient, [name]: value })
+		setEditedClient({
+			...editedClient,
+			[name]: name === 'company_id' ? Number(value) : value
+		})
 	}
 
 	const handleSort = (field: keyof Invoice | keyof Receipt) => {
@@ -174,6 +197,11 @@ export default function ClientDetailsPage({
 
 	const handleReceiptClick = (receipt: Receipt) => {
 		setSelectedReceipt(receipt)
+	}
+
+	const getCompanyName = (companyId: number) => {
+		const company = companies.find(c => c.id === companyId)
+		return company ? company.name : 'Unknown Company'
 	}
 
 	if (isLoading) {
@@ -312,6 +340,26 @@ export default function ClientDetailsPage({
 											className='shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:shadow-outline'
 										/>
 									</div>
+									<div className='mb-4'>
+										<label
+											className='block text-white text-sm font-bold mb-2'
+											htmlFor='company_id'>
+											Company
+										</label>
+										<select
+											id='company_id'
+											name='company_id'
+											value={editedClient?.company_id || ''}
+											onChange={handleInputChange}
+											className='shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:shadow-outline'>
+											<option value=''>Select a company</option>
+											{companies.map(company => (
+												<option key={company.id} value={company.id}>
+													{company.name}
+												</option>
+											))}
+										</select>
+									</div>
 									<div className='flex items-center justify-between'>
 										<button
 											type='submit'
@@ -351,6 +399,10 @@ export default function ClientDetailsPage({
 									<div className='mb-4'>
 										<h2 className='text-xl font-semibold'>Balance</h2>
 										<p>${client.balance.toFixed(2)}</p>
+									</div>
+									<div className='mb-4'>
+										<h2 className='text-xl font-semibold'>Company</h2>
+										<p>{getCompanyName(client.company_id)}</p>
 									</div>
 									<div className='flex items-center justify-between mt-6'>
 										<button

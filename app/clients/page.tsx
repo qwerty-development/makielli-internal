@@ -4,18 +4,19 @@ import React, { useState, useEffect } from 'react'
 import {
 	clientFunctions,
 	ClientGroup,
-	Client
+	Client,
+	Company
 } from '../../utils/functions/clients'
 import Link from 'next/link'
+import { toast } from 'react-hot-toast'
 
 export default function ClientsPage() {
 	const [groups, setGroups] = useState<ClientGroup[]>([])
+	const [companies, setCompanies] = useState<Company[]>([])
 	const [isLoading, setIsLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
 	const [showClientForm, setShowClientForm] = useState(false)
 	const [showGroupForm, setShowGroupForm] = useState(false)
-	const [clientError, setClientError] = useState<string | null>(null)
-	const [groupError, setGroupError] = useState<string | null>(null)
 	const [newClient, setNewClient] = useState<Omit<Client, 'client_id'>>({
 		name: '',
 		email: '',
@@ -23,7 +24,7 @@ export default function ClientsPage() {
 		address: '',
 		group_id: 0,
 		balance: 0,
-		company: 'Frisson International LLC',
+		company_id: 0,
 		tax_number: ''
 	})
 	const [newGroup, setNewGroup] = useState<Omit<ClientGroup, 'group_id'>>({
@@ -32,6 +33,7 @@ export default function ClientsPage() {
 
 	useEffect(() => {
 		fetchGroups()
+		fetchCompanies()
 	}, [])
 
 	const fetchGroups = async () => {
@@ -48,9 +50,18 @@ export default function ClientsPage() {
 		}
 	}
 
+	const fetchCompanies = async () => {
+		try {
+			const companiesData = await clientFunctions.getAllCompanies()
+			setCompanies(companiesData)
+		} catch (error) {
+			console.error('Error fetching companies:', error)
+			toast.error('Failed to fetch companies. Please try again later.')
+		}
+	}
+
 	const handleCreateClient = async (e: React.FormEvent) => {
 		e.preventDefault()
-		setClientError(null)
 		try {
 			await clientFunctions.createClient(newClient)
 			setShowClientForm(false)
@@ -61,29 +72,27 @@ export default function ClientsPage() {
 				address: '',
 				group_id: 0,
 				balance: 0,
-				company: 'Frisson International LLC',
+				company_id: 0,
 				tax_number: ''
 			})
-			// Optionally, refresh the clients list here
-			alert('Client created successfully!')
+			toast.success('Client created successfully!')
 		} catch (error) {
 			console.error('Error creating client:', error)
-			setClientError('Failed to create client. Please try again.')
+			toast.error('Failed to create client. Please try again.')
 		}
 	}
 
 	const handleCreateGroup = async (e: React.FormEvent) => {
 		e.preventDefault()
-		setGroupError(null)
 		try {
 			await clientFunctions.createGroup(newGroup)
 			setShowGroupForm(false)
 			setNewGroup({ name: '' })
 			fetchGroups() // Refresh the groups list
-			alert('Group created successfully!')
+			toast.success('Group created successfully!')
 		} catch (error) {
 			console.error('Error creating group:', error)
-			setGroupError('Failed to create group. Please try again.')
+			toast.error('Failed to create group. Please try again.')
 		}
 	}
 
@@ -184,17 +193,18 @@ export default function ClientsPage() {
 						))}
 					</select>
 					<select
-						value={newClient.company}
+						value={newClient.company_id}
 						onChange={e =>
-							setNewClient({ ...newClient, company: e.target.value })
+							setNewClient({ ...newClient, company_id: Number(e.target.value) })
 						}
 						className='w-full p-2 mb-2 border rounded'
 						required>
 						<option value=''>Select a company</option>
-						<option value='Frisson International LLC'>
-							Frisson International LLC
-						</option>
-						<option value='Frisson SARL'>Frisson SARL</option>
+						{companies.map(company => (
+							<option key={company.id} value={company.id}>
+								{company.name}
+							</option>
+						))}
 					</select>
 					<button
 						type='submit'

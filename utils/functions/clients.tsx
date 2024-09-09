@@ -8,12 +8,17 @@ export interface Client {
 	address: string
 	group_id: number
 	balance: number
-	company: string
+	company_id: number
 	tax_number: string
 }
 
 export interface ClientGroup {
 	group_id: number
+	name: string
+}
+
+export interface Company {
+	id: number
 	name: string
 }
 
@@ -131,6 +136,12 @@ export const clientFunctions = {
 			.eq('group_id', id)
 
 		if (error) throw error
+	},
+	async getAllCompanies(): Promise<Company[]> {
+		const { data, error } = await supabase.from('companies').select('*')
+
+		if (error) throw error
+		return data || []
 	}
 }
 
