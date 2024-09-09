@@ -140,7 +140,16 @@ export default function ProductsPage() {
 			}
 			const { id, variants, ...productData } = editingProduct
 			const updatedProduct = { ...productData, photo: photoUrl }
-			await productFunctions.updateProduct(id, updatedProduct, variants)
+
+			// Prepare variants for update
+			const updatedVariants = variants.map(variant => ({
+				id: variant.id || undefined, // Use undefined for new variants
+				size: variant.size,
+				color: variant.color,
+				quantity: variant.quantity
+			}))
+
+			await productFunctions.updateProduct(id, updatedProduct, updatedVariants)
 			setEditingProduct(null)
 			setSelectedFile(null)
 			fetchProducts()
@@ -509,9 +518,9 @@ export default function ProductsPage() {
 							<button
 								type='button'
 								onClick={() => {
-									const newVariants = [
+									const newVariants: any = [
 										...editingProduct.variants,
-										{ id: '', product_id: '', size: '', color: '', quantity: 0 }
+										{ size: '', color: '', quantity: 0 } // Remove id field for new variants
 									]
 									setEditingProduct({
 										...editingProduct,
