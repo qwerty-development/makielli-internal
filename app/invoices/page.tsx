@@ -15,23 +15,26 @@ import {
 	FaFilter,
 	FaPlus,
 	FaFile,
-	FaDownload
+	FaDownload,
+	FaInfoCircle
 } from 'react-icons/fa'
 import { generatePDF } from '@/utils/pdfGenerator'
+
+interface InvoiceProduct {
+	product_id: string
+	product_variant_id: string
+	quantity: number
+	note: string
+}
 
 interface Invoice {
 	id: number
 	created_at: string
 	total_price: number
-	note: string
 	client_id?: number
 	order_number: number
 	supplier_id?: string
-	products: {
-		product_id: string
-		product_variant_id: string
-		quantity: number
-	}[]
+	products: InvoiceProduct[]
 	files: string[]
 	remaining_amount: number
 }
@@ -47,7 +50,8 @@ const InvoicesPage: React.FC = () => {
 	const [itemsPerPage] = useState(10)
 	const [sortField, setSortField] = useState<keyof Invoice>('created_at')
 	const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
-	const [filterDate, setFilterDate] = useState<Date | null>(null)
+	const [filterStartDate, setFilterStartDate] = useState<any>(null)
+	const [filterEndDate, setFilterEndDate] = useState<any>(null)
 	const [filterEntity, setFilterEntity] = useState<number | string | null>(null)
 	const [totalInvoices, setTotalInvoices] = useState(0)
 	const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
@@ -57,14 +61,11 @@ const InvoicesPage: React.FC = () => {
 	const [newInvoice, setNewInvoice] = useState<Partial<Invoice>>({
 		created_at: new Date().toISOString(),
 		total_price: 0,
-		note: '',
 		order_number: 0,
 		products: [],
 		files: [],
 		remaining_amount: 0
 	})
-	const [filterStartDate, setFilterStartDate] = useState<any>(null)
-	const [filterEndDate, setFilterEndDate] = useState<any>(null)
 	const [selectedFile, setSelectedFile] = useState<File | null>(null)
 	const [uploadingFile, setUploadingFile] = useState(false)
 
@@ -73,7 +74,15 @@ const InvoicesPage: React.FC = () => {
 		fetchClients()
 		fetchSuppliers()
 		fetchProducts()
-	}, [activeTab, currentPage, sortField, sortOrder, filterDate, filterEntity])
+	}, [
+		activeTab,
+		currentPage,
+		sortField,
+		sortOrder,
+		filterStartDate,
+		filterEndDate,
+		filterEntity
+	])
 
 	const fetchInvoices = async () => {
 		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
@@ -85,7 +94,6 @@ const InvoicesPage: React.FC = () => {
 		if (filterEndDate) {
 			query = query.lte('created_at', filterEndDate.toISOString())
 		}
-
 		if (filterEntity) {
 			const idField = activeTab === 'client' ? 'client_id' : 'supplier_id'
 			query = query.eq(idField, filterEntity)
@@ -140,11 +148,7 @@ const InvoicesPage: React.FC = () => {
 	}
 
 	const calculateTotalPrice = (
-		invoiceProducts: {
-			product_id: string
-			product_variant_id: string
-			quantity: number
-		}[],
+		invoiceProducts: InvoiceProduct[],
 		isClientInvoice: boolean
 	) => {
 		return invoiceProducts.reduce((total, invoiceProduct) => {
@@ -225,7 +229,7 @@ const InvoicesPage: React.FC = () => {
 	}
 
 	const updateProductQuantities = async (
-		products: { product_variant_id: string; quantity: number }[],
+		products: InvoiceProduct[],
 		isClientInvoice: boolean
 	) => {
 		for (const product of products) {
@@ -327,11 +331,6 @@ const InvoicesPage: React.FC = () => {
 		setSelectedInvoice(invoice)
 	}
 
-	const handleFilterDateChange = (date: Date | null) => {
-		setFilterDate(date)
-		setCurrentPage(1)
-	}
-
 	const handleFilterEntityChange = (id: number | string | null) => {
 		setFilterEntity(id)
 		setCurrentPage(1)
@@ -340,7 +339,7 @@ const InvoicesPage: React.FC = () => {
 	const handleAddProduct = () => {
 		const updatedProducts = [
 			...(newInvoice.products || []),
-			{ product_id: '', product_variant_id: '', quantity: 0 }
+			{ product_id: '', product_variant_id: '', quantity: 0, note: '' }
 		]
 		const isClientInvoice = activeTab === 'client'
 		const newTotalPrice = calculateTotalPrice(updatedProducts, isClientInvoice)
@@ -351,44 +350,18 @@ const InvoicesPage: React.FC = () => {
 		})
 	}
 
-	const handleProductChange = (index: number, productId: string) => {
+	const handleProductChange = (
+		index: number,
+		field: keyof InvoiceProduct,
+		value: string | number
+	) => {
 		const updatedProducts = [...(newInvoice.products || [])]
-		updatedProducts[index] = {
-			product_id: productId,
-			product_variant_id: '',
-			quantity: 0
+		updatedProducts[index] = { ...updatedProducts[index], [field]: value }
+		if (field === 'product_id') {
+			updatedProducts[index].product_variant_id = ''
 		}
 		const isClientInvoice = activeTab === 'client'
 		const newTotalPrice = calculateTotalPrice(updatedProducts, isClientInvoice)
-		setNewInvoice({
-			...newInvoice,
-			products: updatedProducts,
-			total_price: newTotalPrice
-		})
-	}
-
-	const handleVariantChange = (index: number, variantId: string) => {
-		const updatedProducts = [...(newInvoice.products || [])]
-		updatedProducts[index] = {
-			...updatedProducts[index],
-			product_variant_id: variantId
-		}
-		const isClientInvoice = activeTab === 'client'
-		const newTotalPrice = calculateTotalPrice(updatedProducts, isClientInvoice)
-		setNewInvoice({
-			...newInvoice,
-			products: updatedProducts,
-			total_price: newTotalPrice
-		})
-	}
-
-	const handleQuantityChange = (index: number, quantity: number) => {
-		const updatedProducts = [...(newInvoice.products || [])]
-		updatedProducts[index] = { ...updatedProducts[index], quantity }
-
-		const isClientInvoice = activeTab === 'client'
-		const newTotalPrice = calculateTotalPrice(updatedProducts, isClientInvoice)
-
 		setNewInvoice({
 			...newInvoice,
 			products: updatedProducts,
@@ -419,15 +392,16 @@ const InvoicesPage: React.FC = () => {
 		}
 
 		const productsWithDetails = invoice.products.map(product => {
-			const variant = allProductVariants.find(
+			const parentProduct = products.find(p => p.id === product.product_id)
+			const variant = parentProduct?.variants.find(
 				v => v.id === product.product_variant_id
 			)
-			const parentProduct = products.find(p => p.id === product.product_id)
 			return {
 				name: `${parentProduct?.name} - ${variant?.size} - ${variant?.color}`,
 				quantity: product.quantity,
 				unit_price:
-					activeTab === 'client' ? parentProduct?.price : parentProduct?.cost
+					activeTab === 'client' ? parentProduct?.price : parentProduct?.cost,
+				note: product.note
 			}
 		})
 
@@ -550,7 +524,7 @@ const InvoicesPage: React.FC = () => {
 							Total Price{' '}
 							{sortField === 'total_price' && <FaSort className='inline' />}
 						</th>
-						<th className='py-3 px-6 text-left'>Note</th>
+						<th className='py-3 px-6 text-left'>Order Number</th>
 						<th className='py-3 px-6 text-center'>Files</th>
 						<th className='py-3 px-6 text-center'>Actions</th>
 					</tr>
@@ -559,7 +533,7 @@ const InvoicesPage: React.FC = () => {
 					{invoices.map(invoice => (
 						<tr
 							key={invoice.id}
-							className='border-b border-gray  cursor-pointer'
+							className='border-b border-gray cursor-pointer'
 							onClick={() => handleInvoiceClick(invoice)}>
 							<td className='py-3 px-6 text-left whitespace-nowrap'>
 								{invoice.id}
@@ -570,7 +544,7 @@ const InvoicesPage: React.FC = () => {
 							<td className='py-3 px-6 text-left'>
 								${invoice.total_price?.toFixed(2)}
 							</td>
-							<td className='py-3 px-6 text-left'>{invoice.note}</td>
+							<td className='py-3 px-6 text-left'>{invoice.order_number}</td>
 							<td className='py-3 px-6 text-center'>
 								{invoice.files.length > 0 ? (
 									<FaFile className='inline text-blue' />
@@ -581,7 +555,7 @@ const InvoicesPage: React.FC = () => {
 							<td className='py-3 px-6 text-center'>
 								<div className='flex item-center justify-center'>
 									<button
-										className='mr-2 bg-blue text-white p-1 rounded-lg text-nowrap transform  hover:scale-110'
+										className='mr-2 bg-blue text-white p-1 rounded-lg text-nowrap transform hover:scale-110'
 										onClick={e => {
 											e.stopPropagation()
 											handleSendEmail(invoice)
@@ -623,7 +597,7 @@ const InvoicesPage: React.FC = () => {
 					<button
 						onClick={() => setCurrentPage(1)}
 						disabled={currentPage === 1}
-						className={`relative inline-flex items-center text-blue px-2 py-2 rounded-l-md border border-gray bg-white text-sm font-medium  hover:bg-gray-50 ${
+						className={`relative inline-flex items-center text-blue px-2 py-2 rounded-l-md border border-gray bg-white text-sm font-medium hover:bg-gray-50 ${
 							currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>First</span>⟪
@@ -631,7 +605,7 @@ const InvoicesPage: React.FC = () => {
 					<button
 						onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
 						disabled={currentPage === 1}
-						className={`relative inline-flex text-blue items-center px-2 py-2 border border-gray bg-white text-sm font-medium  hover:bg-gray-50 ${
+						className={`relative inline-flex text-blue items-center px-2 py-2 border border-gray bg-white text-sm font-medium hover:bg-gray-50 ${
 							currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>Previous</span>⟨
@@ -644,7 +618,7 @@ const InvoicesPage: React.FC = () => {
 							setCurrentPage(Math.min(totalPages, currentPage + 1))
 						}
 						disabled={currentPage === totalPages}
-						className={`relative inline-flex items-center text-blue px-2 py-2 rounded-r-md border border-gray bg-white text-sm font-medium  hover:bg-gray-50 ${
+						className={`relative inline-flex items-center text-blue px-2 py-2 rounded-r-md border border-gray bg-white text-sm font-medium hover:bg-gray-50 ${
 							currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>Next</span>⟩
@@ -673,7 +647,7 @@ const InvoicesPage: React.FC = () => {
 			<div className='relative'>
 				<DatePicker
 					selected={filterEndDate}
-					onChange={(date: Date | null) => setFilterEndDate(date)}
+					onChange={(date: any) => setFilterEndDate(date)}
 					selectsEnd
 					startDate={filterStartDate}
 					endDate={filterEndDate}
@@ -793,7 +767,7 @@ const InvoicesPage: React.FC = () => {
 											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
 											value={product.product_id || ''}
 											onChange={e =>
-												handleProductChange(index, e.target.value)
+												handleProductChange(index, 'product_id', e.target.value)
 											}>
 											<option value=''>Select Product</option>
 											{products.map(p => (
@@ -807,7 +781,11 @@ const InvoicesPage: React.FC = () => {
 												className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2'
 												value={product.product_variant_id}
 												onChange={e =>
-													handleVariantChange(index, e.target.value)
+													handleProductChange(
+														index,
+														'product_variant_id',
+														e.target.value
+													)
 												}>
 												<option value=''>Select Variant</option>
 												{products
@@ -824,9 +802,21 @@ const InvoicesPage: React.FC = () => {
 											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
 											value={product.quantity}
 											onChange={e =>
-												handleQuantityChange(index, Number(e.target.value))
+												handleProductChange(
+													index,
+													'quantity',
+													Number(e.target.value)
+												)
 											}
 											placeholder='Quantity'
+										/>
+										<textarea
+											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
+											value={product.note}
+											onChange={e =>
+												handleProductChange(index, 'note', e.target.value)
+											}
+											placeholder='Product Note'
 										/>
 										<div className='text-sm text-gray mt-1'>
 											Unit {activeTab === 'client' ? 'Price' : 'Cost'}: $
@@ -870,21 +860,6 @@ const InvoicesPage: React.FC = () => {
 							<div className='mb-4'>
 								<label
 									className='block text-gray text-sm font-bold mb-2'
-									htmlFor='note'>
-									Note
-								</label>
-								<textarea
-									id='note'
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
-									value={newInvoice.note}
-									onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-										setNewInvoice({ ...newInvoice, note: e.target.value })
-									}
-								/>
-							</div>
-							<div className='mb-4'>
-								<label
-									className='block text-gray text-sm font-bold mb-2'
 									htmlFor='order_number'>
 									Order Number
 								</label>
@@ -901,7 +876,6 @@ const InvoicesPage: React.FC = () => {
 									}
 								/>
 							</div>
-
 							<div className='mb-4'>
 								<label className='block text-gray text-sm font-bold mb-2'>
 									Total Price
@@ -966,10 +940,10 @@ const InvoicesPage: React.FC = () => {
 								setNewInvoice({
 									created_at: new Date().toISOString(),
 									total_price: 0,
-									note: '',
 									products: [],
 									files: [],
-									remaining_amount: 0
+									remaining_amount: 0,
+									order_number: 0
 								})
 							}}>
 							Cancel
@@ -999,7 +973,9 @@ const InvoicesPage: React.FC = () => {
 							<p className='text-sm text-gray'>
 								Total Price: ${selectedInvoice.total_price?.toFixed(2)}
 							</p>
-							<p className='text-sm text-gray'>Note: {selectedInvoice.note}</p>
+							<p className='text-sm text-gray'>
+								Order Number: {selectedInvoice.order_number}
+							</p>
 							<h4 className='text-sm font-medium text-gray-900 mt-4'>
 								Products:
 							</h4>
@@ -1022,6 +998,11 @@ const InvoicesPage: React.FC = () => {
 											{activeTab === 'client' ? 'Price' : 'Cost'}: $
 											{unitPrice?.toFixed(2)} - Total: $
 											{(unitPrice! * product.quantity).toFixed(2)}
+											{product.note && (
+												<div className='ml-4 text-xs italic'>
+													Note: {product.note}
+												</div>
+											)}
 										</li>
 									)
 								})}
@@ -1090,15 +1071,15 @@ const InvoicesPage: React.FC = () => {
 				</div>
 			</div>
 			<button
-				className='mt-6 bg-blue hover:bg-blue  text-white font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110'
+				className='mt-6 bg-blue hover:bg-blue text-white font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110'
 				onClick={() => {
 					setNewInvoice({
 						created_at: new Date().toISOString(),
 						total_price: 0,
-						note: '',
 						products: [],
 						files: [],
-						remaining_amount: 0
+						remaining_amount: 0,
+						order_number: 0
 					})
 					setShowModal(true)
 				}}>
