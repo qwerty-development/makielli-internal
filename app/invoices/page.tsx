@@ -25,6 +25,7 @@ interface Invoice {
 	total_price: number
 	note: string
 	client_id?: number
+	order_number: number
 	supplier_id?: string
 	products: {
 		product_id: string
@@ -57,6 +58,7 @@ const InvoicesPage: React.FC = () => {
 		created_at: new Date().toISOString(),
 		total_price: 0,
 		note: '',
+		order_number: 0,
 		products: [],
 		files: [],
 		remaining_amount: 0
@@ -880,6 +882,26 @@ const InvoicesPage: React.FC = () => {
 									}
 								/>
 							</div>
+							<div className='mb-4'>
+								<label
+									className='block text-gray text-sm font-bold mb-2'
+									htmlFor='order_number'>
+									Order Number
+								</label>
+								<input
+									id='order_number'
+									type='number'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									value={newInvoice.order_number}
+									onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+										setNewInvoice({
+											...newInvoice,
+											order_number: Number(e.target.value)
+										})
+									}
+								/>
+							</div>
+
 							<div className='mb-4'>
 								<label className='block text-gray text-sm font-bold mb-2'>
 									Total Price
