@@ -16,7 +16,8 @@ export default function SuppliersPage() {
 		name: '',
 		location: '',
 		phone: '',
-		balance: 0
+		balance: 0,
+		email: ''
 	})
 
 	useEffect(() => {
@@ -53,7 +54,13 @@ export default function SuppliersPage() {
 		try {
 			await supplierFunctions.addSupplier(newSupplier)
 			setShowModal(false)
-			setNewSupplier({ name: '', location: '', phone: '', balance: 0 })
+			setNewSupplier({
+				name: '',
+				location: '',
+				phone: '',
+				balance: 0,
+				email: ''
+			})
 			fetchSuppliers()
 			toast.success('Supplier created successfully!')
 		} catch (error) {
@@ -155,6 +162,19 @@ export default function SuppliersPage() {
 														setNewSupplier({
 															...newSupplier,
 															location: e.target.value
+														})
+													}
+													className='w-full p-2 mb-2 border rounded'
+													required
+												/>
+												<input
+													type='email'
+													placeholder='Email'
+													value={newSupplier.email}
+													onChange={e =>
+														setNewSupplier({
+															...newSupplier,
+															email: e.target.value
 														})
 													}
 													className='w-full p-2 mb-2 border rounded'
