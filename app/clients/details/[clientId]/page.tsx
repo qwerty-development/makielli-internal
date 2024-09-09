@@ -4,15 +4,20 @@ import React, { useState, useEffect } from 'react'
 import { clientFunctions, Client } from '../../../../utils/functions/clients'
 import { supabase } from '../../../../utils/supabase'
 import { format } from 'date-fns'
-import { FaSort, FaFile, FaDownload } from 'react-icons/fa'
+import { FaSort, FaFile, FaDownload, FaInfoCircle } from 'react-icons/fa'
 import { generatePDF } from '@/utils/pdfGenerator'
+interface InvoiceProduct {
+	product_variant_id: string
+	quantity: number
+	note: string
+}
+
 interface Invoice {
 	id: number
 	created_at: string
 	total_price: number
 	remaining_amount: number
-	note: string
-	products: { product_variant_id: string; quantity: number }[]
+	products: InvoiceProduct[]
 	files: string[]
 }
 
@@ -400,7 +405,7 @@ export default function ClientDetailsPage({
 											)}
 										</th>
 										<th className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider'>
-											Note
+											Notes
 										</th>
 										<th className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider'>
 											Files
@@ -426,7 +431,14 @@ export default function ClientDetailsPage({
 												${invoice.remaining_amount.toFixed(2)}
 											</td>
 											<td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-												{invoice.note}
+												{invoice.products.some(product => product.note) ? (
+													<FaInfoCircle
+														className='text-blue'
+														title='Has notes'
+													/>
+												) : (
+													'-'
+												)}
 											</td>
 											<td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
 												{invoice.files.length > 0 ? (
@@ -536,17 +548,21 @@ export default function ClientDetailsPage({
 											Remaining Amount: $
 											{selectedInvoice.remaining_amount.toFixed(2)}
 										</p>
-										<p className='text-sm text-gray-500'>
-											Note: {selectedInvoice.note}
-										</p>
 										<h4 className='text-sm font-medium text-gray-900 mt-4'>
 											Products:
 										</h4>
 										<ul className='list-disc list-inside'>
 											{selectedInvoice.products.map((product, index) => (
 												<li key={index} className='text-sm text-gray-500'>
-													ID: {product.product_variant_id}, Quantity:{' '}
-													{product.quantity}
+													<div>
+														ID: {product.product_variant_id}, Quantity:{' '}
+														{product.quantity}
+													</div>
+													{product.note && (
+														<div className='ml-4 text-xs italic'>
+															Note: {product.note}
+														</div>
+													)}
 												</li>
 											))}
 										</ul>
