@@ -26,7 +26,11 @@ interface Invoice {
 	note: string
 	client_id?: number
 	supplier_id?: string
-	products: { product_variant_id: string; quantity: number }[]
+	products: {
+		product_id: string
+		product_variant_id: string
+		quantity: number
+	}[]
 	files: string[]
 	remaining_amount: number
 }
@@ -37,7 +41,6 @@ const InvoicesPage: React.FC = () => {
 	const [clients, setClients] = useState<Client[]>([])
 	const [suppliers, setSuppliers] = useState<Supplier[]>([])
 	const [products, setProducts] = useState<Product[]>([])
-	const [selectedProduct, setSelectedProduct] = useState<string | null>(null)
 	const [showModal, setShowModal] = useState(false)
 	const [currentPage, setCurrentPage] = useState(1)
 	const [itemsPerPage] = useState(10)
@@ -135,35 +138,19 @@ const InvoicesPage: React.FC = () => {
 	}
 
 	const calculateTotalPrice = (
-		invoiceProducts: { product_variant_id: string; quantity: number }[],
+		invoiceProducts: {
+			product_id: string
+			product_variant_id: string
+			quantity: number
+		}[],
 		isClientInvoice: boolean
 	) => {
 		return invoiceProducts.reduce((total, invoiceProduct) => {
-			const variant = allProductVariants.find(
-				v => v.id === invoiceProduct.product_variant_id
-			)
+			const product = products.find(p => p.id === invoiceProduct.product_id)
+			if (!product) return total
 
-			if (!variant) {
-				console.error(
-					`Variant not found for id: ${invoiceProduct.product_variant_id}`
-				)
-				return total
-			}
-
-			const parentProduct = products.find(p => p.id === variant.product_id)
-
-			if (!parentProduct) {
-				console.error(
-					`Product not found for variant id: ${invoiceProduct.product_variant_id}`
-				)
-				return total
-			}
-
-			const unitPrice = isClientInvoice
-				? parentProduct.price
-				: parentProduct.cost
-			const quantity = invoiceProduct.quantity
-			return total + unitPrice * quantity
+			const unitPrice = isClientInvoice ? product.price : product.cost
+			return total + unitPrice * invoiceProduct.quantity
 		}, 0)
 	}
 
@@ -351,7 +338,7 @@ const InvoicesPage: React.FC = () => {
 	const handleAddProduct = () => {
 		const updatedProducts = [
 			...(newInvoice.products || []),
-			{ product_variant_id: '', quantity: 0 }
+			{ product_id: '', product_variant_id: '', quantity: 0 }
 		]
 		const isClientInvoice = activeTab === 'client'
 		const newTotalPrice = calculateTotalPrice(updatedProducts, isClientInvoice)
@@ -363,9 +350,12 @@ const InvoicesPage: React.FC = () => {
 	}
 
 	const handleProductChange = (index: number, productId: string) => {
-		setSelectedProduct(productId)
 		const updatedProducts = [...(newInvoice.products || [])]
-		updatedProducts[index] = { product_variant_id: '', quantity: 0 }
+		updatedProducts[index] = {
+			product_id: productId,
+			product_variant_id: '',
+			quantity: 0
+		}
 		const isClientInvoice = activeTab === 'client'
 		const newTotalPrice = calculateTotalPrice(updatedProducts, isClientInvoice)
 		setNewInvoice({
@@ -377,7 +367,6 @@ const InvoicesPage: React.FC = () => {
 
 	const handleVariantChange = (index: number, variantId: string) => {
 		const updatedProducts = [...(newInvoice.products || [])]
-
 		updatedProducts[index] = {
 			...updatedProducts[index],
 			product_variant_id: variantId
@@ -410,6 +399,7 @@ const InvoicesPage: React.FC = () => {
 			setSelectedFile(e.target.files[0])
 		}
 	}
+
 	const handleSendEmail = async (invoice: Invoice) => {
 		const recipientEmail =
 			activeTab === 'client'
@@ -430,7 +420,7 @@ const InvoicesPage: React.FC = () => {
 			const variant = allProductVariants.find(
 				v => v.id === product.product_variant_id
 			)
-			const parentProduct = products.find(p => p.id === variant?.product_id)
+			const parentProduct = products.find(p => p.id === product.product_id)
 			return {
 				name: `${parentProduct?.name} - ${variant?.size} - ${variant?.color}`,
 				quantity: product.quantity,
@@ -799,18 +789,18 @@ const InvoicesPage: React.FC = () => {
 									<div key={index} className='mb-2 p-2 border rounded'>
 										<select
 											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
-											value={selectedProduct || ''}
+											value={product.product_id || ''}
 											onChange={e =>
 												handleProductChange(index, e.target.value)
 											}>
 											<option value=''>Select Product</option>
-											{products.map(product => (
-												<option key={product.id} value={product.id}>
-													{product.name}
+											{products.map(p => (
+												<option key={p.id} value={p.id}>
+													{p.name}
 												</option>
 											))}
 										</select>
-										{selectedProduct && (
+										{product.product_id && (
 											<select
 												className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2'
 												value={product.product_variant_id}
@@ -819,7 +809,7 @@ const InvoicesPage: React.FC = () => {
 												}>
 												<option value=''>Select Variant</option>
 												{products
-													.find(p => p.id === selectedProduct)
+													.find(p => p.id === product.product_id)
 													?.variants.map(variant => (
 														<option key={variant.id} value={variant.id}>
 															{variant.size} - {variant.color}
@@ -827,7 +817,6 @@ const InvoicesPage: React.FC = () => {
 													))}
 											</select>
 										)}
-
 										<input
 											type='number'
 											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
@@ -841,10 +830,10 @@ const InvoicesPage: React.FC = () => {
 											Unit {activeTab === 'client' ? 'Price' : 'Cost'}: $
 											{activeTab === 'client'
 												? products
-														.find(p => p.id === selectedProduct)
+														.find(p => p.id === product.product_id)
 														?.price.toFixed(2)
 												: products
-														.find(p => p.id === selectedProduct)
+														.find(p => p.id === product.product_id)
 														?.cost.toFixed(2)}
 										</div>
 										<button
@@ -994,11 +983,11 @@ const InvoicesPage: React.FC = () => {
 							</h4>
 							<ul className='list-disc list-inside'>
 								{selectedInvoice.products.map((product, index) => {
-									const variant = allProductVariants.find(
-										v => v.id === product.product_variant_id
-									)
 									const parentProduct = products.find(
-										p => p.id === variant?.product_id
+										p => p.id === product.product_id
+									)
+									const variant = parentProduct?.variants.find(
+										v => v.id === product.product_variant_id
 									)
 									const unitPrice =
 										activeTab === 'client'
