@@ -69,7 +69,6 @@ const styles = StyleSheet.create({
 		fontWeight: 'bold'
 	},
 	table: {
-		display: 'table',
 		width: 'auto',
 		borderStyle: 'solid',
 		borderWidth: 1,
@@ -148,13 +147,13 @@ const ClientFinancialReportPDF = ({
 	clientDetails,
 	companyDetails,
 	financialData
-}) => {
+}: any) => {
 	const totalInvoices = financialData
-		.filter(item => item.type === 'invoice')
-		.reduce((sum, item) => sum + item.amount, 0)
+		.filter((item: { type: string }) => item.type === 'invoice')
+		.reduce((sum: any, item: { amount: any }) => sum + item.amount, 0)
 	const totalReceipts = financialData
-		.filter(item => item.type === 'receipt')
-		.reduce((sum, item) => sum + item.amount, 0)
+		.filter((item: { type: string }) => item.type === 'receipt')
+		.reduce((sum: any, item: { amount: any }) => sum + item.amount, 0)
 	const balance = totalInvoices - totalReceipts
 
 	return (
@@ -276,58 +275,82 @@ const ClientFinancialReportPDF = ({
 								<Text style={styles.tableCellHeader}>Amount</Text>
 							</View>
 						</View>
-						{financialData.map((item, index) => (
-							<View
-								style={[
-									styles.tableRow,
-									index % 2 === 0 ? styles.tableRowEven : {}
-								]}
-								key={index}>
-								<View style={styles.tableCol}>
-									<Text style={styles.tableCell}>
-										{format(new Date(item.date), 'MM/dd/yyyy')}
-									</Text>
+						{financialData.map(
+							(
+								item: {
+									date: string | number | Date
+									type: string
+									id:
+										| string
+										| number
+										| bigint
+										| boolean
+										| React.ReactElement<
+												any,
+												string | React.JSXElementConstructor<any>
+										  >
+										| Iterable<React.ReactNode>
+										| React.ReactPortal
+										| Promise<React.AwaitedReactNode>
+										| null
+										| undefined
+									invoice_id: any
+									amount: number
+								},
+								index: React.Key | null | undefined
+							) => (
+								<View
+									style={[
+										styles.tableRow,
+										index % 2 === 0 ? styles.tableRowEven : {}
+									]}
+									key={index}>
+									<View style={styles.tableCol}>
+										<Text style={styles.tableCell}>
+											{format(new Date(item.date), 'MM/dd/yyyy')}
+										</Text>
+									</View>
+									<View style={styles.tableCol}>
+										<Text
+											style={[
+												styles.tableCell,
+												{
+													color:
+														item.type === 'invoice'
+															? colors.danger
+															: colors.success
+												}
+											]}>
+											{item.type.charAt(0).toUpperCase() + item.type.slice(1)}
+										</Text>
+									</View>
+									<View style={styles.tableCol}>
+										<Text style={styles.tableCell}>{item.id}</Text>
+									</View>
+									<View style={styles.tableCol}>
+										<Text style={styles.tableCell}>
+											{item.type === 'receipt'
+												? `Invoice #${item.invoice_id}`
+												: 'N/A'}
+										</Text>
+									</View>
+									<View style={styles.tableCol}>
+										<Text
+											style={[
+												styles.tableCell,
+												{
+													color:
+														item.type === 'invoice'
+															? colors.danger
+															: colors.success
+												}
+											]}>
+											${item.amount.toFixed(2)}
+										</Text>
+									</View>
 								</View>
-								<View style={styles.tableCol}>
-									<Text
-										style={[
-											styles.tableCell,
-											{
-												color:
-													item.type === 'invoice'
-														? colors.danger
-														: colors.success
-											}
-										]}>
-										{item.type.charAt(0).toUpperCase() + item.type.slice(1)}
-									</Text>
-								</View>
-								<View style={styles.tableCol}>
-									<Text style={styles.tableCell}>{item.id}</Text>
-								</View>
-								<View style={styles.tableCol}>
-									<Text style={styles.tableCell}>
-										{item.type === 'receipt'
-											? `Invoice #${item.invoice_id}`
-											: 'N/A'}
-									</Text>
-								</View>
-								<View style={styles.tableCol}>
-									<Text
-										style={[
-											styles.tableCell,
-											{
-												color:
-													item.type === 'invoice'
-														? colors.danger
-														: colors.success
-											}
-										]}>
-										${item.amount.toFixed(2)}
-									</Text>
-								</View>
-							</View>
-						))}
+							)
+						)}
 					</View>
 				</View>
 

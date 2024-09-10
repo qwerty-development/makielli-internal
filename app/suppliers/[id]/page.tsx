@@ -176,10 +176,7 @@ export default function SupplierDetailsPage({
 			<h1 className='text-3xl font-bold mb-6'>Supplier Details</h1>
 			<button
 				onClick={() =>
-					generatePDF('supplierFinancialReport', {
-						supplierId: supplier.id,
-						supplierName: supplier.name
-					})
+					generatePDF('supplierFinancialReport', { supplierId: supplier.id })
 				}
 				className='bg-blue hover:bg-black text-white font-bold py-2 px-4 rounded mr-2 mb-5'>
 				Download Financial Report
