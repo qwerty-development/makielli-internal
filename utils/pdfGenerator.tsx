@@ -4,10 +4,11 @@ import InvoicePDF from './pdfTemplates/InvoicePDF'
 import ReceiptPDF from './pdfTemplates/ReceiptPDF'
 import QuotationPDF from './pdfTemplates/QuotationPDF'
 import ClientFinancialReportPDF from './pdfTemplates/ClientFinancialReportPDF'
-import SupplierFinancialReportPDF from './pdfTemplates/SupplierFinancialReportPDF'
 import { supabase } from './supabase'
 
-const fetchClientDetails = async (clientId: any) => {
+import SupplierFinancialReportPDF from './pdfTemplates/SupplierFinancialReportPDF'
+
+const fetchClientDetails = async (clientId: number) => {
 	const { data, error } = await supabase
 		.from('Clients')
 		.select('*')
@@ -18,7 +19,7 @@ const fetchClientDetails = async (clientId: any) => {
 	return data
 }
 
-const fetchSupplierDetails = async (supplierId: any) => {
+const fetchSupplierDetails = async (supplierId: string) => {
 	const { data, error } = await supabase
 		.from('Suppliers')
 		.select('*')
@@ -29,45 +30,7 @@ const fetchSupplierDetails = async (supplierId: any) => {
 	return data
 }
 
-const fetchSupplierFinancialData = async (supplierId: any) => {
-	const { data: invoices, error: invoiceError } = await supabase
-		.from('SupplierInvoices')
-		.select('*')
-		.eq('supplier_id', supplierId)
-
-	if (invoiceError) throw invoiceError
-
-	const { data: receipts, error: receiptError } = await supabase
-		.from('SupplierReceipts')
-		.select('*')
-		.eq('supplier_id', supplierId)
-
-	if (receiptError) throw receiptError
-
-	const financialData = [
-		...invoices.map(invoice => ({
-			date: invoice.created_at,
-			type: 'invoice',
-			id: invoice.id,
-			amount: invoice.total_price
-		})),
-		...receipts.map(receipt => ({
-			date: receipt.paid_at,
-			type: 'receipt',
-			id: receipt.id,
-			invoice_id: receipt.invoice_id,
-			amount: receipt.amount
-		}))
-	].sort((a, b) => {
-		const dateA = new Date(a.date).getTime()
-		const dateB = new Date(b.date).getTime()
-		return dateA - dateB
-	})
-
-	return financialData
-}
-
-const fetchCompanyDetails = async (companyId: any) => {
+const fetchCompanyDetails = async (companyId: number) => {
 	const { data, error } = await supabase
 		.from('companies')
 		.select('*')
@@ -78,44 +41,6 @@ const fetchCompanyDetails = async (companyId: any) => {
 	return data
 }
 
-const fetchClientFinancialData = async (clientId: any) => {
-	const { data: invoices, error: invoiceError } = await supabase
-		.from('ClientInvoices')
-		.select('*')
-		.eq('client_id', clientId)
-
-	if (invoiceError) throw invoiceError
-
-	const { data: receipts, error: receiptError } = await supabase
-		.from('ClientReceipts')
-		.select('*')
-		.eq('client_id', clientId)
-
-	if (receiptError) throw receiptError
-
-	const financialData = [
-		...invoices.map(invoice => ({
-			date: invoice.created_at,
-			type: 'invoice',
-			id: invoice.id,
-			amount: invoice.total_price
-		})),
-		...receipts.map(receipt => ({
-			date: receipt.paid_at,
-			type: 'receipt',
-			id: receipt.id,
-			invoice_id: receipt.invoice_id,
-			amount: receipt.amount
-		}))
-	].sort((a, b) => {
-		const dateA = new Date(a.date).getTime()
-		const dateB = new Date(b.date).getTime()
-		return dateA - dateB
-	})
-
-	return financialData
-}
-
 const fetchProductDetails = async (productVariantId: string) => {
 	const { data, error } = await supabase
 		.from('ProductVariants')
@@ -124,6 +49,8 @@ const fetchProductDetails = async (productVariantId: string) => {
       id,
       size,
       color,
+      quantity,
+      product_id,
       Products (
         id,
         name,
@@ -136,26 +63,105 @@ const fetchProductDetails = async (productVariantId: string) => {
 		.single()
 
 	if (error) throw error
-	return data
+
+	// If Products is not available, fetch the product details separately
+	let productDetails: any = data.Products
+	if (!productDetails) {
+		const { data: productData, error: productError } = await supabase
+			.from('Products')
+			.select('id, name, photo, price')
+			.eq('id', data.product_id)
+			.single()
+
+		if (productError) throw productError
+		productDetails = productData
+	}
+
+	return {
+		id: data.id,
+		product_id: data.product_id,
+		name: productDetails.name,
+		image: productDetails.photo,
+		unitPrice: productDetails.price,
+		size: data.size,
+		color: data.color,
+		quantity: data.quantity,
+		note: '' // Add this if you have notes for individual products
+	}
 }
 
-const fetchInvoiceForReceipt = async (receiptId: number) => {
-	const { data, error } = await supabase
-		.from('ClientReceipts')
-		.select(
-			`
-      invoice_id,
-      ClientInvoices (
-        id,
-        products
-      )
-    `
-		)
-		.eq('id', receiptId)
-		.single()
+const fetchClientFinancialData = async (clientId: number) => {
+	// Fetch invoices
+	const { data: invoices, error: invoiceError } = await supabase
+		.from('ClientInvoices')
+		.select('*')
+		.eq('client_id', clientId)
 
-	if (error) throw error
-	return data.ClientInvoices
+	if (invoiceError) throw invoiceError
+
+	// Fetch receipts
+	const { data: receipts, error: receiptError } = await supabase
+		.from('ClientReceipts')
+		.select('*')
+		.eq('client_id', clientId)
+
+	if (receiptError) throw receiptError
+
+	// Combine and sort the data
+	const financialData = [
+		...invoices.map(invoice => ({
+			date: invoice.created_at,
+			type: 'invoice',
+			id: invoice.id,
+			amount: invoice.total_price
+		})),
+		...receipts.map(receipt => ({
+			date: receipt.paid_at,
+			type: 'receipt',
+			id: receipt.id,
+			invoice_id: receipt.invoice_id,
+			amount: receipt.amount
+		}))
+	].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+	return financialData
+}
+
+const fetchSupplierFinancialData = async (supplierId: string) => {
+	// Fetch invoices
+	const { data: invoices, error: invoiceError } = await supabase
+		.from('SupplierInvoices')
+		.select('*')
+		.eq('supplier_id', supplierId)
+
+	if (invoiceError) throw invoiceError
+
+	// Fetch receipts
+	const { data: receipts, error: receiptError } = await supabase
+		.from('SupplierReceipts')
+		.select('*')
+		.eq('supplier_id', supplierId)
+
+	if (receiptError) throw receiptError
+
+	// Combine and sort the data
+	const financialData = [
+		...invoices.map(invoice => ({
+			date: invoice.created_at,
+			type: 'invoice',
+			id: invoice.id,
+			amount: invoice.total_price
+		})),
+		...receipts.map(receipt => ({
+			date: receipt.paid_at,
+			type: 'receipt',
+			id: receipt.id,
+			invoice_id: receipt.invoice_id,
+			amount: receipt.amount
+		}))
+	].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+	return financialData
 }
 
 export const generatePDF = async (
@@ -172,44 +178,17 @@ export const generatePDF = async (
 
 	let productsWithDetails: any[] = []
 
-	if (type === 'receipt' || type === 'invoice' || type === 'quotation') {
-		if (type === 'receipt') {
-			const invoice: any = await fetchInvoiceForReceipt(data.id)
-			if (invoice && invoice.products) {
-				productsWithDetails = await Promise.all(
-					invoice.products.map(async (product: any) => {
-						const details: any = await fetchProductDetails(
-							product.product_variant_id
-						)
-						return {
-							...product,
-							name: details.Products.name,
-							image: details.Products.photo,
-							unitPrice: details.Products.price,
-							size: details.size,
-							color: details.color
-						}
-					})
-				)
-			}
-		} else if (type === 'invoice' || type === 'quotation') {
-			productsWithDetails = await Promise.all(
-				data.products.map(async (product: any) => {
-					const details: any = await fetchProductDetails(
-						product.product_variant_id
-					)
-					return {
-						...product,
-						name: details.Products.name,
-						image: details.Products.photo,
-						unitPrice: details.Products.price,
-						size: details.size,
-						color: details.color
-					}
-				})
-			)
-		}
-
+	if (type === 'invoice' || type === 'quotation') {
+		productsWithDetails = await Promise.all(
+			data.products.map(async (product: any) => {
+				const details = await fetchProductDetails(product.product_variant_id)
+				return {
+					...details,
+					quantity: product.quantity,
+					note: product.note || ''
+				}
+			})
+		)
 		data = { ...data, products: productsWithDetails }
 	}
 
@@ -233,30 +212,37 @@ export const generatePDF = async (
 			fileName = `quotation_${data.id}.pdf`
 			break
 		case 'clientFinancialReport':
-			console.log(data.clientId)
-			const clientData2 = await fetchClientDetails(data.clientId)
-			console.log(clientData2)
-			const companyData2 = await fetchCompanyDetails(clientData2.company_id)
-			const financialData = await fetchClientFinancialData(data.clientId)
+			const clientReportData = await fetchClientDetails(data.clientId)
+			const clientCompanyData = await fetchCompanyDetails(
+				clientReportData.company_id
+			)
+			const clientFinancialData = await fetchClientFinancialData(data.clientId)
 
 			component = ClientFinancialReportPDF({
-				clientName: clientData2.name,
-				clientDetails: clientData2,
-				companyDetails: companyData2,
-				financialData: financialData
+				clientName: clientReportData.name,
+				clientDetails: clientReportData,
+				companyDetails: clientCompanyData,
+				financialData: clientFinancialData
 			})
-			fileName = `financial_report_${clientData2.name.replace(/\s+/g, '_')}.pdf`
+			fileName = `financial_report_${clientReportData.name.replace(
+				/\s+/g,
+				'_'
+			)}.pdf`
 			break
 		case 'supplierFinancialReport':
 			const supplierData = await fetchSupplierDetails(data.supplierId)
-			const companyData3 = await fetchCompanyDetails(supplierData.company_id)
-			const financialData2 = await fetchSupplierFinancialData(data.supplierId)
+			const supplierCompanyData = await fetchCompanyDetails(
+				supplierData.company_id
+			)
+			const supplierFinancialData = await fetchSupplierFinancialData(
+				data.supplierId
+			)
 
 			component = SupplierFinancialReportPDF({
 				supplierName: supplierData.name,
 				supplierDetails: supplierData,
-				companyDetails: companyData3,
-				financialData: financialData2
+				companyDetails: supplierCompanyData,
+				financialData: supplierFinancialData
 			})
 			fileName = `financial_report_${supplierData.name.replace(
 				/\s+/g,
