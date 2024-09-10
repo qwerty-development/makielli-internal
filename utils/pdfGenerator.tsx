@@ -208,7 +208,15 @@ export const generatePDF = async (
 			fileName = `receipt_${data.id}.pdf`
 			break
 		case 'quotation':
-			component = QuotationPDF({ quotation: data })
+			const quotationClientData = await fetchClientDetails(data.client_id)
+			const quotationCompanyData = await fetchCompanyDetails(
+				quotationClientData.company_id
+			)
+			component = QuotationPDF({
+				quotation: data,
+				client: quotationClientData,
+				company: quotationCompanyData
+			})
 			fileName = `quotation_${data.id}.pdf`
 			break
 		case 'clientFinancialReport':
