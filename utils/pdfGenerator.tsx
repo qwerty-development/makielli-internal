@@ -8,7 +8,7 @@ import { supabase } from './supabase'
 
 import SupplierFinancialReportPDF from './pdfTemplates/SupplierFinancialReportPDF'
 
-const fetchClientDetails = async (clientId: number) => {
+const fetchClientDetails: any = async (clientId: number) => {
 	const { data, error } = await supabase
 		.from('Clients')
 		.select('*')
