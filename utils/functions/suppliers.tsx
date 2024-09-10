@@ -7,11 +7,18 @@ export interface Supplier {
 	phone: string
 	balance: number
 	email: string
+	company_id: number
 }
 
 export const supplierFunctions = {
 	async getAllSuppliers(): Promise<Supplier[]> {
 		const { data, error } = await supabase.from('Suppliers').select('*')
+
+		if (error) throw error
+		return data || []
+	},
+	async getAllCompanies(): Promise<any[]> {
+		const { data, error } = await supabase.from('companies').select('*')
 
 		if (error) throw error
 		return data || []

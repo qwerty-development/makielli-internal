@@ -32,6 +32,11 @@ interface Receipt {
 	files: string[]
 }
 
+interface Company {
+	id: number
+	name: string
+}
+
 export default function SupplierDetailsPage({
 	params
 }: {
@@ -42,6 +47,7 @@ export default function SupplierDetailsPage({
 	}
 
 	const [supplier, setSupplier] = useState<Supplier | null>(null)
+	const [companies, setCompanies] = useState<Company[]>([])
 	const [isLoading, setIsLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
 	const [isEditing, setIsEditing] = useState(false)
@@ -60,6 +66,7 @@ export default function SupplierDetailsPage({
 		fetchSupplier()
 		fetchInvoices()
 		fetchReceipts()
+		fetchCompanies()
 	}, [params.id])
 
 	const fetchSupplier = async () => {
@@ -73,6 +80,16 @@ export default function SupplierDetailsPage({
 			setError('Failed to fetch supplier details. Please try again later.')
 		} finally {
 			setIsLoading(false)
+		}
+	}
+
+	const fetchCompanies = async () => {
+		try {
+			const companiesData = await supplierFunctions.getAllCompanies()
+			setCompanies(companiesData)
+		} catch (error) {
+			console.error('Error fetching companies:', error)
+			setError('Failed to fetch companies. Please try again later.')
 		}
 	}
 
@@ -246,6 +263,7 @@ export default function SupplierDetailsPage({
 										setSupplier({ ...supplier, location: e.target.value })
 									}
 									className='w-full p-2 border rounded text-black'
+									required
 								/>
 							</div>
 							<div className='mb-4'>
@@ -262,6 +280,24 @@ export default function SupplierDetailsPage({
 										setSupplier({ ...supplier, phone: e.target.value })
 									}
 									className='w-full p-2 border rounded text-black'
+									required
+								/>
+							</div>
+							<div className='mb-4'>
+								<label
+									className='block text-white text-sm font-bold mb-2'
+									htmlFor='email'>
+									Email
+								</label>
+								<input
+									type='email'
+									id='email'
+									value={supplier.email}
+									onChange={e =>
+										setSupplier({ ...supplier, email: e.target.value })
+									}
+									className='w-full p-2 border rounded text-black'
+									required
 								/>
 							</div>
 							<div className='mb-4'>
@@ -284,6 +320,31 @@ export default function SupplierDetailsPage({
 									required
 								/>
 							</div>
+							<div className='mb-4'>
+								<label
+									className='block text-white text-sm font-bold mb-2'
+									htmlFor='company'>
+									Company
+								</label>
+								<select
+									id='company'
+									value={supplier.company_id}
+									onChange={e =>
+										setSupplier({
+											...supplier,
+											company_id: parseInt(e.target.value)
+										})
+									}
+									className='w-full p-2 border rounded text-black'
+									required>
+									<option value=''>Select a company</option>
+									{companies.map(company => (
+										<option key={company.id} value={company.id}>
+											{company.name}
+										</option>
+									))}
+								</select>
+							</div>
 							<div className='flex justify-end'>
 								<button
 									type='button'
@@ -303,7 +364,13 @@ export default function SupplierDetailsPage({
 							<h2 className='text-2xl font-semibold mb-4'>{supplier.name}</h2>
 							<p className='mb-2'>Location: {supplier.location}</p>
 							<p className='mb-2'>Phone: {supplier.phone}</p>
-							<p className='mb-4'>Balance: ${supplier.balance.toFixed(2)}</p>
+							<p className='mb-2'>Email: {supplier.email}</p>
+							<p className='mb-2'>Balance: ${supplier.balance.toFixed(2)}</p>
+							<p className='mb-4'>
+								Company:{' '}
+								{companies.find(company => company.id === supplier.company_id)
+									?.name || 'Not assigned'}
+							</p>
 							<div className='flex justify-end'>
 								<button
 									onClick={() => setIsEditing(true)}
@@ -403,7 +470,64 @@ export default function SupplierDetailsPage({
 				<div className='bg-gray text-white rounded-lg shadow-md p-6'>
 					<h2 className='text-2xl font-semibold mb-4'>Receipts</h2>
 					<table className='min-w-full'>
-						{/* ... (existing receipts table) */}
+						<thead>
+							<tr>
+								<th
+									className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider cursor-pointer'
+									onClick={() => handleSort('id')}>
+									ID {sortField === 'id' && <FaSort className='inline' />}
+								</th>
+								<th
+									className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider cursor-pointer'
+									onClick={() => handleSort('paid_at')}>
+									Date{' '}
+									{sortField === 'paid_at' && <FaSort className='inline' />}
+								</th>
+								<th
+									className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider cursor-pointer'
+									onClick={() => handleSort('amount')}>
+									Amount{' '}
+									{sortField === 'amount' && <FaSort className='inline' />}
+								</th>
+								<th
+									className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider cursor-pointer'
+									onClick={() => handleSort('invoice_id')}>
+									Invoice ID{' '}
+									{sortField === 'invoice_id' && <FaSort className='inline' />}
+								</th>
+								<th className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider'>
+									Files
+								</th>
+							</tr>
+						</thead>
+						<tbody>
+							{receipts.map(receipt => (
+								<tr
+									key={receipt.id}
+									onClick={() => handleReceiptClick(receipt)}
+									className='cursor-pointer hover:bg-blue'>
+									<td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+										{receipt.id}
+									</td>
+									<td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+										{format(new Date(receipt.paid_at), 'PPP')}
+									</td>
+									<td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+										${receipt.amount.toFixed(2)}
+									</td>
+									<td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+										{receipt.invoice_id}
+									</td>
+									<td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+										{receipt.files.length > 0 ? (
+											<FaFile className='inline text-blue' />
+										) : (
+											'-'
+										)}
+									</td>
+								</tr>
+							))}
+						</tbody>
 					</table>
 				</div>
 			)}

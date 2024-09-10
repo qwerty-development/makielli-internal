@@ -5,9 +5,15 @@ import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import { FaPlus, FaTimes } from 'react-icons/fa'
 
+interface Company {
+	id: number
+	name: string
+}
+
 export default function SuppliersPage() {
 	const [suppliers, setSuppliers] = useState<Supplier[]>([])
 	const [filteredSuppliers, setFilteredSuppliers] = useState<Supplier[]>([])
+	const [companies, setCompanies] = useState<Company[]>([])
 	const [isLoading, setIsLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
 	const [searchQuery, setSearchQuery] = useState('')
@@ -17,11 +23,13 @@ export default function SuppliersPage() {
 		location: '',
 		phone: '',
 		balance: 0,
-		email: ''
+		email: '',
+		company_id: 0
 	})
 
 	useEffect(() => {
 		fetchSuppliers()
+		fetchCompanies()
 	}, [])
 
 	useEffect(() => {
@@ -49,6 +57,16 @@ export default function SuppliersPage() {
 		}
 	}
 
+	const fetchCompanies = async () => {
+		try {
+			const companiesData = await supplierFunctions.getAllCompanies()
+			setCompanies(companiesData)
+		} catch (error) {
+			console.error('Error fetching companies:', error)
+			toast.error('Failed to fetch companies. Please try again later.')
+		}
+	}
+
 	const handleCreateSupplier = async (e: React.FormEvent) => {
 		e.preventDefault()
 		try {
@@ -59,7 +77,8 @@ export default function SuppliersPage() {
 				location: '',
 				phone: '',
 				balance: 0,
-				email: ''
+				email: '',
+				company_id: 0
 			})
 			fetchSuppliers()
 			toast.success('Supplier created successfully!')
@@ -206,6 +225,23 @@ export default function SuppliersPage() {
 													className='w-full p-2 mb-2 border rounded'
 													required
 												/>
+												<select
+													value={newSupplier.company_id}
+													onChange={e =>
+														setNewSupplier({
+															...newSupplier,
+															company_id: Number(e.target.value)
+														})
+													}
+													className='w-full p-2 mb-2 border rounded'
+													required>
+													<option value=''>Select a company</option>
+													{companies.map(company => (
+														<option key={company.id} value={company.id}>
+															{company.name}
+														</option>
+													))}
+												</select>
 												<div className='mt-4 flex justify-end'>
 													<button
 														type='button'

@@ -302,7 +302,7 @@ const ClientFinancialReportPDF = ({
 								<View
 									style={[
 										styles.tableRow,
-										index % 2 === 0 ? styles.tableRowEven : {}
+										Number(index) % 2 === 0 ? styles.tableRowEven : {}
 									]}
 									key={index}>
 									<View style={styles.tableCol}>
