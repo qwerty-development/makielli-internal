@@ -4,9 +4,8 @@ import InvoicePDF from './pdfTemplates/InvoicePDF'
 import ReceiptPDF from './pdfTemplates/ReceiptPDF'
 import QuotationPDF from './pdfTemplates/QuotationPDF'
 import ClientFinancialReportPDF from './pdfTemplates/ClientFinancialReportPDF'
-import { supabase } from './supabase'
-
 import SupplierFinancialReportPDF from './pdfTemplates/SupplierFinancialReportPDF'
+import { supabase } from './supabase'
 
 const fetchClientDetails = async (clientId: any) => {
 	const { data, error } = await supabase
@@ -18,6 +17,7 @@ const fetchClientDetails = async (clientId: any) => {
 	if (error) throw error
 	return data
 }
+
 const fetchSupplierDetails = async (supplierId: any) => {
 	const { data, error } = await supabase
 		.from('Suppliers')
@@ -30,7 +30,6 @@ const fetchSupplierDetails = async (supplierId: any) => {
 }
 
 const fetchSupplierFinancialData = async (supplierId: any) => {
-	// Fetch invoices
 	const { data: invoices, error: invoiceError } = await supabase
 		.from('SupplierInvoices')
 		.select('*')
@@ -38,7 +37,6 @@ const fetchSupplierFinancialData = async (supplierId: any) => {
 
 	if (invoiceError) throw invoiceError
 
-	// Fetch receipts
 	const { data: receipts, error: receiptError } = await supabase
 		.from('SupplierReceipts')
 		.select('*')
@@ -46,7 +44,6 @@ const fetchSupplierFinancialData = async (supplierId: any) => {
 
 	if (receiptError) throw receiptError
 
-	// Combine and sort the data
 	const financialData = [
 		...invoices.map(invoice => ({
 			date: invoice.created_at,
@@ -82,7 +79,6 @@ const fetchCompanyDetails = async (companyId: any) => {
 }
 
 const fetchClientFinancialData = async (clientId: any) => {
-	// Fetch invoices
 	const { data: invoices, error: invoiceError } = await supabase
 		.from('ClientInvoices')
 		.select('*')
@@ -90,7 +86,6 @@ const fetchClientFinancialData = async (clientId: any) => {
 
 	if (invoiceError) throw invoiceError
 
-	// Fetch receipts
 	const { data: receipts, error: receiptError } = await supabase
 		.from('ClientReceipts')
 		.select('*')
@@ -98,7 +93,6 @@ const fetchClientFinancialData = async (clientId: any) => {
 
 	if (receiptError) throw receiptError
 
-	// Combine and sort the data
 	const financialData = [
 		...invoices.map(invoice => ({
 			date: invoice.created_at,
@@ -121,6 +115,7 @@ const fetchClientFinancialData = async (clientId: any) => {
 
 	return financialData
 }
+
 const fetchProductDetails = async (productVariantId: string) => {
 	const { data, error } = await supabase
 		.from('ProductVariants')
@@ -220,7 +215,13 @@ export const generatePDF = async (
 
 	switch (type) {
 		case 'invoice':
-			component = InvoicePDF({ invoice: data })
+			const clientData = await fetchClientDetails(data.client_id)
+			const companyData = await fetchCompanyDetails(clientData.company_id)
+			component = InvoicePDF({
+				invoice: data,
+				client: clientData,
+				company: companyData
+			})
 			fileName = `invoice_${data.id}.pdf`
 			break
 		case 'receipt':
@@ -233,28 +234,28 @@ export const generatePDF = async (
 			break
 		case 'clientFinancialReport':
 			console.log(data.clientId)
-			const clientData = await fetchClientDetails(data.clientId)
-			console.log(clientData)
-			const companyData = await fetchCompanyDetails(clientData.company_id)
+			const clientData2 = await fetchClientDetails(data.clientId)
+			console.log(clientData2)
+			const companyData2 = await fetchCompanyDetails(clientData2.company_id)
 			const financialData = await fetchClientFinancialData(data.clientId)
 
 			component = ClientFinancialReportPDF({
-				clientName: clientData.name,
-				clientDetails: clientData,
-				companyDetails: companyData,
+				clientName: clientData2.name,
+				clientDetails: clientData2,
+				companyDetails: companyData2,
 				financialData: financialData
 			})
-			fileName = `financial_report_${clientData.name.replace(/\s+/g, '_')}.pdf`
+			fileName = `financial_report_${clientData2.name.replace(/\s+/g, '_')}.pdf`
 			break
 		case 'supplierFinancialReport':
 			const supplierData = await fetchSupplierDetails(data.supplierId)
-			const companyData2 = await fetchCompanyDetails(supplierData.company_id)
+			const companyData3 = await fetchCompanyDetails(supplierData.company_id)
 			const financialData2 = await fetchSupplierFinancialData(data.supplierId)
 
 			component = SupplierFinancialReportPDF({
 				supplierName: supplierData.name,
 				supplierDetails: supplierData,
-				companyDetails: companyData2,
+				companyDetails: companyData3,
 				financialData: financialData2
 			})
 			fileName = `financial_report_${supplierData.name.replace(
