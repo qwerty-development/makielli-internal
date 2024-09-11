@@ -90,6 +90,17 @@ const fetchProductDetails = async (productVariantId: string) => {
 	}
 }
 
+const fetchInvoiceDetails = async (invoiceId: number) => {
+	const { data, error } = await supabase
+		.from('ClientInvoices')
+		.select('*')
+		.eq('id', invoiceId)
+		.single()
+
+	if (error) throw error
+	return data
+}
+
 const fetchClientFinancialData = async (clientId: number) => {
 	// Fetch invoices
 	const { data: invoices, error: invoiceError } = await supabase
@@ -125,6 +136,28 @@ const fetchClientFinancialData = async (clientId: number) => {
 	].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
 	return financialData
+}
+
+const fetchClientInvoiceDetails = async (invoiceId: number) => {
+	const { data, error } = await supabase
+		.from('ClientInvoices')
+		.select('*')
+		.eq('id', invoiceId)
+		.single()
+
+	if (error) throw error
+	return data
+}
+
+const fetchSupplierInvoiceDetails = async (invoiceId: number) => {
+	const { data, error } = await supabase
+		.from('SupplierInvoices')
+		.select('*')
+		.eq('id', invoiceId)
+		.single()
+
+	if (error) throw error
+	return data
 }
 
 const fetchSupplierFinancialData = async (supplierId: string) => {
@@ -204,7 +237,28 @@ export const generatePDF = async (
 			fileName = `invoice_${data.id}.pdf`
 			break
 		case 'receipt':
-			component = ReceiptPDF({ receipt: data })
+			let entityData, companyData3, invoiceData, isClient
+			if (data.client_id) {
+				isClient = true
+				entityData = await fetchClientDetails(data.client_id)
+				companyData3 = await fetchCompanyDetails(entityData.company_id)
+				invoiceData = await fetchClientInvoiceDetails(data.invoice_id)
+			} else if (data.supplier_id) {
+				isClient = false
+				entityData = await fetchSupplierDetails(data.supplier_id)
+				companyData3 = await fetchCompanyDetails(entityData.company_id)
+				invoiceData = await fetchSupplierInvoiceDetails(data.invoice_id)
+			} else {
+				throw new Error('Invalid receipt: missing client_id or supplier_id')
+			}
+
+			component = ReceiptPDF({
+				receipt: data,
+				entity: entityData,
+				company: companyData3,
+				invoice: invoiceData,
+				isClient: isClient
+			})
 			fileName = `receipt_${data.id}.pdf`
 			break
 		case 'quotation':
