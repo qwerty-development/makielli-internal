@@ -4,11 +4,10 @@ import InvoicePDF from './pdfTemplates/InvoicePDF'
 import ReceiptPDF from './pdfTemplates/ReceiptPDF'
 import QuotationPDF from './pdfTemplates/QuotationPDF'
 import ClientFinancialReportPDF from './pdfTemplates/ClientFinancialReportPDF'
+import SupplierFinancialReportPDF from './pdfTemplates/SupplierFinancialReportPDF'
 import { supabase } from './supabase'
 
-import SupplierFinancialReportPDF from './pdfTemplates/SupplierFinancialReportPDF'
-
-const fetchClientDetails: any = async (clientId: number) => {
+const fetchClientDetails = async (clientId: number) => {
 	const { data, error } = await supabase
 		.from('Clients')
 		.select('*')
@@ -55,7 +54,8 @@ const fetchProductDetails = async (productVariantId: string) => {
         id,
         name,
         photo,
-        price
+        price,
+        cost
       )
     `
 		)
@@ -64,12 +64,11 @@ const fetchProductDetails = async (productVariantId: string) => {
 
 	if (error) throw error
 
-	// If Products is not available, fetch the product details separately
 	let productDetails: any = data.Products
 	if (!productDetails) {
 		const { data: productData, error: productError } = await supabase
 			.from('Products')
-			.select('id, name, photo, price')
+			.select('id, name, photo, price, cost')
 			.eq('id', data.product_id)
 			.single()
 
@@ -83,6 +82,7 @@ const fetchProductDetails = async (productVariantId: string) => {
 		name: productDetails.name,
 		image: productDetails.photo,
 		unitPrice: productDetails.price,
+		unitCost: productDetails.cost,
 		size: data.size,
 		color: data.color,
 		quantity: data.quantity,
@@ -90,9 +90,13 @@ const fetchProductDetails = async (productVariantId: string) => {
 	}
 }
 
-const fetchInvoiceDetails = async (invoiceId: number) => {
+const fetchInvoiceDetails = async (
+	invoiceId: number,
+	isClientInvoice: boolean
+) => {
+	const table = isClientInvoice ? 'ClientInvoices' : 'SupplierInvoices'
 	const { data, error } = await supabase
-		.from('ClientInvoices')
+		.from(table)
 		.select('*')
 		.eq('id', invoiceId)
 		.single()
@@ -102,7 +106,6 @@ const fetchInvoiceDetails = async (invoiceId: number) => {
 }
 
 const fetchClientFinancialData = async (clientId: number) => {
-	// Fetch invoices
 	const { data: invoices, error: invoiceError } = await supabase
 		.from('ClientInvoices')
 		.select('*')
@@ -110,7 +113,6 @@ const fetchClientFinancialData = async (clientId: number) => {
 
 	if (invoiceError) throw invoiceError
 
-	// Fetch receipts
 	const { data: receipts, error: receiptError } = await supabase
 		.from('ClientReceipts')
 		.select('*')
@@ -118,7 +120,6 @@ const fetchClientFinancialData = async (clientId: number) => {
 
 	if (receiptError) throw receiptError
 
-	// Combine and sort the data
 	const financialData = [
 		...invoices.map(invoice => ({
 			date: invoice.created_at,
@@ -138,30 +139,7 @@ const fetchClientFinancialData = async (clientId: number) => {
 	return financialData
 }
 
-const fetchClientInvoiceDetails = async (invoiceId: number) => {
-	const { data, error } = await supabase
-		.from('ClientInvoices')
-		.select('*')
-		.eq('id', invoiceId)
-		.single()
-
-	if (error) throw error
-	return data
-}
-
-const fetchSupplierInvoiceDetails = async (invoiceId: number) => {
-	const { data, error } = await supabase
-		.from('SupplierInvoices')
-		.select('*')
-		.eq('id', invoiceId)
-		.single()
-
-	if (error) throw error
-	return data
-}
-
 const fetchSupplierFinancialData = async (supplierId: string) => {
-	// Fetch invoices
 	const { data: invoices, error: invoiceError } = await supabase
 		.from('SupplierInvoices')
 		.select('*')
@@ -169,7 +147,6 @@ const fetchSupplierFinancialData = async (supplierId: string) => {
 
 	if (invoiceError) throw invoiceError
 
-	// Fetch receipts
 	const { data: receipts, error: receiptError } = await supabase
 		.from('SupplierReceipts')
 		.select('*')
@@ -177,7 +154,6 @@ const fetchSupplierFinancialData = async (supplierId: string) => {
 
 	if (receiptError) throw receiptError
 
-	// Combine and sort the data
 	const financialData = [
 		...invoices.map(invoice => ({
 			date: invoice.created_at,
@@ -227,37 +203,48 @@ export const generatePDF = async (
 
 	switch (type) {
 		case 'invoice':
-			const clientData = await fetchClientDetails(data.client_id)
-			const companyData = await fetchCompanyDetails(clientData.company_id)
+			let entityData, companyData, isClientInvoice
+			if (data.client_id) {
+				isClientInvoice = true
+				entityData = await fetchClientDetails(data.client_id)
+				companyData = await fetchCompanyDetails(entityData.company_id)
+			} else if (data.supplier_id) {
+				isClientInvoice = false
+				entityData = await fetchSupplierDetails(data.supplier_id)
+				companyData = await fetchCompanyDetails(entityData.company_id)
+			} else {
+				throw new Error('Invalid invoice: missing client_id or supplier_id')
+			}
 			component = InvoicePDF({
 				invoice: data,
-				client: clientData,
-				company: companyData
+				entity: entityData,
+				company: companyData,
+				isClientInvoice
 			})
 			fileName = `invoice_${data.id}.pdf`
 			break
 		case 'receipt':
-			let entityData, companyData3, invoiceData, isClient
+			let entityData2, companyData2, invoiceData, isClientReceipt
 			if (data.client_id) {
-				isClient = true
-				entityData = await fetchClientDetails(data.client_id)
-				companyData3 = await fetchCompanyDetails(entityData.company_id)
-				invoiceData = await fetchClientInvoiceDetails(data.invoice_id)
+				isClientReceipt = true
+				entityData2 = await fetchClientDetails(data.client_id)
+				companyData2 = await fetchCompanyDetails(entityData2.company_id)
+				invoiceData = await fetchInvoiceDetails(data.invoice_id, true)
 			} else if (data.supplier_id) {
-				isClient = false
-				entityData = await fetchSupplierDetails(data.supplier_id)
-				companyData3 = await fetchCompanyDetails(entityData.company_id)
-				invoiceData = await fetchSupplierInvoiceDetails(data.invoice_id)
+				isClientReceipt = false
+				entityData2 = await fetchSupplierDetails(data.supplier_id)
+				companyData2 = await fetchCompanyDetails(entityData2.company_id)
+				invoiceData = await fetchInvoiceDetails(data.invoice_id, false)
 			} else {
 				throw new Error('Invalid receipt: missing client_id or supplier_id')
 			}
 
 			component = ReceiptPDF({
 				receipt: data,
-				entity: entityData,
-				company: companyData3,
+				entity: entityData2,
+				company: companyData2,
 				invoice: invoiceData,
-				isClient: isClient
+				isClient: isClientReceipt
 			})
 			fileName = `receipt_${data.id}.pdf`
 			break

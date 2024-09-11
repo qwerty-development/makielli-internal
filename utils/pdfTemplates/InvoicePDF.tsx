@@ -131,11 +131,12 @@ const styles = StyleSheet.create({
 	}
 })
 
-const InvoicePDF: React.FC<{ invoice: any; client: any; company: any }> = ({
-	invoice,
-	client,
-	company
-}) => {
+const InvoicePDF: React.FC<{
+	invoice: any
+	entity: any
+	company: any
+	isClientInvoice: boolean
+}> = ({ invoice, entity, company, isClientInvoice }) => {
 	// Group products by their name
 	const groupedProducts: any = invoice.products.reduce(
 		(acc: any, product: any) => {
@@ -167,12 +168,18 @@ const InvoicePDF: React.FC<{ invoice: any; client: any; company: any }> = ({
 
 				<View style={styles.row}>
 					<View style={styles.column}>
-						<Text style={styles.label}>Bill To:</Text>
-						<Text style={styles.value}>{client.name}</Text>
-						<Text style={styles.value}>{client.address}</Text>
-						<Text style={styles.value}>Phone: {client.phone}</Text>
-						<Text style={styles.value}>Email: {client.email}</Text>
-						<Text style={styles.value}>Tax Number: {client.tax_number}</Text>
+						<Text style={styles.label}>
+							{isClientInvoice ? 'Bill To:' : 'Supplier:'}
+						</Text>
+						<Text style={styles.value}>{entity.name}</Text>
+						<Text style={styles.value}>
+							{isClientInvoice ? entity.address : entity.location}
+						</Text>
+						<Text style={styles.value}>Phone: {entity.phone}</Text>
+						<Text style={styles.value}>Email: {entity.email}</Text>
+						{isClientInvoice && (
+							<Text style={styles.value}>Tax Number: {entity.tax_number}</Text>
+						)}
 					</View>
 					<View style={styles.column}>
 						<Text style={styles.label}>Invoice Details:</Text>
@@ -216,7 +223,9 @@ const InvoicePDF: React.FC<{ invoice: any; client: any; company: any }> = ({
 							<Text style={styles.tableCellHeader}>XL</Text>
 						</View>
 						<View style={[styles.tableColHeader, { width: '10%' }]}>
-							<Text style={styles.tableCellHeader}>PRICE</Text>
+							<Text style={styles.tableCellHeader}>
+								{isClientInvoice ? 'PRICE' : 'COST'}
+							</Text>
 						</View>
 						<View style={[styles.tableColHeader, { width: '15%' }]}>
 							<Text style={styles.tableCellHeader}>TOTAL</Text>
@@ -256,12 +265,19 @@ const InvoicePDF: React.FC<{ invoice: any; client: any; company: any }> = ({
 											{variant.size === 'XL' ? variant.quantity : '-'}
 										</Text>
 										<Text style={[styles.variantCell, { width: '10%' }]}>
-											${(variant.unitPrice || 0).toFixed(2)}
+											$
+											{(isClientInvoice
+												? variant.unitPrice
+												: variant.unitCost || 0
+											).toFixed(2)}
 										</Text>
 										<Text style={[styles.variantCell, { width: '15%' }]}>
 											$
 											{(
-												(variant.quantity || 0) * (variant.unitPrice || 0)
+												(variant.quantity || 0) *
+												(isClientInvoice
+													? variant.unitPrice
+													: variant.unitCost || 0)
 											).toFixed(2)}
 										</Text>
 									</View>
