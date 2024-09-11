@@ -397,11 +397,12 @@ const InvoicesPage: React.FC = () => {
 				v => v.id === product.product_variant_id
 			)
 			return {
-				name: `${parentProduct?.name} - ${variant?.size} - ${variant?.color}`,
+				product_variant_id: product.product_variant_id,
 				quantity: product.quantity,
+				note: product.note,
+				name: `${parentProduct?.name} - ${variant?.size} - ${variant?.color}`,
 				unit_price:
-					activeTab === 'client' ? parentProduct?.price : parentProduct?.cost,
-				note: product.note
+					activeTab === 'client' ? parentProduct?.price : parentProduct?.cost
 			}
 		})
 
@@ -428,11 +429,11 @@ const InvoicesPage: React.FC = () => {
 				toast.success('Email sent successfully')
 			} else {
 				const error = await response.json()
-				throw new Error(error.message)
+				throw new Error(error.message || 'Failed to send email')
 			}
-		} catch (error) {
+		} catch (error: any) {
 			console.error('Error sending email:', error)
-			toast.error('Failed to send email. Please try again.')
+			toast.error(error.message || 'Failed to send email. Please try again.')
 		}
 	}
 
@@ -1025,7 +1026,12 @@ const InvoicesPage: React.FC = () => {
 						<div className='items-center px-4 py-3'>
 							<button
 								className='px-4 py-2 bg-blue text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue focus:outline-none focus:ring-2 focus:ring-blue mb-2'
-								onClick={() => generatePDF('invoice', selectedInvoice)}>
+								onClick={() =>
+									generatePDF('invoice', {
+										...selectedInvoice,
+										logoBase64: null
+									})
+								}>
 								Download PDF
 							</button>
 							<button

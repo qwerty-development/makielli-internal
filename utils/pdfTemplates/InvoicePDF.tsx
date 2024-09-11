@@ -136,7 +136,8 @@ const InvoicePDF: React.FC<{
 	entity: any
 	company: any
 	isClientInvoice: boolean
-}> = ({ invoice, entity, company, isClientInvoice }) => {
+	logoBase64?: string
+}> = ({ invoice, entity, company, isClientInvoice, logoBase64 }) => {
 	// Group products by their name
 	const groupedProducts: any = invoice.products.reduce(
 		(acc: any, product: any) => {
@@ -153,7 +154,11 @@ const InvoicePDF: React.FC<{
 		<Document>
 			<Page size='A4' style={styles.page}>
 				<View style={styles.header}>
-					<Image src='/logo/logo.png' style={styles.logo} />
+					{logoBase64 ? (
+						<Image src={logoBase64} style={styles.logo} />
+					) : (
+						<Image src='/logo/logo.png' style={styles.logo} />
+					)}
 					<View style={styles.companyInfo}>
 						<Text>{company.name}</Text>
 						<Text>{company.address}</Text>
