@@ -151,12 +151,17 @@ const ReceiptPDF: React.FC<{
 	company: any
 	invoice: any
 	isClient: boolean
-}> = ({ receipt, entity, company, invoice, isClient }) => (
+	logoBase64?: string
+}> = ({ receipt, entity, company, invoice, isClient, logoBase64 }) => (
 	<Document>
 		<Page size='A4' style={styles.page}>
 			<View style={styles.header}>
 				<View style={styles.headerLeft}>
-					<Image src='/logo/logo.png' style={styles.logo} />
+					{logoBase64 ? (
+						<Image src={logoBase64} style={styles.logo} />
+					) : (
+						<Image src='/logo/logo.png' style={styles.logo} />
+					)}
 					<Text style={styles.title}>Receipt</Text>
 				</View>
 				<View style={styles.headerRight}>

@@ -1,8 +1,54 @@
 import { NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
-import fs from 'fs'
-import path from 'path'
+import { pdf } from '@react-pdf/renderer'
+import ReceiptPDF from '@/utils/pdfTemplates/ReceiptPDF'
+import { supabase } from '@/utils/supabase'
+import { getLogoBase64 } from '@/utils/serverUtils'
+
+const fetchClientDetails = async clientId => {
+	const { data, error } = await supabase
+		.from('Clients')
+		.select('*')
+		.eq('client_id', clientId)
+		.single()
+
+	if (error) throw error
+	return data
+}
+
+const fetchSupplierDetails = async supplierId => {
+	const { data, error } = await supabase
+		.from('Suppliers')
+		.select('*')
+		.eq('id', supplierId)
+		.single()
+
+	if (error) throw error
+	return data
+}
+
+const fetchCompanyDetails = async companyId => {
+	const { data, error } = await supabase
+		.from('companies')
+		.select('*')
+		.eq('id', companyId)
+		.single()
+
+	if (error) throw error
+	return data
+}
+
+const fetchInvoiceDetails = async (invoiceId, isClientInvoice) => {
+	const table = isClientInvoice ? 'ClientInvoices' : 'SupplierInvoices'
+	const { data, error } = await supabase
+		.from(table)
+		.select('*')
+		.eq('id', invoiceId)
+		.single()
+
+	if (error) throw error
+	return data
+}
 
 export async function POST(request) {
 	const { receipt, recipientEmail, activeTab } = await request.json()
@@ -15,100 +61,54 @@ export async function POST(request) {
 		}
 	})
 
-	// Create PDF
-	const pdfDoc = await PDFDocument.create()
-	const page = pdfDoc.addPage([600, 800])
-	const { width, height } = page.getSize()
-	const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
-	const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
-	const fontSize = 12
-
-	// Load the logo image
-	const logoPath = path.join(process.cwd(), 'public', 'logo', 'logo.png')
-	const logoImage = await pdfDoc.embedPng(fs.readFileSync(logoPath))
-
-	// Calculate logo dimensions while maintaining aspect ratio
-	const logoWidth = 100
-	const logoHeight = logoImage.height * (logoWidth / logoImage.width)
-
-	// Draw the logo
-	page.drawImage(logoImage, {
-		x: 50,
-		y: height - logoHeight - 50,
-		width: logoWidth,
-		height: logoHeight
-	})
-
-	// Helper function to draw text
-	const drawText = (text, x, y, options = {}) => {
-		page.drawText(text, {
-			x,
-			y,
-			size: fontSize,
-			font: options.bold ? boldFont : font,
-			color: options.color || rgb(0, 0, 0),
-			...options
-		})
-	}
-
-	// Draw receipt title
-	drawText('RECEIPT', 50, height - logoHeight - 100, {
-		size: 24,
-		bold: true,
-		color: rgb(0, 0.53, 0.71)
-	})
-
-	const yOffset = logoHeight + 50
-
-	// Draw receipt details
-	drawText(`Receipt Number: ${receipt.id}`, 50, height - yOffset - 140, {
-		bold: true
-	})
-	drawText(
-		`Date: ${new Date(receipt.paid_at).toLocaleDateString()}`,
-		50,
-		height - yOffset - 160
-	)
-	drawText(`Amount: $${receipt.amount.toFixed(2)}`, 50, height - yOffset - 180)
-	drawText(`Invoice Number: ${receipt.invoice_id}`, 50, height - yOffset - 200)
-
-	// Draw client/supplier information
-	drawText(
-		`${activeTab === 'client' ? 'Client' : 'Supplier'} Information:`,
-		50,
-		height - yOffset - 240,
-		{ bold: true }
-	)
-	drawText(`Email: ${recipientEmail}`, 70, height - yOffset - 260)
-
-	// Draw footer
-	drawText('Thank you for your payment!', 50, 50, { color: rgb(0.5, 0.5, 0.5) })
-
-	const pdfBytes = await pdfDoc.save()
-
-	const mailOptions = {
-		from: 'noreply@notqwerty.com',
-		to: recipientEmail,
-		subject: `Receipt #${receipt.id} - ${
-			activeTab === 'client' ? 'Client' : 'Supplier'
-		} Payment`,
-		html: `
-      <h1>Receipt #${receipt.id}</h1>
-      <p>Please find the attached receipt for your records.</p>
-      <p>Amount Paid: $${receipt.amount.toFixed(2)}</p>
-      <p>Date: ${new Date(receipt.paid_at).toLocaleDateString()}</p>
-      <p>If you have any questions, please don't hesitate to contact us.</p>
-    `,
-		attachments: [
-			{
-				filename: `Receipt_${receipt.id}.pdf`,
-				content: pdfBytes,
-				contentType: 'application/pdf'
-			}
-		]
-	}
-
 	try {
+		// Fetch additional data
+		let entityData, companyData, invoiceData
+		const isClient = activeTab === 'client'
+		if (isClient) {
+			entityData = await fetchClientDetails(receipt.client_id)
+		} else {
+			entityData = await fetchSupplierDetails(receipt.supplier_id)
+		}
+		companyData = await fetchCompanyDetails(entityData.company_id)
+		invoiceData = await fetchInvoiceDetails(receipt.invoice_id, isClient)
+
+		// Get logo as base64
+		const logoBase64 = getLogoBase64()
+
+		// Generate PDF
+		const pdfComponent = ReceiptPDF({
+			receipt,
+			entity: entityData,
+			company: companyData,
+			invoice: invoiceData,
+			isClient,
+			logoBase64
+		})
+		const pdfBuffer = await pdf(pdfComponent).toBuffer()
+
+		const mailOptions = {
+			from: 'noreply@notqwerty.com',
+			to: 'asif@notqwerty.com',
+			subject: `Receipt #${receipt.id} - ${
+				isClient ? 'Client' : 'Supplier'
+			} Payment`,
+			html: `
+        <h1>Receipt #${receipt.id}</h1>
+        <p>Please find the attached receipt for your records.</p>
+        <p>Amount Paid: $${receipt.amount.toFixed(2)}</p>
+        <p>Date: ${new Date(receipt.paid_at).toLocaleDateString()}</p>
+        <p>If you have any questions, please don't hesitate to contact us.</p>
+      `,
+			attachments: [
+				{
+					filename: `Receipt_${receipt.id}.pdf`,
+					content: pdfBuffer,
+					contentType: 'application/pdf'
+				}
+			]
+		}
+
 		await transporter.sendMail(mailOptions)
 		return NextResponse.json(
 			{ message: 'Email sent successfully' },
