@@ -32,7 +32,7 @@ interface Invoice {
 	created_at: string
 	total_price: number
 	client_id?: number
-	order_number: number
+	order_number: string
 	supplier_id?: string
 	products: InvoiceProduct[]
 	files: string[]
@@ -61,7 +61,7 @@ const InvoicesPage: React.FC = () => {
 	const [newInvoice, setNewInvoice] = useState<Partial<Invoice>>({
 		created_at: new Date().toISOString(),
 		total_price: 0,
-		order_number: 0,
+		order_number: '',
 		products: [],
 		files: [],
 		remaining_amount: 0
@@ -866,13 +866,13 @@ const InvoicesPage: React.FC = () => {
 								</label>
 								<input
 									id='order_number'
-									type='number'
+									type='text'
 									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 									value={newInvoice.order_number}
 									onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
 										setNewInvoice({
 											...newInvoice,
-											order_number: Number(e.target.value)
+											order_number: e.target.value
 										})
 									}
 								/>
@@ -944,7 +944,7 @@ const InvoicesPage: React.FC = () => {
 									products: [],
 									files: [],
 									remaining_amount: 0,
-									order_number: 0
+									order_number: ''
 								})
 							}}>
 							Cancel
@@ -1085,7 +1085,7 @@ const InvoicesPage: React.FC = () => {
 						products: [],
 						files: [],
 						remaining_amount: 0,
-						order_number: 0
+						order_number: ''
 					})
 					setShowModal(true)
 				}}>
