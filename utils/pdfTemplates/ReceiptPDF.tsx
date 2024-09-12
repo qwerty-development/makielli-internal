@@ -10,16 +10,23 @@ import {
 	Font
 } from '@react-pdf/renderer'
 import { format } from 'date-fns'
-
-// Use built-in fonts
 Font.register({
-	family: 'Helvetica',
-	fonts: [{ src: 'Helvetica' }, { src: 'Helvetica-Bold', fontWeight: 'bold' }]
+	family: 'Times New Roman',
+	fonts: [
+		{ src: '/fonts/times-new-roman.ttf' },
+		{ src: '/fonts/times-new-roman-bold.ttf', fontWeight: 700 },
+		{ src: '/fonts/times-new-roman-italic.ttf', fontStyle: 'italic' },
+		{
+			src: '/fonts/times-new-roman-bold-italic.ttf',
+			fontWeight: 700,
+			fontStyle: 'italic'
+		}
+	]
 })
 
 const styles = StyleSheet.create({
 	page: {
-		fontFamily: 'Helvetica',
+		fontFamily: 'Times New Roman',
 		fontSize: 11,
 		paddingTop: 30,
 		paddingBottom: 60,
@@ -40,8 +47,9 @@ const styles = StyleSheet.create({
 	},
 	logo: {
 		width: 120,
-		height: 50,
-		marginBottom: 10
+		height: 'auto',
+		marginBottom: 10,
+		objectFit: 'contain'
 	},
 	title: {
 		fontSize: 28,

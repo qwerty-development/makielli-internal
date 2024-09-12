@@ -9,9 +9,26 @@ import {
 	StyleSheet
 } from '@react-pdf/renderer'
 import { format } from 'date-fns'
+import { Font } from '@react-pdf/renderer'
+
+Font.register({
+	family: 'Times New Roman',
+	fonts: [
+		{ src: '/fonts/times-new-roman.ttf' },
+		{ src: '/fonts/times-new-roman-bold.ttf', fontWeight: 700 },
+		{ src: '/fonts/times-new-roman-italic.ttf', fontStyle: 'italic' },
+		{
+			src: '/fonts/times-new-roman-bold-italic.ttf',
+			fontWeight: 700,
+			fontStyle: 'italic'
+		}
+	]
+})
+
 
 const styles = StyleSheet.create({
 	page: {
+		fontFamily: 'Times New Roman',
 		flexDirection: 'column',
 		backgroundColor: '#FFFFFF',
 		padding: 30
@@ -23,7 +40,8 @@ const styles = StyleSheet.create({
 	},
 	logo: {
 		width: 120,
-		height: 50
+		height: 'auto',
+		objectFit: 'contain'
 	},
 	companyInfo: {
 		fontSize: 10,
