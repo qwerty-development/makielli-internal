@@ -166,6 +166,7 @@ const InvoicePDF: React.FC<{
 		},
 		{}
 	)
+	const addressLines = company.address.split('\n')
 
 	return (
 		<Document>
@@ -178,10 +179,11 @@ const InvoicePDF: React.FC<{
 					)}
 					<View style={styles.companyInfo}>
 						<Text>{company.name}</Text>
-						<Text>{company.address}</Text>
+						{addressLines.map((line: any, index: any) => (
+							<Text key={index}>{line}</Text>
+						))}
 						<Text>
-							Identification: {company.identification_type}{' '}
-							{company.identification_number}
+							{company.identification_type} {company.identification_number}
 						</Text>
 					</View>
 				</View>
