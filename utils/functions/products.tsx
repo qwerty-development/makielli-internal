@@ -25,7 +25,7 @@ export const productFunctions = {
 	): Promise<Product> {
 		const { data: newProduct, error: productError } = await supabase
 			.from('Products')
-			.insert([product]) // Ensure 'product' includes 'cost'
+			.insert([product])
 			.select()
 			.single()
 
@@ -81,14 +81,12 @@ export const productFunctions = {
 				if (error) throw error
 			} else {
 				// Add new variant
-				const { error } = await supabase
-					.from('ProductVariants')
-					.insert({
-						size: variant.size,
-						color: variant.color,
-						quantity: variant.quantity,
-						product_id: id
-					})
+				const { error } = await supabase.from('ProductVariants').insert({
+					size: variant.size,
+					color: variant.color,
+					quantity: variant.quantity,
+					product_id: id
+				})
 				if (error) throw error
 			}
 		}

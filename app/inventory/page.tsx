@@ -10,6 +10,18 @@ import {
 import { toast } from 'react-hot-toast'
 
 export default function ProductsPage() {
+	const sizeOptions = [
+		'XS',
+		'S',
+		'M',
+		'L',
+		'XL',
+		'2XL',
+		'3XL',
+		'4XL',
+		'5XL',
+		'6XL'
+	]
 	const [products, setProducts] = useState<Product[]>([])
 	const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
 	const [isLoading, setIsLoading] = useState(true)
@@ -179,7 +191,7 @@ export default function ProductsPage() {
 	}
 
 	const addVariant = () => {
-		setNewVariants([...newVariants, { size: '', color: '', quantity: 0 }])
+		setNewVariants([...newVariants, { size: 'M', color: '', quantity: 0 }])
 	}
 
 	const updateVariant = (
@@ -282,13 +294,16 @@ export default function ProductsPage() {
 					</h3>
 					{newVariants.map((variant, index) => (
 						<div key={index} className='flex space-x-2 mb-2'>
-							<input
-								type='text'
-								placeholder='Size'
+							<select
 								value={variant.size}
 								onChange={e => updateVariant(index, 'size', e.target.value)}
-								className='flex-1 p-2 border rounded'
-							/>
+								className='flex-1 p-2 border rounded'>
+								{sizeOptions.map(size => (
+									<option key={size} value={size}>
+										{size}
+									</option>
+								))}
+							</select>
 							<input
 								type='text'
 								placeholder='Color'
@@ -448,9 +463,7 @@ export default function ProductsPage() {
 							<h4 className='font-semibold text-white mt-4 mb-2'>Variants:</h4>
 							{editingProduct.variants.map((variant, index) => (
 								<div key={index} className='flex space-x-2 mb-2'>
-									<input
-										type='text'
-										placeholder='Size'
+									<select
 										value={variant.size}
 										onChange={e => {
 											const newVariants = [...editingProduct.variants]
@@ -463,8 +476,13 @@ export default function ProductsPage() {
 												variants: newVariants
 											})
 										}}
-										className='flex-1 p-2 border rounded'
-									/>
+										className='flex-1 p-2 border rounded'>
+										{sizeOptions.map(size => (
+											<option key={size} value={size}>
+												{size}
+											</option>
+										))}
+									</select>
 									<input
 										type='text'
 										placeholder='Color'
@@ -520,7 +538,7 @@ export default function ProductsPage() {
 								onClick={() => {
 									const newVariants: any = [
 										...editingProduct.variants,
-										{ size: '', color: '', quantity: 0 } // Remove id field for new variants
+										{ size: 'M', color: '', quantity: 0 }
 									]
 									setEditingProduct({
 										...editingProduct,
