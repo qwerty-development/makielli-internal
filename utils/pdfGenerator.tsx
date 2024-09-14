@@ -272,8 +272,22 @@ export const generatePDF = async (
 			const quotationCompanyData = await fetchCompanyDetails(
 				quotationClientData.company_id
 			)
+			// Ensure the data structure matches what QuotationPDF expects
+			const preparedQuotationData = {
+				...data,
+				products: data.products.map((product: any) => ({
+					...product,
+					totalQuantity: Object.values(product.sizes as number[]).reduce(
+						(sum: number, quantity: number) => sum + quantity,
+						0
+					),
+					notes: Array.isArray(product.notes)
+						? product.notes
+						: [product.note].filter(Boolean)
+				}))
+			}
 			component = QuotationPDF({
-				quotation: data,
+				quotation: preparedQuotationData,
 				client: quotationClientData,
 				company: quotationCompanyData
 			})

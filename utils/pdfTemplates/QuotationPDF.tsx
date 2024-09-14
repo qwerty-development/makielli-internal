@@ -64,7 +64,13 @@ const styles = StyleSheet.create({
 		borderColor: '#bfbfbf'
 	},
 	tableRow: {
-		flexDirection: 'row'
+		flexDirection: 'row',
+		borderBottomWidth: 1,
+		borderBottomColor: '#bfbfbf',
+		borderBottomStyle: 'solid',
+		alignItems: 'center',
+		minHeight: 24,
+		textAlign: 'center'
 	},
 	tableColHeader: {
 		borderStyle: 'solid',
@@ -77,9 +83,7 @@ const styles = StyleSheet.create({
 	tableCol: {
 		borderStyle: 'solid',
 		borderRightWidth: 1,
-		borderBottomWidth: 1,
-		borderColor: '#bfbfbf',
-		padding: 1
+		borderRightColor: '#bfbfbf'
 	},
 	tableCellHeader: {
 		fontWeight: 'bold',
@@ -99,17 +103,6 @@ const styles = StyleSheet.create({
 		padding: 1,
 		fontSize: 5,
 		textAlign: 'center'
-	},
-	productGroup: {
-		marginBottom: 10
-	},
-	variantRow: {
-		flexDirection: 'row',
-		marginBottom: 2
-	},
-	variantCell: {
-		fontSize: 6,
-		flexGrow: 1
 	},
 	subtotal: {
 		flexDirection: 'row',
@@ -141,6 +134,12 @@ const styles = StyleSheet.create({
 		width: 30,
 		height: 30,
 		objectFit: 'contain'
+	},
+	notes: {
+		fontSize: 5,
+		fontStyle: 'italic',
+		color: '#666',
+		marginTop: 2
 	}
 })
 
@@ -151,19 +150,6 @@ const QuotationPDF: React.FC<{
 	logoBase64?: string
 }> = ({ quotation, client, company, logoBase64 }) => {
 	const sizeOptions = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', '6XL']
-
-	// Group products by their name
-	const groupedProducts = quotation.products.reduce(
-		(acc: any, product: any) => {
-			if (!acc[product.name]) {
-				acc[product.name] = []
-			}
-			acc[product.name].push(product)
-			return acc
-		},
-		{}
-	)
-
 	const addressLines = company.address.split('\n')
 
 	return (
@@ -237,48 +223,59 @@ const QuotationPDF: React.FC<{
 						</View>
 					</View>
 
-					{Object.entries(groupedProducts).map(
-						([productName, variants]: [string, any]) => (
-							<View key={productName} style={styles.productGroup}>
-								{variants.map((variant: any, index: number) => (
-									<View key={index} style={styles.variantRow}>
-										<View style={[styles.variantCell, { width: '8%' }]}>
-											<Image
-												src={variant.image || '/placeholder-image.png'}
-												style={styles.productImage}
-											/>
-										</View>
-										<Text style={[styles.variantCell, { width: '18%' }]}>
-											{variant.name || 'N/A'}
-										</Text>
-										<Text style={[styles.variantCell, { width: '8%' }]}>
-											{variant.color || 'N/A'}
-										</Text>
-										<Text style={[styles.variantCell, { width: '11%' }]}>
-											{variant.note || '-'}
-										</Text>
-										{sizeOptions.map(size => (
-											<Text key={size} style={styles.sizeCol}>
-												{variant.size === size ? variant.quantity : '-'}
-											</Text>
-										))}
-										<Text style={[styles.variantCell, { width: '7%' }]}>
-											${variant.unitPrice?.toFixed(2)}
-										</Text>
-										<Text style={[styles.variantCell, { width: '10%' }]}>
-											${(variant.quantity * variant.unitPrice).toFixed(2)}
-										</Text>
-									</View>
+					{quotation.products.map((product: any, index: number) => (
+						<View key={index} style={styles.tableRow}>
+							<View style={[styles.tableCol, { width: '8%' }]}>
+								<Image
+									src={product.image || '/placeholder-image.png'}
+									style={styles.productImage}
+								/>
+							</View>
+							<View style={[styles.tableCol, { width: '18%' }]}>
+								<Text style={styles.tableCell}>{product.name || 'N/A'}</Text>
+							</View>
+							<View style={[styles.tableCol, { width: '8%' }]}>
+								<Text style={styles.tableCell}>{product.color || 'N/A'}</Text>
+							</View>
+							<View style={[styles.tableCol, { width: '11%' }]}>
+								{product.notes.map((note: string, noteIndex: number) => (
+									<Text key={noteIndex} style={styles.notes}>
+										{note}
+									</Text>
 								))}
 							</View>
-						)
-					)}
+							{sizeOptions.map(size => (
+								<View key={size} style={[styles.tableCol, { width: '5%' }]}>
+									<Text style={styles.tableCell}>
+										{product.sizes[size] || '-'}
+									</Text>
+								</View>
+							))}
+							<View style={[styles.tableCol, { width: '7%' }]}>
+								<Text style={styles.tableCell}>
+									${product.unitPrice.toFixed(2)}
+								</Text>
+							</View>
+							<View style={[styles.tableCol, { width: '10%' }]}>
+								<Text style={styles.tableCell}>
+									${(product.totalQuantity * product.unitPrice).toFixed(2)}
+								</Text>
+							</View>
+						</View>
+					))}
 				</View>
 
 				<View style={styles.subtotal}>
 					<Text style={styles.subtotalLabel}>Total:</Text>
 					<Text style={styles.subtotalValue}>
-						${quotation.total_price.toFixed(2)}
+						$
+						{quotation.products
+							.reduce(
+								(sum: number, product: any) =>
+									sum + product.totalQuantity * product.unitPrice,
+								0
+							)
+							.toFixed(2)}
 					</Text>
 				</View>
 
