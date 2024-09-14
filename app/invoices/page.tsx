@@ -16,9 +16,11 @@ import {
 	FaPlus,
 	FaFile,
 	FaDownload,
-	FaInfoCircle
+	FaInfoCircle,
+	FaSearch
 } from 'react-icons/fa'
 import { generatePDF } from '@/utils/pdfGenerator'
+import { debounce } from 'lodash'
 
 interface InvoiceProduct {
 	product_id: string
@@ -68,6 +70,8 @@ const InvoicesPage: React.FC = () => {
 	})
 	const [selectedFile, setSelectedFile] = useState<File | null>(null)
 	const [uploadingFile, setUploadingFile] = useState(false)
+	const [productSearch, setProductSearch] = useState('')
+	const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
 
 	useEffect(() => {
 		fetchInvoices()
@@ -83,6 +87,17 @@ const InvoicesPage: React.FC = () => {
 		filterEndDate,
 		filterEntity
 	])
+
+	useEffect(() => {
+		const filtered = products.filter(product =>
+			product.name.toLowerCase().includes(productSearch.toLowerCase())
+		)
+		setFilteredProducts(filtered)
+	}, [productSearch, products])
+
+	const handleProductSearch = debounce((searchTerm: string) => {
+		setProductSearch(searchTerm)
+	}, 300)
 
 	const fetchInvoices = async () => {
 		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
@@ -336,13 +351,32 @@ const InvoicesPage: React.FC = () => {
 		setCurrentPage(1)
 	}
 
-	const handleAddProduct = () => {
+	const handleAddProduct = (product: Product) => {
 		const updatedProducts = [
 			...(newInvoice.products || []),
-			{ product_id: '', product_variant_id: '', quantity: 0, note: '' }
+			{
+				product_id: product.id,
+				product_variant_id: product.variants[0]?.id || '',
+				quantity: 1,
+				note: ''
+			}
 		]
 		const isClientInvoice = activeTab === 'client'
 		const newTotalPrice = calculateTotalPrice(updatedProducts, isClientInvoice)
+		setNewInvoice({
+			...newInvoice,
+			products: updatedProducts,
+			total_price: newTotalPrice
+		})
+	}
+
+	const handleRemoveProduct = (index: number) => {
+		const updatedProducts = newInvoice.products?.filter((_, i) => i !== index)
+		const isClientInvoice = activeTab === 'client'
+		const newTotalPrice = calculateTotalPrice(
+			updatedProducts || [],
+			isClientInvoice
+		)
 		setNewInvoice({
 			...newInvoice,
 			products: updatedProducts,
@@ -686,7 +720,6 @@ const InvoicesPage: React.FC = () => {
 			</select>
 		</div>
 	)
-
 	const renderInvoiceModal = () => (
 		<div
 			className={`fixed z-10 inset-0 overflow-y-auto ${
@@ -694,7 +727,7 @@ const InvoicesPage: React.FC = () => {
 			}`}>
 			<div className='flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0'>
 				<div className='fixed inset-0 transition-opacity' aria-hidden='true'>
-					<div className='absolute inset-0 bg-gray opacity-75'></div>
+					<div className='absolute inset-0 bg-gray-500 opacity-75'></div>
 				</div>
 				<span
 					className='hidden sm:inline-block sm:align-middle sm:h-screen'
@@ -709,7 +742,7 @@ const InvoicesPage: React.FC = () => {
 						<form>
 							<div className='mb-4'>
 								<label
-									className='block text-gray text-sm font-bold mb-2'
+									className='block text-gray-700 text-sm font-bold mb-2'
 									htmlFor='date'>
 									Date
 								</label>
@@ -725,18 +758,18 @@ const InvoicesPage: React.FC = () => {
 											created_at: date ? date.toISOString() : ''
 										})
 									}
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
 								/>
 							</div>
 							<div className='mb-4'>
 								<label
-									className='block text-gray text-sm font-bold mb-2'
+									className='block text-gray-700 text-sm font-bold mb-2'
 									htmlFor='entity'>
 									{activeTab === 'client' ? 'Client' : 'Supplier'}
 								</label>
 								<select
 									id='entity'
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
 									onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
 										const idField =
 											activeTab === 'client' ? 'client_id' : 'supplier_id'
@@ -759,48 +792,73 @@ const InvoicesPage: React.FC = () => {
 								</select>
 							</div>
 							<div className='mb-4'>
-								<label className='block text-gray text-sm font-bold mb-2'>
+								<label className='block text-gray-700 text-sm font-bold mb-2'>
 									Products
 								</label>
+								<div className='flex mb-2'>
+									<input
+										type='text'
+										placeholder='Search products...'
+										className='flex-grow shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+										onChange={e => handleProductSearch(e.target.value)}
+									/>
+									<button
+										type='button'
+										className='ml-2 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded'
+										onClick={() => setProductSearch('')}>
+										<FaSearch />
+									</button>
+								</div>
+								<div className='max-h-40 overflow-y-auto mb-2'>
+									{filteredProducts.map(product => (
+										<div
+											key={product.id}
+											className='flex justify-between items-center p-2 hover:bg-gray-100 cursor-pointer'
+											onClick={() => handleAddProduct(product)}>
+											<span>{product.name}</span>
+											<button
+												type='button'
+												className='bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-xs'>
+												Add
+											</button>
+										</div>
+									))}
+								</div>
 								{newInvoice.products?.map((product, index) => (
 									<div key={index} className='mb-2 p-2 border rounded'>
+										<div className='flex justify-between items-center mb-2'>
+											<span className='font-bold'>
+												{products.find(p => p.id === product.product_id)?.name}
+											</span>
+											<button
+												type='button'
+												className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
+												onClick={() => handleRemoveProduct(index)}>
+												Remove
+											</button>
+										</div>
 										<select
-											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
-											value={product.product_id || ''}
+											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2'
+											value={product.product_variant_id}
 											onChange={e =>
-												handleProductChange(index, 'product_id', e.target.value)
+												handleProductChange(
+													index,
+													'product_variant_id',
+													e.target.value
+												)
 											}>
-											<option value=''>Select Product</option>
-											{products.map(p => (
-												<option key={p.id} value={p.id}>
-													{p.name}
-												</option>
-											))}
+											<option value=''>Select Variant</option>
+											{products
+												.find(p => p.id === product.product_id)
+												?.variants.map(variant => (
+													<option key={variant.id} value={variant.id}>
+														{variant.size} - {variant.color}
+													</option>
+												))}
 										</select>
-										{product.product_id && (
-											<select
-												className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2'
-												value={product.product_variant_id}
-												onChange={e =>
-													handleProductChange(
-														index,
-														'product_variant_id',
-														e.target.value
-													)
-												}>
-												<option value=''>Select Variant</option>
-												{products
-													.find(p => p.id === product.product_id)
-													?.variants.map(variant => (
-														<option key={variant.id} value={variant.id}>
-															{variant.size} - {variant.color}
-														</option>
-													))}
-											</select>
-										)}
 										<input
 											type='number'
-											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
+											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2'
 											value={product.quantity}
 											onChange={e =>
 												handleProductChange(
@@ -812,14 +870,14 @@ const InvoicesPage: React.FC = () => {
 											placeholder='Quantity'
 										/>
 										<textarea
-											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
+											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2'
 											value={product.note}
 											onChange={e =>
 												handleProductChange(index, 'note', e.target.value)
 											}
 											placeholder='Product Note'
 										/>
-										<div className='text-sm text-gray mt-1'>
+										<div className='text-sm text-gray-600 mt-1'>
 											Unit {activeTab === 'client' ? 'Price' : 'Cost'}: $
 											{activeTab === 'client'
 												? products
@@ -829,45 +887,19 @@ const InvoicesPage: React.FC = () => {
 														.find(p => p.id === product.product_id)
 														?.cost.toFixed(2)}
 										</div>
-										<button
-											type='button'
-											className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs mt-2'
-											onClick={() => {
-												const updatedProducts = newInvoice.products?.filter(
-													(_, i) => i !== index
-												)
-												const isClientInvoice = activeTab === 'client'
-												const newTotalPrice = calculateTotalPrice(
-													updatedProducts || [],
-													isClientInvoice
-												)
-												setNewInvoice({
-													...newInvoice,
-													products: updatedProducts,
-													total_price: newTotalPrice
-												})
-											}}>
-											Remove
-										</button>
 									</div>
 								))}
-								<button
-									type='button'
-									className='bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded'
-									onClick={handleAddProduct}>
-									Add Product
-								</button>
 							</div>
 							<div className='mb-4'>
 								<label
-									className='block text-gray text-sm font-bold mb-2'
+									className='block text-gray-700 text-sm font-bold mb-2'
 									htmlFor='order_number'>
 									Order Number
 								</label>
 								<input
 									id='order_number'
 									type='text'
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
 									value={newInvoice.order_number}
 									onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
 										setNewInvoice({
@@ -878,31 +910,31 @@ const InvoicesPage: React.FC = () => {
 								/>
 							</div>
 							<div className='mb-4'>
-								<label className='block text-gray text-sm font-bold mb-2'>
+								<label className='block text-gray-700 text-sm font-bold mb-2'>
 									Total Price
 								</label>
 								<input
 									type='number'
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
 									value={newInvoice.total_price}
 									readOnly
 								/>
 							</div>
 							<div className='mb-4'>
-								<label className='block text-gray text-sm font-bold mb-2'>
+								<label className='block text-gray-700 text-sm font-bold mb-2'>
 									Files
 								</label>
 								<input
 									type='file'
 									onChange={handleFileChange}
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
 								/>
 								{selectedFile && (
 									<button
 										type='button'
 										onClick={handleFileUpload}
 										disabled={uploadingFile}
-										className='mt-2 bg-blue hover:bg-blue text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline'>
+										className='mt-2 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline'>
 										{uploadingFile ? 'Uploading...' : 'Upload File'}
 									</button>
 								)}
@@ -912,7 +944,7 @@ const InvoicesPage: React.FC = () => {
 											href={file}
 											target='_blank'
 											rel='noopener noreferrer'
-											className='text-blue hover:underline mr-2'>
+											className='text-blue-500 hover:underline mr-2'>
 											{file.split('/').pop()}
 										</a>
 										<button
@@ -935,7 +967,7 @@ const InvoicesPage: React.FC = () => {
 						</button>
 						<button
 							type='button'
-							className='mt-3 w-full inline-flex justify-center rounded-md border border-gray shadow-sm px-4 py-2 bg-white text-base font-medium text-gray hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
+							className='mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
 							onClick={() => {
 								setShowModal(false)
 								setNewInvoice({
