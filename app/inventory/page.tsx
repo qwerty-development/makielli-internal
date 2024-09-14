@@ -10,18 +10,7 @@ import {
 import { toast } from 'react-hot-toast'
 
 export default function ProductsPage() {
-	const sizeOptions = [
-		'XS',
-		'S',
-		'M',
-		'L',
-		'XL',
-		'2XL',
-		'3XL',
-		'4XL',
-		'5XL',
-		'6XL'
-	]
+	const sizeOptions = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', '6XL']
 	const [products, setProducts] = useState<Product[]>([])
 	const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
 	const [isLoading, setIsLoading] = useState(true)
@@ -268,6 +257,7 @@ export default function ProductsPage() {
 						</option>
 						<option value='Stock'>Stock</option>
 						<option value='Sample'>Sample</option>
+						<q></q>
 					</select>
 					<input
 						type='number'
