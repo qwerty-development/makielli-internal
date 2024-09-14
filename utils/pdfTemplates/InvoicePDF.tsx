@@ -109,8 +109,11 @@ const styles = StyleSheet.create({
 		fontSize: 5,
 		padding: 1
 	},
-	productGroup: {
-		marginBottom: 5
+	notes: {
+		fontSize: 5,
+		fontStyle: 'italic',
+		color: '#666',
+		marginTop: 2
 	},
 	subtotal: {
 		flexDirection: 'row',
@@ -153,18 +156,6 @@ const InvoicePDF: React.FC<{
 	logoBase64?: string
 }> = ({ invoice, entity, company, isClientInvoice, logoBase64 }) => {
 	const sizeOptions = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', '6XL']
-
-	// Group products by their name
-	const groupedProducts: any = invoice.products.reduce(
-		(acc: any, product: any) => {
-			if (!acc[product.name]) {
-				acc[product.name] = []
-			}
-			acc[product.name].push(product)
-			return acc
-		},
-		{}
-	)
 	const addressLines = company.address.split('\n')
 
 	return (
@@ -178,7 +169,7 @@ const InvoicePDF: React.FC<{
 					)}
 					<View style={styles.companyInfo}>
 						<Text>{company.name}</Text>
-						{addressLines.map((line: any, index: any) => (
+						{addressLines.map((line: string, index: number) => (
 							<Text key={index}>{line}</Text>
 						))}
 						<Text>
@@ -248,72 +239,73 @@ const InvoicePDF: React.FC<{
 						</View>
 					</View>
 
-					{Object.entries(groupedProducts).map(
-						([productName, variants]: [any, any]) => (
-							<View key={productName} style={styles.productGroup}>
-								{variants.map((variant: any, index: any) => (
-									<View key={index} style={styles.tableRow}>
-										<View style={[styles.tableCol, { width: '8%' }]}>
-											<Image
-												src={variant.image || '/placeholder-image.png'}
-												style={styles.productImage}
-											/>
-										</View>
-										<View style={[styles.tableCol, { width: '18%' }]}>
-											<Text style={styles.tableCell}>
-												{variant.name || 'N/A'}
-											</Text>
-										</View>
-										<View style={[styles.tableCol, { width: '8%' }]}>
-											<Text style={styles.tableCell}>
-												{variant.color || 'N/A'}
-											</Text>
-										</View>
-										<View style={[styles.tableCol, { width: '11%' }]}>
-											<Text style={styles.tableCell}>
-												{variant.note || '-'}
-											</Text>
-										</View>
-										{sizeOptions.map(size => (
-											<View
-												key={size}
-												style={[styles.tableCol, { width: '5%' }]}>
-												<Text style={styles.tableCell}>
-													{variant.size === size ? variant.quantity : '-'}
-												</Text>
-											</View>
-										))}
-										<View style={[styles.tableCol, { width: '7%' }]}>
-											<Text style={styles.tableCell}>
-												$
-												{(isClientInvoice
-													? variant.unitPrice
-													: variant.unitCost || 0
-												).toFixed(2)}
-											</Text>
-										</View>
-										<View style={[styles.tableCol, { width: '10%' }]}>
-											<Text style={styles.tableCell}>
-												$
-												{(
-													(variant.quantity || 0) *
-													(isClientInvoice
-														? variant.unitPrice
-														: variant.unitCost || 0)
-												).toFixed(2)}
-											</Text>
-										</View>
-									</View>
+					{invoice.products.map((product: any, index: number) => (
+						<View key={index} style={styles.tableRow}>
+							<View style={[styles.tableCol, { width: '8%' }]}>
+								<Image
+									src={product.image || '/placeholder-image.png'}
+									style={styles.productImage}
+								/>
+							</View>
+							<View style={[styles.tableCol, { width: '18%' }]}>
+								<Text style={styles.tableCell}>{product.name || 'N/A'}</Text>
+							</View>
+							<View style={[styles.tableCol, { width: '8%' }]}>
+								<Text style={styles.tableCell}>{product.color || 'N/A'}</Text>
+							</View>
+							<View style={[styles.tableCol, { width: '11%' }]}>
+								{product.notes.map((note: string, noteIndex: number) => (
+									<Text key={noteIndex} style={styles.notes}>
+										{note}
+									</Text>
 								))}
 							</View>
-						)
-					)}
+							{sizeOptions.map(size => (
+								<View key={size} style={[styles.tableCol, { width: '5%' }]}>
+									<Text style={styles.tableCell}>
+										{product.sizes[size] || '-'}
+									</Text>
+								</View>
+							))}
+							<View style={[styles.tableCol, { width: '7%' }]}>
+								<Text style={styles.tableCell}>
+									$
+									{(isClientInvoice
+										? product.unitPrice
+										: product.unitCost || 0
+									).toFixed(2)}
+								</Text>
+							</View>
+							<View style={[styles.tableCol, { width: '10%' }]}>
+								<Text style={styles.tableCell}>
+									$
+									{(
+										product.totalQuantity *
+										(isClientInvoice
+											? product.unitPrice
+											: product.unitCost || 0)
+									).toFixed(2)}
+								</Text>
+							</View>
+						</View>
+					))}
 				</View>
 
 				<View style={styles.subtotal}>
 					<Text style={styles.subtotalLabel}>Total:</Text>
 					<Text style={styles.subtotalValue}>
-						${invoice.total_price.toFixed(2)}
+						$
+						{invoice.products
+							.reduce(
+								(sum: number, product: any) =>
+									sum +
+									product.totalQuantity *
+										(isClientInvoice
+											? product.unitPrice
+											: product.unitCost || 0),
+								0
+							)
+							.toFixed(2)}
 					</Text>
 				</View>
 

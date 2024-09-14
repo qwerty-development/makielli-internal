@@ -83,10 +83,9 @@ const fetchProductDetails = async (productVariantId: string) => {
 		image: productDetails.photo,
 		unitPrice: productDetails.price,
 		unitCost: productDetails.cost,
-		size: data.size,
 		color: data.color,
-		quantity: data.quantity,
-		note: '' // Add this if you have notes for individual products
+		size: data.size,
+		quantity: data.quantity
 	}
 }
 
@@ -138,7 +137,6 @@ const fetchClientFinancialData = async (clientId: number) => {
 
 	return financialData
 }
-
 const fetchSupplierFinancialData = async (supplierId: string) => {
 	const { data: invoices, error: invoiceError } = await supabase
 		.from('SupplierInvoices')
@@ -185,20 +183,41 @@ export const generatePDF = async (
 	let component: any
 	let fileName: string
 
-	let productsWithDetails: any[] = []
-
 	if (type === 'invoice' || type === 'quotation') {
-		productsWithDetails = await Promise.all(
+		const productMap = new Map()
+
+		await Promise.all(
 			data.products.map(async (product: any) => {
 				const details = await fetchProductDetails(product.product_variant_id)
-				return {
-					...details,
-					quantity: product.quantity,
-					note: product.note || ''
+				const key = `${details.name}-${details.color}`
+
+				if (!productMap.has(key)) {
+					productMap.set(key, {
+						...details,
+						sizes: {},
+						totalQuantity: 0,
+						notes: new Set()
+					})
 				}
+
+				const existingProduct = productMap.get(key)
+				existingProduct.sizes[details.size] =
+					(existingProduct.sizes[details.size] || 0) + product.quantity
+				existingProduct.totalQuantity += product.quantity
+				if (product.note) {
+					existingProduct.notes.add(product.note)
+				}
+				productMap.set(key, existingProduct)
 			})
 		)
-		data = { ...data, products: productsWithDetails }
+
+		data = {
+			...data,
+			products: Array.from(productMap.values()).map(product => ({
+				...product,
+				notes: Array.from(product.notes)
+			}))
+		}
 	}
 
 	switch (type) {
