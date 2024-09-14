@@ -1,4 +1,3 @@
-// utils/pdfTemplates/QuotationPDF.tsx
 import React from 'react'
 import {
 	Page,
@@ -9,28 +8,13 @@ import {
 	StyleSheet
 } from '@react-pdf/renderer'
 import { format } from 'date-fns'
-import { Font } from '@react-pdf/renderer'
-
-Font.register({
-	family: 'Times New Roman',
-	fonts: [
-		{ src: '/fonts/times-new-roman.ttf' },
-		{ src: '/fonts/times-new-roman-bold.ttf', fontWeight: 700 },
-		{ src: '/fonts/times-new-roman-italic.ttf', fontStyle: 'italic' },
-		{
-			src: '/fonts/times-new-roman-bold-italic.ttf',
-			fontWeight: 700,
-			fontStyle: 'italic'
-		}
-	]
-})
 
 const styles = StyleSheet.create({
 	page: {
-		fontFamily: 'Times New Roman',
 		flexDirection: 'column',
 		backgroundColor: '#FFFFFF',
-		padding: 30
+		padding: 30,
+		fontFamily: 'Helvetica'
 	},
 	header: {
 		flexDirection: 'row',
@@ -39,7 +23,7 @@ const styles = StyleSheet.create({
 	},
 	logo: {
 		width: 120,
-		height: 'auto',
+		height: 50,
 		objectFit: 'contain'
 	},
 	companyInfo: {
@@ -88,21 +72,33 @@ const styles = StyleSheet.create({
 		borderRightWidth: 1,
 		borderColor: '#bfbfbf',
 		backgroundColor: '#f0f0f0',
-		padding: 5
+		padding: 1
 	},
 	tableCol: {
 		borderStyle: 'solid',
 		borderRightWidth: 1,
 		borderBottomWidth: 1,
 		borderColor: '#bfbfbf',
-		padding: 5
+		padding: 1
 	},
 	tableCellHeader: {
 		fontWeight: 'bold',
-		fontSize: 10
+		fontSize: 5,
+		textAlign: 'center'
 	},
 	tableCell: {
-		fontSize: 10
+		fontSize: 6,
+		textAlign: 'center'
+	},
+	sizeCol: {
+		width: '5%',
+		borderStyle: 'solid',
+		borderRightWidth: 1,
+		borderBottomWidth: 1,
+		borderColor: '#bfbfbf',
+		padding: 1,
+		fontSize: 5,
+		textAlign: 'center'
 	},
 	productGroup: {
 		marginBottom: 10
@@ -112,7 +108,7 @@ const styles = StyleSheet.create({
 		marginBottom: 2
 	},
 	variantCell: {
-		fontSize: 10,
+		fontSize: 6,
 		flexGrow: 1
 	},
 	subtotal: {
@@ -142,17 +138,20 @@ const styles = StyleSheet.create({
 		fontSize: 10
 	},
 	productImage: {
-		width: 40,
-		height: 40,
+		width: 30,
+		height: 30,
 		objectFit: 'contain'
 	}
 })
 
-const QuotationPDF: React.FC<{ quotation: any; client: any; company: any }> = ({
-	quotation,
-	client,
-	company
-}) => {
+const QuotationPDF: React.FC<{
+	quotation: any
+	client: any
+	company: any
+	logoBase64?: string
+}> = ({ quotation, client, company, logoBase64 }) => {
+	const sizeOptions = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', '6XL']
+
 	// Group products by their name
 	const groupedProducts = quotation.products.reduce(
 		(acc: any, product: any) => {
@@ -166,14 +165,19 @@ const QuotationPDF: React.FC<{ quotation: any; client: any; company: any }> = ({
 	)
 
 	const addressLines = company.address.split('\n')
+
 	return (
 		<Document>
 			<Page size='A4' style={styles.page}>
 				<View style={styles.header}>
-					<Image src='/logo/logo.png' style={styles.logo} />
+					{logoBase64 ? (
+						<Image src={logoBase64} style={styles.logo} />
+					) : (
+						<Image src='/logo/logo.png' style={styles.logo} />
+					)}
 					<View style={styles.companyInfo}>
 						<Text>{company.name}</Text>
-						{addressLines.map((line: any, index: any) => (
+						{addressLines.map((line: string, index: number) => (
 							<Text key={index}>{line}</Text>
 						))}
 						<Text>
@@ -208,78 +212,61 @@ const QuotationPDF: React.FC<{ quotation: any; client: any; company: any }> = ({
 
 				<View style={styles.table}>
 					<View style={styles.tableRow}>
-						<View style={[styles.tableColHeader, { width: '10%' }]}>
+						<View style={[styles.tableColHeader, { width: '8%' }]}>
 							<Text style={styles.tableCellHeader}>IMAGE</Text>
 						</View>
-						<View style={[styles.tableColHeader, { width: '30%' }]}>
+						<View style={[styles.tableColHeader, { width: '18%' }]}>
 							<Text style={styles.tableCellHeader}>STYLE</Text>
 						</View>
-						<View style={[styles.tableColHeader, { width: '15%' }]}>
+						<View style={[styles.tableColHeader, { width: '8%' }]}>
 							<Text style={styles.tableCellHeader}>COLOR</Text>
 						</View>
-						<View style={[styles.tableColHeader, { width: '25%' }]}>
+						<View style={[styles.tableColHeader, { width: '11%' }]}>
 							<Text style={styles.tableCellHeader}>NOTES</Text>
 						</View>
-						<View style={[styles.tableColHeader, { width: '5%' }]}>
-							<Text style={styles.tableCellHeader}>S</Text>
-						</View>
-						<View style={[styles.tableColHeader, { width: '5%' }]}>
-							<Text style={styles.tableCellHeader}>M</Text>
-						</View>
-						<View style={[styles.tableColHeader, { width: '5%' }]}>
-							<Text style={styles.tableCellHeader}>L</Text>
-						</View>
-						<View style={[styles.tableColHeader, { width: '5%' }]}>
-							<Text style={styles.tableCellHeader}>XL</Text>
-						</View>
-						<View style={[styles.tableColHeader, { width: '10%' }]}>
+						{sizeOptions.map(size => (
+							<View key={size} style={[styles.tableColHeader, { width: '5%' }]}>
+								<Text style={styles.tableCellHeader}>{size}</Text>
+							</View>
+						))}
+						<View style={[styles.tableColHeader, { width: '7%' }]}>
 							<Text style={styles.tableCellHeader}>PRICE</Text>
 						</View>
-						<View style={[styles.tableColHeader, { width: '15%' }]}>
+						<View style={[styles.tableColHeader, { width: '10%' }]}>
 							<Text style={styles.tableCellHeader}>TOTAL</Text>
 						</View>
 					</View>
 
 					{Object.entries(groupedProducts).map(
-						([productName, variants]: [any, any]) => (
+						([productName, variants]: [string, any]) => (
 							<View key={productName} style={styles.productGroup}>
-								{variants.map((variant: any, index: any) => (
+								{variants.map((variant: any, index: number) => (
 									<View key={index} style={styles.variantRow}>
-										<View style={[styles.variantCell, { width: '10%' }]}>
+										<View style={[styles.variantCell, { width: '8%' }]}>
 											<Image
 												src={variant.image || '/placeholder-image.png'}
 												style={styles.productImage}
 											/>
 										</View>
-										<Text style={[styles.variantCell, { width: '30%' }]}>
+										<Text style={[styles.variantCell, { width: '18%' }]}>
 											{variant.name || 'N/A'}
 										</Text>
-										<Text style={[styles.variantCell, { width: '15%' }]}>
+										<Text style={[styles.variantCell, { width: '8%' }]}>
 											{variant.color || 'N/A'}
 										</Text>
-										<Text style={[styles.variantCell, { width: '25%' }]}>
+										<Text style={[styles.variantCell, { width: '11%' }]}>
 											{variant.note || '-'}
 										</Text>
-										<Text style={[styles.variantCell, { width: '5%' }]}>
-											{variant.size === 'S' ? variant.quantity : '-'}
-										</Text>
-										<Text style={[styles.variantCell, { width: '5%' }]}>
-											{variant.size === 'M' ? variant.quantity : '-'}
-										</Text>
-										<Text style={[styles.variantCell, { width: '5%' }]}>
-											{variant.size === 'L' ? variant.quantity : '-'}
-										</Text>
-										<Text style={[styles.variantCell, { width: '5%' }]}>
-											{variant.size === 'XL' ? variant.quantity : '-'}
+										{sizeOptions.map(size => (
+											<Text key={size} style={styles.sizeCol}>
+												{variant.size === size ? variant.quantity : '-'}
+											</Text>
+										))}
+										<Text style={[styles.variantCell, { width: '7%' }]}>
+											${variant.unitPrice?.toFixed(2)}
 										</Text>
 										<Text style={[styles.variantCell, { width: '10%' }]}>
-											${(variant.unitPrice || 0).toFixed(2)}
-										</Text>
-										<Text style={[styles.variantCell, { width: '15%' }]}>
-											$
-											{(
-												(variant.quantity || 0) * (variant.unitPrice || 0)
-											).toFixed(2)}
+											${(variant.quantity * variant.unitPrice).toFixed(2)}
 										</Text>
 									</View>
 								))}

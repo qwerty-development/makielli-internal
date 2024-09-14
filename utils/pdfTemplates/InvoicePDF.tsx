@@ -1,4 +1,3 @@
-// utils/pdfTemplates/InvoicePDF.tsx
 import React from 'react'
 import {
 	Page,
@@ -74,13 +73,19 @@ const styles = StyleSheet.create({
 	},
 	table: {
 		width: 'auto',
-		marginTop: 10,
 		borderStyle: 'solid',
 		borderWidth: 1,
-		borderColor: '#bfbfbf'
+		borderColor: '#bfbfbf',
+		marginTop: 10
 	},
 	tableRow: {
-		flexDirection: 'row'
+		flexDirection: 'row',
+		borderBottomWidth: 1,
+		borderBottomColor: '#bfbfbf',
+		borderBottomStyle: 'solid',
+		alignItems: 'center',
+		minHeight: 24,
+		textAlign: 'center'
 	},
 	tableColHeader: {
 		borderStyle: 'solid',
@@ -88,32 +93,24 @@ const styles = StyleSheet.create({
 		borderRightWidth: 1,
 		borderColor: '#bfbfbf',
 		backgroundColor: '#f0f0f0',
-		padding: 5
+		padding: 1
 	},
 	tableCol: {
 		borderStyle: 'solid',
 		borderRightWidth: 1,
-		borderBottomWidth: 1,
-		borderColor: '#bfbfbf',
-		padding: 5
+		borderRightColor: '#bfbfbf'
 	},
 	tableCellHeader: {
 		fontWeight: 'bold',
-		fontSize: 10
+		fontSize: 5,
+		textAlign: 'center'
 	},
 	tableCell: {
-		fontSize: 10
+		fontSize: 5,
+		padding: 1
 	},
 	productGroup: {
-		marginBottom: 10
-	},
-	variantRow: {
-		flexDirection: 'row',
-		marginBottom: 2
-	},
-	variantCell: {
-		fontSize: 10,
-		flexGrow: 1
+		marginBottom: 5
 	},
 	subtotal: {
 		flexDirection: 'row',
@@ -142,8 +139,8 @@ const styles = StyleSheet.create({
 		fontSize: 10
 	},
 	productImage: {
-		width: 40,
-		height: 40,
+		width: 50,
+		height: 50,
 		objectFit: 'contain'
 	}
 })
@@ -155,6 +152,8 @@ const InvoicePDF: React.FC<{
 	isClientInvoice: boolean
 	logoBase64?: string
 }> = ({ invoice, entity, company, isClientInvoice, logoBase64 }) => {
+	const sizeOptions = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', '6XL']
+
 	// Group products by their name
 	const groupedProducts: any = invoice.products.reduce(
 		(acc: any, product: any) => {
@@ -222,36 +221,29 @@ const InvoicePDF: React.FC<{
 
 				<View style={styles.table}>
 					<View style={styles.tableRow}>
-						<View style={[styles.tableColHeader, { width: '10%' }]}>
+						<View style={[styles.tableColHeader, { width: '8%' }]}>
 							<Text style={styles.tableCellHeader}>IMAGE</Text>
 						</View>
-						<View style={[styles.tableColHeader, { width: '30%' }]}>
+						<View style={[styles.tableColHeader, { width: '18%' }]}>
 							<Text style={styles.tableCellHeader}>STYLE</Text>
 						</View>
-						<View style={[styles.tableColHeader, { width: '15%' }]}>
+						<View style={[styles.tableColHeader, { width: '8%' }]}>
 							<Text style={styles.tableCellHeader}>COLOR</Text>
 						</View>
-						<View style={[styles.tableColHeader, { width: '25%' }]}>
+						<View style={[styles.tableColHeader, { width: '11%' }]}>
 							<Text style={styles.tableCellHeader}>NOTES</Text>
 						</View>
-						<View style={[styles.tableColHeader, { width: '5%' }]}>
-							<Text style={styles.tableCellHeader}>S</Text>
-						</View>
-						<View style={[styles.tableColHeader, { width: '5%' }]}>
-							<Text style={styles.tableCellHeader}>M</Text>
-						</View>
-						<View style={[styles.tableColHeader, { width: '5%' }]}>
-							<Text style={styles.tableCellHeader}>L</Text>
-						</View>
-						<View style={[styles.tableColHeader, { width: '5%' }]}>
-							<Text style={styles.tableCellHeader}>XL</Text>
-						</View>
-						<View style={[styles.tableColHeader, { width: '10%' }]}>
+						{sizeOptions.map(size => (
+							<View key={size} style={[styles.tableColHeader, { width: '5%' }]}>
+								<Text style={styles.tableCellHeader}>{size}</Text>
+							</View>
+						))}
+						<View style={[styles.tableColHeader, { width: '7%' }]}>
 							<Text style={styles.tableCellHeader}>
 								{isClientInvoice ? 'PRICE' : 'COST'}
 							</Text>
 						</View>
-						<View style={[styles.tableColHeader, { width: '15%' }]}>
+						<View style={[styles.tableColHeader, { width: '10%' }]}>
 							<Text style={styles.tableCellHeader}>TOTAL</Text>
 						</View>
 					</View>
@@ -260,50 +252,57 @@ const InvoicePDF: React.FC<{
 						([productName, variants]: [any, any]) => (
 							<View key={productName} style={styles.productGroup}>
 								{variants.map((variant: any, index: any) => (
-									<View key={index} style={styles.variantRow}>
-										<View style={[styles.variantCell, { width: '10%' }]}>
+									<View key={index} style={styles.tableRow}>
+										<View style={[styles.tableCol, { width: '8%' }]}>
 											<Image
 												src={variant.image || '/placeholder-image.png'}
 												style={styles.productImage}
 											/>
 										</View>
-										<Text style={[styles.variantCell, { width: '30%' }]}>
-											{variant.name || 'N/A'}
-										</Text>
-										<Text style={[styles.variantCell, { width: '15%' }]}>
-											{variant.color || 'N/A'}
-										</Text>
-										<Text style={[styles.variantCell, { width: '25%' }]}>
-											{variant.note || '-'}
-										</Text>
-										<Text style={[styles.variantCell, { width: '5%' }]}>
-											{variant.size === 'S' ? variant.quantity : '-'}
-										</Text>
-										<Text style={[styles.variantCell, { width: '5%' }]}>
-											{variant.size === 'M' ? variant.quantity : '-'}
-										</Text>
-										<Text style={[styles.variantCell, { width: '5%' }]}>
-											{variant.size === 'L' ? variant.quantity : '-'}
-										</Text>
-										<Text style={[styles.variantCell, { width: '5%' }]}>
-											{variant.size === 'XL' ? variant.quantity : '-'}
-										</Text>
-										<Text style={[styles.variantCell, { width: '10%' }]}>
-											$
-											{(isClientInvoice
-												? variant.unitPrice
-												: variant.unitCost || 0
-											).toFixed(2)}
-										</Text>
-										<Text style={[styles.variantCell, { width: '15%' }]}>
-											$
-											{(
-												(variant.quantity || 0) *
-												(isClientInvoice
+										<View style={[styles.tableCol, { width: '18%' }]}>
+											<Text style={styles.tableCell}>
+												{variant.name || 'N/A'}
+											</Text>
+										</View>
+										<View style={[styles.tableCol, { width: '8%' }]}>
+											<Text style={styles.tableCell}>
+												{variant.color || 'N/A'}
+											</Text>
+										</View>
+										<View style={[styles.tableCol, { width: '11%' }]}>
+											<Text style={styles.tableCell}>
+												{variant.note || '-'}
+											</Text>
+										</View>
+										{sizeOptions.map(size => (
+											<View
+												key={size}
+												style={[styles.tableCol, { width: '5%' }]}>
+												<Text style={styles.tableCell}>
+													{variant.size === size ? variant.quantity : '-'}
+												</Text>
+											</View>
+										))}
+										<View style={[styles.tableCol, { width: '7%' }]}>
+											<Text style={styles.tableCell}>
+												$
+												{(isClientInvoice
 													? variant.unitPrice
-													: variant.unitCost || 0)
-											).toFixed(2)}
-										</Text>
+													: variant.unitCost || 0
+												).toFixed(2)}
+											</Text>
+										</View>
+										<View style={[styles.tableCol, { width: '10%' }]}>
+											<Text style={styles.tableCell}>
+												$
+												{(
+													(variant.quantity || 0) *
+													(isClientInvoice
+														? variant.unitPrice
+														: variant.unitCost || 0)
+												).toFixed(2)}
+											</Text>
+										</View>
 									</View>
 								))}
 							</View>
