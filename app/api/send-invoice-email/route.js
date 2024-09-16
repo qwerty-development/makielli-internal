@@ -29,6 +29,7 @@ const fetchSupplierDetails = async supplierId => {
 	if (error) throw error
 	return data
 }
+
 const fetchCompanyDetails = async companyId => {
 	const { data, error } = await supabase
 		.from('companies')
@@ -135,6 +136,15 @@ export async function POST(request) {
 		})
 		const pdfBuffer = await pdf(pdfComponent).toBuffer()
 
+		// Prepare VAT information for email body
+		const subtotal = invoice.total_price - (invoice.vat_amount || 0)
+		const vatInfo = invoice.include_vat
+			? `
+        <p>Subtotal: $${subtotal.toFixed(2)}</p>
+        <p>VAT (11%): $${invoice.vat_amount.toFixed(2)}</p>
+      `
+			: ''
+
 		const mailOptions = {
 			from: 'noreply@yourcompany.com',
 			to: 'asif@notqwerty.com',
@@ -144,6 +154,7 @@ export async function POST(request) {
 			html: `
         <h1>Invoice #${invoice.id}</h1>
         <p>Please find the attached invoice for your records.</p>
+        ${vatInfo}
         <p>Total Amount: $${invoice.total_price.toFixed(2)}</p>
         <p>If you have any questions, please don't hesitate to contact us.</p>
       `,
