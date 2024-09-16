@@ -1,16 +1,6 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import {
-	Tabs,
-	Tab,
-	Button,
-	Modal,
-	Form,
-	Table,
-	Pagination,
-	Dropdown
-} from 'react-bootstrap'
 import { supabase } from '../../utils/supabase'
 import { toast } from 'react-hot-toast'
 import DatePicker from 'react-datepicker'
@@ -23,9 +13,17 @@ import {
 	FaTrash,
 	FaFilter,
 	FaPlus,
-	FaCheck
+	FaCheck,
+	FaSearch
 } from 'react-icons/fa'
 import { generatePDF } from '@/utils/pdfGenerator'
+import { debounce } from 'lodash'
+
+interface QuotationProduct {
+	product_id: string
+	product_variant_id: string
+	quantity: number
+}
 
 interface Quotation {
 	id: number
@@ -33,7 +31,7 @@ interface Quotation {
 	total_price: number
 	note: string
 	client_id: number
-	products: { product_variant_id: string; quantity: number }[]
+	products: QuotationProduct[]
 	status: 'pending' | 'accepted' | 'rejected'
 }
 
@@ -41,7 +39,6 @@ const QuotationsPage: React.FC = () => {
 	const [quotations, setQuotations] = useState<Quotation[]>([])
 	const [clients, setClients] = useState<Client[]>([])
 	const [products, setProducts] = useState<Product[]>([])
-	const [selectedProduct, setSelectedProduct] = useState<string | null>(null)
 	const [showModal, setShowModal] = useState(false)
 	const [currentPage, setCurrentPage] = useState(1)
 	const [itemsPerPage] = useState(10)
@@ -65,6 +62,12 @@ const QuotationsPage: React.FC = () => {
 		products: [],
 		status: 'pending'
 	})
+	const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+	const [selectedVariants, setSelectedVariants] = useState<QuotationProduct[]>(
+		[]
+	)
+	const [productSearch, setProductSearch] = useState('')
+	const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
 
 	useEffect(() => {
 		fetchQuotations()
@@ -79,6 +82,17 @@ const QuotationsPage: React.FC = () => {
 		filterClient,
 		filterStatus
 	])
+
+	useEffect(() => {
+		const filtered = products.filter(product =>
+			product.name.toLowerCase().includes(productSearch.toLowerCase())
+		)
+		setFilteredProducts(filtered)
+	}, [productSearch, products])
+
+	const handleProductSearch = debounce((searchTerm: string) => {
+		setProductSearch(searchTerm)
+	}, 300)
 
 	const fetchQuotations = async () => {
 		let query = supabase.from('Quotations').select('*', { count: 'exact' })
@@ -135,9 +149,7 @@ const QuotationsPage: React.FC = () => {
 		}
 	}
 
-	const calculateTotalPrice = (
-		quotationProducts: { product_variant_id: string; quantity: number }[]
-	) => {
+	const calculateTotalPrice = (quotationProducts: QuotationProduct[]) => {
 		return quotationProducts.reduce((total, quotationProduct) => {
 			const variant = allProductVariants.find(
 				v => v.id === quotationProduct.product_variant_id
@@ -169,13 +181,11 @@ const QuotationsPage: React.FC = () => {
 
 		let result
 		if (newQuotation.id) {
-			// Update existing quotation
 			result = await supabase
 				.from('Quotations')
 				.update(quotationData)
 				.eq('id', newQuotation.id)
 		} else {
-			// Create new quotation
 			result = await supabase.from('Quotations').insert(quotationData).single()
 		}
 
@@ -301,54 +311,60 @@ const QuotationsPage: React.FC = () => {
 		setSelectedQuotation(quotation)
 	}
 
-	const handleAddProduct = () => {
-		const updatedProducts = [
-			...(newQuotation.products || []),
-			{ product_variant_id: '', quantity: 0 }
-		]
-		const newTotalPrice = calculateTotalPrice(updatedProducts)
-		setNewQuotation({
-			...newQuotation,
-			products: updatedProducts,
-			total_price: newTotalPrice
-		})
+	const handleAddProduct = (product: Product) => {
+		setSelectedProduct(product)
+		setSelectedVariants([
+			{
+				product_id: product.id,
+				product_variant_id: product.variants[0]?.id || '',
+				quantity: 1
+			}
+		])
 	}
 
-	const handleProductChange = (index: number, productId: string) => {
-		setSelectedProduct(productId)
-		const updatedProducts = [...(newQuotation.products || [])]
-		updatedProducts[index] = { product_variant_id: '', quantity: 0 }
-		const newTotalPrice = calculateTotalPrice(updatedProducts)
-		setNewQuotation({
-			...newQuotation,
-			products: updatedProducts,
-			total_price: newTotalPrice
-		})
-	}
-
-	const handleVariantChange = (index: number, variantId: string) => {
-		const updatedProducts = [...(newQuotation.products || [])]
-		updatedProducts[index] = {
-			...updatedProducts[index],
-			product_variant_id: variantId
+	const handleAddVariant = () => {
+		if (selectedProduct) {
+			setSelectedVariants([
+				...selectedVariants,
+				{
+					product_id: selectedProduct.id,
+					product_variant_id: '',
+					quantity: 1
+				}
+			])
 		}
-		const newTotalPrice = calculateTotalPrice(updatedProducts)
-		setNewQuotation({
-			...newQuotation,
-			products: updatedProducts,
-			total_price: newTotalPrice
-		})
 	}
 
-	const handleQuantityChange = (index: number, quantity: number) => {
-		const updatedProducts = [...(newQuotation.products || [])]
-		updatedProducts[index] = { ...updatedProducts[index], quantity }
-		const newTotalPrice = calculateTotalPrice(updatedProducts)
-		setNewQuotation({
-			...newQuotation,
-			products: updatedProducts,
-			total_price: newTotalPrice
-		})
+	const handleVariantChange = (
+		index: number,
+		field: keyof QuotationProduct,
+		value: string | number
+	) => {
+		const updatedVariants = [...selectedVariants]
+		updatedVariants[index] = { ...updatedVariants[index], [field]: value }
+		setSelectedVariants(updatedVariants)
+	}
+
+	const handleRemoveVariant = (index: number) => {
+		const updatedVariants = selectedVariants.filter((_, i) => i !== index)
+		setSelectedVariants(updatedVariants)
+	}
+
+	const handleAddSelectedProductToQuotation = () => {
+		if (selectedProduct && selectedVariants.length > 0) {
+			const updatedProducts = [
+				...(newQuotation.products || []),
+				...selectedVariants
+			]
+			const newTotalPrice = calculateTotalPrice(updatedProducts)
+			setNewQuotation({
+				...newQuotation,
+				products: updatedProducts,
+				total_price: newTotalPrice
+			})
+			setSelectedProduct(null)
+			setSelectedVariants([])
+		}
 	}
 
 	const renderQuotationTable = () => (
@@ -608,73 +624,140 @@ const QuotationsPage: React.FC = () => {
 								<label className='block text-gray-700 text-sm font-bold mb-2'>
 									Products
 								</label>
-								{newQuotation.products?.map((product, index) => (
-									<div key={index} className='mb-2 p-2 border rounded'>
-										<select
-											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2'
-											value={selectedProduct || ''}
-											onChange={e =>
-												handleProductChange(index, e.target.value)
-											}>
-											<option value=''>Select Product</option>
-											{products.map(product => (
-												<option key={product.id} value={product.id}>
-													{product.name}
-												</option>
-											))}
-										</select>
-										{selectedProduct && (
-											<select
-												className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2'
-												value={product.product_variant_id}
-												onChange={e =>
-													handleVariantChange(index, e.target.value)
-												}>
-												<option value=''>Select Variant</option>
-												{products
-													.find(p => p.id === selectedProduct)
-													?.variants.map(variant => (
-														<option key={variant.id} value={variant.id}>
-															{variant.size} - {variant.color}
+								<div className='flex mb-2'>
+									<input
+										type='text'
+										placeholder='Search products...'
+										className='flex-grow shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+										onChange={e => handleProductSearch(e.target.value)}
+									/>
+									<button
+										type='button'
+										className='ml-2 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded'
+										onClick={() => setProductSearch('')}>
+										<FaSearch />
+									</button>
+								</div>
+								<div className='max-h-40 overflow-y-auto mb-2'>
+									{filteredProducts.map(product => (
+										<div
+											key={product.id}
+											className='flex justify-between items-center p-2 hover:bg-gray-100 cursor-pointer'
+											onClick={() => handleAddProduct(product)}>
+											<span>{product.name}</span>
+											<button
+												type='button'
+												className='bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-xs'>
+												Select
+											</button>
+										</div>
+									))}
+								</div>
+
+								{selectedProduct && (
+									<div className='mb-4 p-2 border rounded'>
+										<h4 className='font-bold mb-2'>{selectedProduct.name}</h4>
+										{selectedVariants.map((variant, index) => (
+											<div key={index} className='mb-2 p-2 border rounded'>
+												<select
+													className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2'
+													value={variant.product_variant_id}
+													onChange={e =>
+														handleVariantChange(
+															index,
+															'product_variant_id',
+															e.target.value
+														)
+													}>
+													<option value=''>Select Variant</option>
+													{selectedProduct.variants.map(v => (
+														<option key={v.id} value={v.id}>
+															{v.size} - {v.color}
 														</option>
 													))}
-											</select>
-										)}
-										<input
-											type='number'
-											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2'
-											value={product.quantity}
-											onChange={e =>
-												handleQuantityChange(index, Number(e.target.value))
-											}
-											placeholder='Quantity'
-										/>
+												</select>
+												<input
+													type='number'
+													className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2'
+													value={variant.quantity}
+													onChange={e =>
+														handleVariantChange(
+															index,
+															'quantity',
+															Number(e.target.value)
+														)
+													}
+													placeholder='Quantity'
+												/>
+												<button
+													type='button'
+													className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
+													onClick={() => handleRemoveVariant(index)}>
+													Remove Variant
+												</button>
+											</div>
+										))}
 										<button
 											type='button'
-											className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
-											onClick={() => {
-												const updatedProducts = newQuotation.products?.filter(
-													(_, i) => i !== index
-												)
-												const newTotalPrice = calculateTotalPrice(
-													updatedProducts || []
-												)
-												setNewQuotation({
-													...newQuotation,
-													products: updatedProducts,
-													total_price: newTotalPrice
-												})
-											}}>
-											Remove
+											className='bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded text-xs mr-2'
+											onClick={handleAddVariant}>
+											Add Another Variant
+										</button>
+										<button
+											type='button'
+											className='bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-xs'
+											onClick={handleAddSelectedProductToQuotation}>
+											Add to Quotation
 										</button>
 									</div>
+								)}
+
+								{newQuotation.products?.map((product, index) => (
+									<div key={index} className='mb-2 p-2 border rounded'>
+										<div className='flex justify-between items-center mb-2'>
+											<span className='font-bold'>
+												{products.find(p => p.id === product.product_id)?.name}
+											</span>
+											<button
+												type='button'
+												className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
+												onClick={() => {
+													const updatedProducts = newQuotation.products?.filter(
+														(_, i) => i !== index
+													)
+													const newTotalPrice = calculateTotalPrice(
+														updatedProducts || []
+													)
+													setNewQuotation({
+														...newQuotation,
+														products: updatedProducts,
+														total_price: newTotalPrice
+													})
+												}}>
+												Remove
+											</button>
+										</div>
+										<p>
+											Variant:{' '}
+											{
+												products
+													.find(p => p.id === product.product_id)
+													?.variants.find(
+														v => v.id === product.product_variant_id
+													)?.size
+											}{' '}
+											-{' '}
+											{
+												products
+													.find(p => p.id === product.product_id)
+													?.variants.find(
+														v => v.id === product.product_variant_id
+													)?.color
+											}
+										</p>
+										<p>Quantity: {product.quantity}</p>
+									</div>
 								))}
-								<button
-									type='button'
-									className='bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded'
-									onClick={handleAddProduct}>
-									Add Product
-								</button>
 							</div>
 							<div className='mb-4'>
 								<label
@@ -746,6 +829,8 @@ const QuotationsPage: React.FC = () => {
 									products: [],
 									status: 'pending'
 								})
+								setSelectedProduct(null)
+								setSelectedVariants([])
 							}}>
 							Cancel
 						</button>
