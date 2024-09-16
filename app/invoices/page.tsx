@@ -39,6 +39,8 @@ interface Invoice {
 	products: InvoiceProduct[]
 	files: string[]
 	remaining_amount: number
+	include_vat: boolean
+	vat_amount: number
 }
 
 const InvoicesPage: React.FC = () => {
@@ -66,7 +68,9 @@ const InvoicesPage: React.FC = () => {
 		order_number: '',
 		products: [],
 		files: [],
-		remaining_amount: 0
+		remaining_amount: 0,
+		include_vat: false,
+		vat_amount: 0
 	})
 	const [selectedFile, setSelectedFile] = useState<File | null>(null)
 	const [uploadingFile, setUploadingFile] = useState(false)
@@ -166,29 +170,38 @@ const InvoicesPage: React.FC = () => {
 
 	const calculateTotalPrice = (
 		invoiceProducts: InvoiceProduct[],
-		isClientInvoice: boolean
+		isClientInvoice: boolean,
+		includeVAT: boolean
 	) => {
-		return invoiceProducts.reduce((total, invoiceProduct) => {
+		const subtotal = invoiceProducts.reduce((total, invoiceProduct) => {
 			const product = products.find(p => p.id === invoiceProduct.product_id)
 			if (!product) return total
 
 			const unitPrice = isClientInvoice ? product.price : product.cost
 			return total + unitPrice * invoiceProduct.quantity
 		}, 0)
+
+		const vatAmount = includeVAT ? subtotal * 0.11 : 0
+		const totalPrice = subtotal + vatAmount
+
+		return { subtotal, vatAmount, totalPrice }
 	}
 
 	const handleCreateInvoice = async () => {
 		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
 		const isClientInvoice = activeTab === 'client'
 
-		const totalPrice = calculateTotalPrice(
+		const { subtotal, vatAmount, totalPrice } = calculateTotalPrice(
 			newInvoice.products || [],
-			isClientInvoice
+			isClientInvoice,
+			newInvoice.include_vat || false
 		)
+
 		const invoiceData = {
 			...newInvoice,
 			total_price: totalPrice,
-			remaining_amount: totalPrice
+			remaining_amount: totalPrice,
+			vat_amount: vatAmount
 		}
 
 		let result
@@ -402,14 +415,16 @@ const InvoicesPage: React.FC = () => {
 				...selectedVariants
 			]
 			const isClientInvoice = activeTab === 'client'
-			const newTotalPrice = calculateTotalPrice(
+			const { totalPrice, vatAmount } = calculateTotalPrice(
 				updatedProducts,
-				isClientInvoice
+				isClientInvoice,
+				newInvoice.include_vat || false
 			)
 			setNewInvoice({
 				...newInvoice,
 				products: updatedProducts,
-				total_price: newTotalPrice
+				total_price: totalPrice,
+				vat_amount: vatAmount
 			})
 			setSelectedProduct(null)
 			setSelectedVariants([])
@@ -419,14 +434,16 @@ const InvoicesPage: React.FC = () => {
 	const handleRemoveProduct = (index: number) => {
 		const updatedProducts = newInvoice.products?.filter((_, i) => i !== index)
 		const isClientInvoice = activeTab === 'client'
-		const newTotalPrice = calculateTotalPrice(
+		const { totalPrice, vatAmount } = calculateTotalPrice(
 			updatedProducts || [],
-			isClientInvoice
+			isClientInvoice,
+			newInvoice.include_vat || false
 		)
 		setNewInvoice({
 			...newInvoice,
 			products: updatedProducts,
-			total_price: newTotalPrice
+			total_price: totalPrice,
+			vat_amount: vatAmount
 		})
 	}
 
@@ -441,11 +458,16 @@ const InvoicesPage: React.FC = () => {
 			updatedProducts[index].product_variant_id = ''
 		}
 		const isClientInvoice = activeTab === 'client'
-		const newTotalPrice = calculateTotalPrice(updatedProducts, isClientInvoice)
+		const { totalPrice, vatAmount } = calculateTotalPrice(
+			updatedProducts,
+			isClientInvoice,
+			newInvoice.include_vat || false
+		)
 		setNewInvoice({
 			...newInvoice,
 			products: updatedProducts,
-			total_price: newTotalPrice
+			total_price: totalPrice,
+			vat_amount: vatAmount
 		})
 	}
 
@@ -728,7 +750,7 @@ const InvoicesPage: React.FC = () => {
 			<div className='relative'>
 				<DatePicker
 					selected={filterEndDate}
-					onChange={(date: any) => setFilterEndDate(date)}
+					onChange={(date: Date | null) => setFilterEndDate(date)}
 					selectsEnd
 					startDate={filterStartDate}
 					endDate={filterEndDate}
@@ -766,6 +788,7 @@ const InvoicesPage: React.FC = () => {
 			</select>
 		</div>
 	)
+
 	const renderInvoiceModal = () => (
 		<div
 			className={`fixed z-10 inset-0 overflow-y-auto ${
@@ -859,7 +882,7 @@ const InvoicesPage: React.FC = () => {
 									{filteredProducts.map(product => (
 										<div
 											key={product.id}
-											className='flex justify-between items-center p-2  cursor-pointer'
+											className='flex justify-between items-center p-2 cursor-pointer'
 											onClick={() => handleAddProduct(product)}>
 											<span>{product.name}</span>
 											<button
@@ -993,8 +1016,34 @@ const InvoicesPage: React.FC = () => {
 								/>
 							</div>
 							<div className='mb-4'>
+								<label className='flex items-center'>
+									<input
+										type='checkbox'
+										checked={newInvoice.include_vat}
+										onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+											const includeVAT = e.target.checked
+											const { totalPrice, vatAmount } = calculateTotalPrice(
+												newInvoice.products || [],
+												activeTab === 'client',
+												includeVAT
+											)
+											setNewInvoice({
+												...newInvoice,
+												include_vat: includeVAT,
+												vat_amount: vatAmount,
+												total_price: totalPrice
+											})
+										}}
+										className='form-checkbox h-5 w-5 text-blue'
+									/>
+									<span className='ml-2 text-gray text-sm'>
+										Include 11% VAT
+									</span>
+								</label>
+							</div>
+							<div className='mb-4'>
 								<label className='block text-gray text-sm font-bold mb-2'>
-									Total Price
+									Total Price (including VAT if applicable)
 								</label>
 								<input
 									type='number'
@@ -1003,6 +1052,19 @@ const InvoicesPage: React.FC = () => {
 									readOnly
 								/>
 							</div>
+							{newInvoice.include_vat && (
+								<div className='mb-4'>
+									<label className='block text-gray text-sm font-bold mb-2'>
+										VAT Amount (11%)
+									</label>
+									<input
+										type='number'
+										className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+										value={newInvoice.vat_amount}
+										readOnly
+									/>
+								</div>
+							)}
 							<div className='mb-4'>
 								<label className='block text-gray text-sm font-bold mb-2'>
 									Files
@@ -1059,6 +1121,8 @@ const InvoicesPage: React.FC = () => {
 									products: [],
 									files: [],
 									remaining_amount: 0,
+									include_vat: false,
+									vat_amount: 0,
 									order_number: ''
 								})
 								setSelectedProduct(null)
@@ -1091,6 +1155,11 @@ const InvoicesPage: React.FC = () => {
 							<p className='text-sm text-gray'>
 								Total Price: ${selectedInvoice.total_price?.toFixed(2)}
 							</p>
+							{selectedInvoice.include_vat && (
+								<p className='text-sm text-gray'>
+									VAT (11%): ${selectedInvoice.vat_amount?.toFixed(2)}
+								</p>
+							)}
 							<p className='text-sm text-gray'>
 								Order Number: {selectedInvoice.order_number}
 							</p>
@@ -1200,6 +1269,8 @@ const InvoicesPage: React.FC = () => {
 						products: [],
 						files: [],
 						remaining_amount: 0,
+						include_vat: false,
+						vat_amount: 0,
 						order_number: ''
 					})
 					setShowModal(true)

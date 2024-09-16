@@ -158,6 +158,8 @@ const InvoicePDF: React.FC<{
 	const sizeOptions = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', '6XL']
 	const addressLines = company.address.split('\n')
 
+	const subtotal = invoice.total_price - (invoice.vat_amount || 0)
+
 	return (
 		<Document>
 			<Page size='A4' style={styles.page}>
@@ -292,20 +294,23 @@ const InvoicePDF: React.FC<{
 				</View>
 
 				<View style={styles.subtotal}>
+					<Text style={styles.subtotalLabel}>Subtotal:</Text>
+					<Text style={styles.subtotalValue}>${subtotal.toFixed(2)}</Text>
+				</View>
+
+				{invoice.include_vat && (
+					<View style={styles.subtotal}>
+						<Text style={styles.subtotalLabel}>VAT (11%):</Text>
+						<Text style={styles.subtotalValue}>
+							${invoice.vat_amount.toFixed(2)}
+						</Text>
+					</View>
+				)}
+
+				<View style={styles.subtotal}>
 					<Text style={styles.subtotalLabel}>Total:</Text>
 					<Text style={styles.subtotalValue}>
-						$
-						{invoice.products
-							.reduce(
-								(sum: number, product: any) =>
-									sum +
-									product.totalQuantity *
-										(isClientInvoice
-											? product.unitPrice
-											: product.unitCost || 0),
-								0
-							)
-							.toFixed(2)}
+						${invoice.total_price.toFixed(2)}
 					</Text>
 				</View>
 
