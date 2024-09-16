@@ -72,6 +72,8 @@ const InvoicesPage: React.FC = () => {
 	const [uploadingFile, setUploadingFile] = useState(false)
 	const [productSearch, setProductSearch] = useState('')
 	const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
+	const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+	const [selectedVariants, setSelectedVariants] = useState<InvoiceProduct[]>([])
 
 	useEffect(() => {
 		fetchInvoices()
@@ -352,22 +354,66 @@ const InvoicesPage: React.FC = () => {
 	}
 
 	const handleAddProduct = (product: Product) => {
-		const updatedProducts = [
-			...(newInvoice.products || []),
+		setSelectedProduct(product)
+		// Automatically add an initial variant when a product is selected
+		setSelectedVariants([
 			{
 				product_id: product.id,
-				product_variant_id: product.variants[0]?.id || '',
+				product_variant_id: product.variants[0]?.id || '', // Select the first variant by default, if available
 				quantity: 1,
 				note: ''
 			}
-		]
-		const isClientInvoice = activeTab === 'client'
-		const newTotalPrice = calculateTotalPrice(updatedProducts, isClientInvoice)
-		setNewInvoice({
-			...newInvoice,
-			products: updatedProducts,
-			total_price: newTotalPrice
-		})
+		])
+	}
+
+	const handleAddVariant = () => {
+		if (selectedProduct) {
+			setSelectedVariants([
+				...selectedVariants,
+				{
+					product_id: selectedProduct.id,
+					product_variant_id: '',
+					quantity: 1,
+					note: ''
+				}
+			])
+		}
+	}
+
+	const handleVariantChange = (
+		index: number,
+		field: keyof InvoiceProduct,
+		value: string | number
+	) => {
+		const updatedVariants = [...selectedVariants]
+		updatedVariants[index] = { ...updatedVariants[index], [field]: value }
+		setSelectedVariants(updatedVariants)
+	}
+
+	const handleRemoveVariant = (index: number) => {
+		const updatedVariants = selectedVariants.filter((_, i) => i !== index)
+		setSelectedVariants(updatedVariants)
+	}
+
+	const handleAddSelectedProductToInvoice = () => {
+		if (selectedProduct && selectedVariants.length > 0) {
+			const updatedProducts = [
+				...(newInvoice.products || []),
+				...selectedVariants
+			]
+			const isClientInvoice = activeTab === 'client'
+			const newTotalPrice = calculateTotalPrice(
+				updatedProducts,
+				isClientInvoice
+			)
+			setNewInvoice({
+				...newInvoice,
+				products: updatedProducts,
+				total_price: newTotalPrice
+			})
+			setSelectedProduct(null)
+			setSelectedVariants([])
+		}
 	}
 
 	const handleRemoveProduct = (index: number) => {
@@ -727,7 +773,7 @@ const InvoicesPage: React.FC = () => {
 			}`}>
 			<div className='flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0'>
 				<div className='fixed inset-0 transition-opacity' aria-hidden='true'>
-					<div className='absolute inset-0 bg-gray-500 opacity-75'></div>
+					<div className='absolute inset-0 bg-gray opacity-75'></div>
 				</div>
 				<span
 					className='hidden sm:inline-block sm:align-middle sm:h-screen'
@@ -736,13 +782,13 @@ const InvoicesPage: React.FC = () => {
 				</span>
 				<div className='inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full'>
 					<div className='bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4'>
-						<h3 className='text-lg leading-6 font-medium text-gray-900 mb-4'>
+						<h3 className='text-lg leading-6 font-medium text-gray mb-4'>
 							{newInvoice.id ? 'Edit Invoice' : 'Create New Invoice'}
 						</h3>
 						<form>
 							<div className='mb-4'>
 								<label
-									className='block text-gray-700 text-sm font-bold mb-2'
+									className='block text-gray text-sm font-bold mb-2'
 									htmlFor='date'>
 									Date
 								</label>
@@ -758,18 +804,18 @@ const InvoicesPage: React.FC = () => {
 											created_at: date ? date.toISOString() : ''
 										})
 									}
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 								/>
 							</div>
 							<div className='mb-4'>
 								<label
-									className='block text-gray-700 text-sm font-bold mb-2'
+									className='block text-gray text-sm font-bold mb-2'
 									htmlFor='entity'>
 									{activeTab === 'client' ? 'Client' : 'Supplier'}
 								</label>
 								<select
 									id='entity'
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 									onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
 										const idField =
 											activeTab === 'client' ? 'client_id' : 'supplier_id'
@@ -792,19 +838,19 @@ const InvoicesPage: React.FC = () => {
 								</select>
 							</div>
 							<div className='mb-4'>
-								<label className='block text-gray-700 text-sm font-bold mb-2'>
+								<label className='block text-gray text-sm font-bold mb-2'>
 									Products
 								</label>
 								<div className='flex mb-2'>
 									<input
 										type='text'
 										placeholder='Search products...'
-										className='flex-grow shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+										className='flex-grow shadow appearance-none border rounded py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 										onChange={e => handleProductSearch(e.target.value)}
 									/>
 									<button
 										type='button'
-										className='ml-2 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded'
+										className='ml-2 bg-blue hover:bg-blue text-white font-bold py-2 px-4 rounded'
 										onClick={() => setProductSearch('')}>
 										<FaSearch />
 									</button>
@@ -813,17 +859,84 @@ const InvoicesPage: React.FC = () => {
 									{filteredProducts.map(product => (
 										<div
 											key={product.id}
-											className='flex justify-between items-center p-2 hover:bg-gray-100 cursor-pointer'
+											className='flex justify-between items-center p-2  cursor-pointer'
 											onClick={() => handleAddProduct(product)}>
 											<span>{product.name}</span>
 											<button
 												type='button'
 												className='bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-xs'>
-												Add
+												Select
 											</button>
 										</div>
 									))}
 								</div>
+
+								{selectedProduct && (
+									<div className='mb-4 p-2 border rounded'>
+										<h4 className='font-bold mb-2'>{selectedProduct.name}</h4>
+										{selectedVariants.map((variant, index) => (
+											<div key={index} className='mb-2 p-2 border rounded'>
+												<select
+													className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
+													value={variant.product_variant_id}
+													onChange={e =>
+														handleVariantChange(
+															index,
+															'product_variant_id',
+															e.target.value
+														)
+													}>
+													<option value=''>Select Variant</option>
+													{selectedProduct.variants.map(v => (
+														<option key={v.id} value={v.id}>
+															{v.size} - {v.color}
+														</option>
+													))}
+												</select>
+												<input
+													type='number'
+													className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
+													value={variant.quantity}
+													onChange={e =>
+														handleVariantChange(
+															index,
+															'quantity',
+															Number(e.target.value)
+														)
+													}
+													placeholder='Quantity'
+												/>
+												<textarea
+													className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
+													value={variant.note}
+													onChange={e =>
+														handleVariantChange(index, 'note', e.target.value)
+													}
+													placeholder='Product Note'
+												/>
+												<button
+													type='button'
+													className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
+													onClick={() => handleRemoveVariant(index)}>
+													Remove Variant
+												</button>
+											</div>
+										))}
+										<button
+											type='button'
+											className='bg-blue hover:bg-blue text-white font-bold py-1 px-2 rounded text-xs mr-2'
+											onClick={handleAddVariant}>
+											Add Another Variant
+										</button>
+										<button
+											type='button'
+											className='bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-xs'
+											onClick={handleAddSelectedProductToInvoice}>
+											Add to Invoice
+										</button>
+									</div>
+								)}
+
 								{newInvoice.products?.map((product, index) => (
 									<div key={index} className='mb-2 p-2 border rounded'>
 										<div className='flex justify-between items-center mb-2'>
@@ -837,69 +950,39 @@ const InvoicesPage: React.FC = () => {
 												Remove
 											</button>
 										</div>
-										<select
-											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2'
-											value={product.product_variant_id}
-											onChange={e =>
-												handleProductChange(
-													index,
-													'product_variant_id',
-													e.target.value
-												)
-											}>
-											<option value=''>Select Variant</option>
-											{products
-												.find(p => p.id === product.product_id)
-												?.variants.map(variant => (
-													<option key={variant.id} value={variant.id}>
-														{variant.size} - {variant.color}
-													</option>
-												))}
-										</select>
-										<input
-											type='number'
-											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2'
-											value={product.quantity}
-											onChange={e =>
-												handleProductChange(
-													index,
-													'quantity',
-													Number(e.target.value)
-												)
+										<p>
+											Variant:{' '}
+											{
+												products
+													.find(p => p.id === product.product_id)
+													?.variants.find(
+														v => v.id === product.product_variant_id
+													)?.size
+											}{' '}
+											-{' '}
+											{
+												products
+													.find(p => p.id === product.product_id)
+													?.variants.find(
+														v => v.id === product.product_variant_id
+													)?.color
 											}
-											placeholder='Quantity'
-										/>
-										<textarea
-											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2'
-											value={product.note}
-											onChange={e =>
-												handleProductChange(index, 'note', e.target.value)
-											}
-											placeholder='Product Note'
-										/>
-										<div className='text-sm text-gray-600 mt-1'>
-											Unit {activeTab === 'client' ? 'Price' : 'Cost'}: $
-											{activeTab === 'client'
-												? products
-														.find(p => p.id === product.product_id)
-														?.price.toFixed(2)
-												: products
-														.find(p => p.id === product.product_id)
-														?.cost.toFixed(2)}
-										</div>
+										</p>
+										<p>Quantity: {product.quantity}</p>
+										<p>Note: {product.note}</p>
 									</div>
 								))}
 							</div>
 							<div className='mb-4'>
 								<label
-									className='block text-gray-700 text-sm font-bold mb-2'
+									className='block text-gray text-sm font-bold mb-2'
 									htmlFor='order_number'>
 									Order Number
 								</label>
 								<input
 									id='order_number'
 									type='text'
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 									value={newInvoice.order_number}
 									onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
 										setNewInvoice({
@@ -910,31 +993,31 @@ const InvoicesPage: React.FC = () => {
 								/>
 							</div>
 							<div className='mb-4'>
-								<label className='block text-gray-700 text-sm font-bold mb-2'>
+								<label className='block text-gray text-sm font-bold mb-2'>
 									Total Price
 								</label>
 								<input
 									type='number'
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 									value={newInvoice.total_price}
 									readOnly
 								/>
 							</div>
 							<div className='mb-4'>
-								<label className='block text-gray-700 text-sm font-bold mb-2'>
+								<label className='block text-gray text-sm font-bold mb-2'>
 									Files
 								</label>
 								<input
 									type='file'
 									onChange={handleFileChange}
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 								/>
 								{selectedFile && (
 									<button
 										type='button'
 										onClick={handleFileUpload}
 										disabled={uploadingFile}
-										className='mt-2 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline'>
+										className='mt-2 bg-blue hover:bg-blue text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline'>
 										{uploadingFile ? 'Uploading...' : 'Upload File'}
 									</button>
 								)}
@@ -944,7 +1027,7 @@ const InvoicesPage: React.FC = () => {
 											href={file}
 											target='_blank'
 											rel='noopener noreferrer'
-											className='text-blue-500 hover:underline mr-2'>
+											className='text-blue hover:underline mr-2'>
 											{file.split('/').pop()}
 										</a>
 										<button
@@ -967,7 +1050,7 @@ const InvoicesPage: React.FC = () => {
 						</button>
 						<button
 							type='button'
-							className='mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
+							className='mt-3 w-full inline-flex justify-center rounded-md border border-gray shadow-sm px-4 py-2 bg-white text-base font-medium text-gray hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
 							onClick={() => {
 								setShowModal(false)
 								setNewInvoice({
@@ -978,6 +1061,8 @@ const InvoicesPage: React.FC = () => {
 									remaining_amount: 0,
 									order_number: ''
 								})
+								setSelectedProduct(null)
+								setSelectedVariants([])
 							}}>
 							Cancel
 						</button>
@@ -994,7 +1079,7 @@ const InvoicesPage: React.FC = () => {
 			<div className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'>
 				<div className='relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white'>
 					<div className='mt-3 text-center'>
-						<h3 className='text-lg leading-6 font-medium text-gray-900'>
+						<h3 className='text-lg leading-6 font-medium text-gray'>
 							Invoice Details
 						</h3>
 						<div className='mt-2 px-7 py-3'>
@@ -1009,9 +1094,7 @@ const InvoicesPage: React.FC = () => {
 							<p className='text-sm text-gray'>
 								Order Number: {selectedInvoice.order_number}
 							</p>
-							<h4 className='text-sm font-medium text-gray-900 mt-4'>
-								Products:
-							</h4>
+							<h4 className='text-sm font-medium text-gray mt-4'>Products:</h4>
 							<ul className='list-disc list-inside'>
 								{selectedInvoice.products.map((product, index) => {
 									const parentProduct = products.find(
@@ -1040,7 +1123,7 @@ const InvoicesPage: React.FC = () => {
 									)
 								})}
 							</ul>
-							<h4 className='text-sm font-medium text-gray-900 mt-4'>Files:</h4>
+							<h4 className='text-sm font-medium text-gray mt-4'>Files:</h4>
 							<ul className='list-disc list-inside'>
 								{selectedInvoice.files.map((file, index) => (
 									<li key={index} className='text-sm text-gray'>
