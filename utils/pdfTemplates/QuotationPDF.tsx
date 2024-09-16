@@ -140,6 +140,11 @@ const styles = StyleSheet.create({
 		fontStyle: 'italic',
 		color: '#666',
 		marginTop: 2
+	},
+	vatInfo: {
+		marginTop: 10,
+		fontSize: 10,
+		fontStyle: 'italic'
 	}
 })
 
@@ -151,6 +156,7 @@ const QuotationPDF: React.FC<{
 }> = ({ quotation, client, company, logoBase64 }) => {
 	const sizeOptions = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', '6XL']
 	const addressLines = company.address.split('\n')
+	const subtotal = quotation.total_price - (quotation.vat_amount || 0)
 
 	return (
 		<Document>
@@ -266,18 +272,31 @@ const QuotationPDF: React.FC<{
 				</View>
 
 				<View style={styles.subtotal}>
+					<Text style={styles.subtotalLabel}>Subtotal:</Text>
+					<Text style={styles.subtotalValue}>${subtotal.toFixed(2)}</Text>
+				</View>
+
+				{quotation.include_vat && (
+					<View style={styles.subtotal}>
+						<Text style={styles.subtotalLabel}>VAT (11%):</Text>
+						<Text style={styles.subtotalValue}>
+							${quotation.vat_amount.toFixed(2)}
+						</Text>
+					</View>
+				)}
+
+				<View style={styles.subtotal}>
 					<Text style={styles.subtotalLabel}>Total:</Text>
 					<Text style={styles.subtotalValue}>
-						$
-						{quotation.products
-							.reduce(
-								(sum: number, product: any) =>
-									sum + product.totalQuantity * product.unitPrice,
-								0
-							)
-							.toFixed(2)}
+						${quotation.total_price.toFixed(2)}
 					</Text>
 				</View>
+
+				{quotation.include_vat && (
+					<Text style={styles.vatInfo}>
+						* The total price includes 11% VAT.
+					</Text>
+				)}
 
 				{quotation.note && (
 					<View style={styles.section}>
@@ -289,18 +308,21 @@ const QuotationPDF: React.FC<{
 				<View style={styles.section}>
 					<Text style={styles.label}>Terms and Conditions:</Text>
 					<Text style={styles.value}>
-						1. This quotation is valid for 30 days from the date of issue.
+						1. Prices are subject to change without notice.
 					</Text>
 					<Text style={styles.value}>
-						2. Prices are subject to change without notice.
+						2. Delivery time may vary depending on product availability.
 					</Text>
 					<Text style={styles.value}>
-						3. Delivery time may vary depending on product availability.
+						3. All prices are in USD unless otherwise stated.
 					</Text>
 				</View>
 
 				<Text style={styles.footer}>
-					Thank you for your interest in our products!
+					This quotation was generated on {format(new Date(), 'MMMM d, yyyy')}{' '}
+					at {format(new Date(), 'HH:mm:ss')}
+					<br />
+					Thank you for choosing us!
 				</Text>
 			</Page>
 		</Document>

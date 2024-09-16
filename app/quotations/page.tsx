@@ -23,6 +23,7 @@ interface QuotationProduct {
 	product_id: string
 	product_variant_id: string
 	quantity: number
+	note: string
 }
 
 interface Quotation {
@@ -33,6 +34,8 @@ interface Quotation {
 	client_id: number
 	products: QuotationProduct[]
 	status: 'pending' | 'accepted' | 'rejected'
+	include_vat: boolean
+	vat_amount: number
 }
 
 const QuotationsPage: React.FC = () => {
@@ -60,7 +63,9 @@ const QuotationsPage: React.FC = () => {
 		total_price: 0,
 		note: '',
 		products: [],
-		status: 'pending'
+		status: 'pending',
+		include_vat: false,
+		vat_amount: 0
 	})
 	const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
 	const [selectedVariants, setSelectedVariants] = useState<QuotationProduct[]>(
@@ -149,8 +154,11 @@ const QuotationsPage: React.FC = () => {
 		}
 	}
 
-	const calculateTotalPrice = (quotationProducts: QuotationProduct[]) => {
-		return quotationProducts.reduce((total, quotationProduct) => {
+	const calculateTotalPrice = (
+		quotationProducts: QuotationProduct[],
+		includeVAT: boolean
+	) => {
+		const subtotal = quotationProducts.reduce((total, quotationProduct) => {
 			const variant = allProductVariants.find(
 				v => v.id === quotationProduct.product_variant_id
 			)
@@ -173,11 +181,23 @@ const QuotationsPage: React.FC = () => {
 
 			return total + parentProduct.price * quotationProduct.quantity
 		}, 0)
+
+		const vatAmount = includeVAT ? subtotal * 0.11 : 0
+		const totalPrice = subtotal + vatAmount
+
+		return { subtotal, vatAmount, totalPrice }
 	}
 
 	const handleCreateQuotation = async () => {
-		const totalPrice = calculateTotalPrice(newQuotation.products || [])
-		const quotationData = { ...newQuotation, total_price: totalPrice }
+		const { subtotal, vatAmount, totalPrice } = calculateTotalPrice(
+			newQuotation.products || [],
+			newQuotation.include_vat || false
+		)
+		const quotationData = {
+			...newQuotation,
+			total_price: totalPrice,
+			vat_amount: vatAmount
+		}
 
 		let result
 		if (newQuotation.id) {
@@ -225,7 +245,9 @@ const QuotationsPage: React.FC = () => {
 			note: quotation.note,
 			client_id: quotation.client_id,
 			products: quotation.products,
-			remaining_amount: quotation.total_price
+			remaining_amount: quotation.total_price,
+			include_vat: quotation.include_vat,
+			vat_amount: quotation.vat_amount
 		}
 
 		const { data: invoice, error: invoiceError } = await supabase
@@ -317,7 +339,8 @@ const QuotationsPage: React.FC = () => {
 			{
 				product_id: product.id,
 				product_variant_id: product.variants[0]?.id || '',
-				quantity: 1
+				quantity: 1,
+				note: ''
 			}
 		])
 	}
@@ -329,7 +352,8 @@ const QuotationsPage: React.FC = () => {
 				{
 					product_id: selectedProduct.id,
 					product_variant_id: '',
-					quantity: 1
+					quantity: 1,
+					note: ''
 				}
 			])
 		}
@@ -356,11 +380,15 @@ const QuotationsPage: React.FC = () => {
 				...(newQuotation.products || []),
 				...selectedVariants
 			]
-			const newTotalPrice = calculateTotalPrice(updatedProducts)
+			const { totalPrice, vatAmount } = calculateTotalPrice(
+				updatedProducts,
+				newQuotation.include_vat || false
+			)
 			setNewQuotation({
 				...newQuotation,
 				products: updatedProducts,
-				total_price: newTotalPrice
+				total_price: totalPrice,
+				vat_amount: vatAmount
 			})
 			setSelectedProduct(null)
 			setSelectedVariants([])
@@ -371,7 +399,7 @@ const QuotationsPage: React.FC = () => {
 		<div className='overflow-x-auto bg-white rounded-lg shadow'>
 			<table className='w-full table-auto'>
 				<thead>
-					<tr className='bg-gray-200 text-gray-600 uppercase text-sm leading-normal'>
+					<tr className='bg-gray text-white uppercase text-sm leading-normal'>
 						<th
 							className='py-3 px-6 text-left cursor-pointer'
 							onClick={() => handleSort('id')}>
@@ -393,11 +421,11 @@ const QuotationsPage: React.FC = () => {
 						<th className='py-3 px-6 text-center'>Actions</th>
 					</tr>
 				</thead>
-				<tbody className='text-gray-600 text-sm font-light'>
+				<tbody className='text-gray text-sm font-light'>
 					{quotations.map(quotation => (
 						<tr
 							key={quotation.id}
-							className='border-b border-gray-200 hover:bg-gray-100 cursor-pointer'
+							className='border-b border-gray hover:bg-gray-100 cursor-pointer'
 							onClick={() => handleQuotationClick(quotation)}>
 							<td className='py-3 px-6 text-left whitespace-nowrap'>
 								{quotation.id}
@@ -470,7 +498,7 @@ const QuotationsPage: React.FC = () => {
 					<button
 						onClick={() => setCurrentPage(1)}
 						disabled={currentPage === 1}
-						className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${
+						className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray bg-white text-sm font-medium text-gray hover:bg-gray-50 ${
 							currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>First</span>⟪
@@ -478,12 +506,12 @@ const QuotationsPage: React.FC = () => {
 					<button
 						onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
 						disabled={currentPage === 1}
-						className={`relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${
+						className={`relative inline-flex items-center px-2 py-2 border border-gray bg-white text-sm font-medium text-gray hover:bg-gray-50 ${
 							currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>Previous</span>⟨
 					</button>
-					<span className='relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700'>
+					<span className='relative inline-flex items-center px-4 py-2 border border-gray bg-white text-sm font-medium text-gray'>
 						{currentPage} of {totalPages === 0 ? 1 : totalPages}
 					</span>
 					<button
@@ -491,7 +519,7 @@ const QuotationsPage: React.FC = () => {
 							setCurrentPage(Math.min(totalPages, currentPage + 1))
 						}
 						disabled={currentPage === totalPages}
-						className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${
+						className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray bg-white text-sm font-medium text-gray hover:bg-gray-50 ${
 							currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>Next</span>⟩
@@ -511,10 +539,10 @@ const QuotationsPage: React.FC = () => {
 					startDate={filterStartDate}
 					endDate={filterEndDate}
 					placeholderText='Start Date'
-					className='block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm'
+					className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:placeholder-gray focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
 				/>
 				<div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-					<FaFilter className='h-5 w-5 text-gray-400' />
+					<FaFilter className='h-5 w-5 text-gray' />
 				</div>
 			</div>
 			<div className='relative'>
@@ -526,17 +554,17 @@ const QuotationsPage: React.FC = () => {
 					endDate={filterEndDate}
 					minDate={filterStartDate}
 					placeholderText='End Date'
-					className='block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm'
+					className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:placeholder-gray focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
 				/>
 				<div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-					<FaFilter className='h-5 w-5 text-gray-400' />
+					<FaFilter className='h-5 w-5 text-gray' />
 				</div>
 			</div>
 			<select
 				onChange={e =>
 					setFilterClient(e.target.value ? Number(e.target.value) : null)
 				}
-				className='block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md'>
+				className='block w-full pl-3 pr-10 py-2 text-base border-gray focus:outline-none focus:ring-blue focus:border-blue sm:text-sm rounded-md'>
 				<option value=''>All Clients</option>
 				{clients.map(client => (
 					<option key={client.client_id} value={client.client_id}>
@@ -546,7 +574,7 @@ const QuotationsPage: React.FC = () => {
 			</select>
 			<select
 				onChange={e => setFilterStatus(e.target.value || null)}
-				className='block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md'>
+				className='block w-full pl-3 pr-10 py-2 text-base border-gray focus:outline-none focus:ring-blue focus:border-blue sm:text-sm rounded-md'>
 				<option value=''>All Statuses</option>
 				<option value='pending'>Pending</option>
 				<option value='accepted'>Accepted</option>
@@ -562,7 +590,7 @@ const QuotationsPage: React.FC = () => {
 			}`}>
 			<div className='flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0'>
 				<div className='fixed inset-0 transition-opacity' aria-hidden='true'>
-					<div className='absolute inset-0 bg-gray-500 opacity-75'></div>
+					<div className='absolute inset-0 bg-gray opacity-75'></div>
 				</div>
 				<span
 					className='hidden sm:inline-block sm:align-middle sm:h-screen'
@@ -571,13 +599,13 @@ const QuotationsPage: React.FC = () => {
 				</span>
 				<div className='inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full'>
 					<div className='bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4'>
-						<h3 className='text-lg leading-6 font-medium text-gray-900 mb-4'>
+						<h3 className='text-lg leading-6 font-medium text-gray mb-4'>
 							{newQuotation.id ? 'Edit Quotation' : 'Create New Quotation'}
 						</h3>
 						<form>
 							<div className='mb-4'>
 								<label
-									className='block text-gray-700 text-sm font-bold mb-2'
+									className='block text-gray text-sm font-bold mb-2'
 									htmlFor='date'>
 									Date
 								</label>
@@ -593,18 +621,18 @@ const QuotationsPage: React.FC = () => {
 											created_at: date ? date.toISOString() : ''
 										})
 									}
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 								/>
 							</div>
 							<div className='mb-4'>
 								<label
-									className='block text-gray-700 text-sm font-bold mb-2'
+									className='block text-gray text-sm font-bold mb-2'
 									htmlFor='client'>
 									Client
 								</label>
 								<select
 									id='client'
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 									value={newQuotation.client_id}
 									onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
 										setNewQuotation({
@@ -621,19 +649,19 @@ const QuotationsPage: React.FC = () => {
 								</select>
 							</div>
 							<div className='mb-4'>
-								<label className='block text-gray-700 text-sm font-bold mb-2'>
+								<label className='block text-gray text-sm font-bold mb-2'>
 									Products
 								</label>
 								<div className='flex mb-2'>
 									<input
 										type='text'
 										placeholder='Search products...'
-										className='flex-grow shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+										className='flex-grow shadow appearance-none border rounded py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 										onChange={e => handleProductSearch(e.target.value)}
 									/>
 									<button
 										type='button'
-										className='ml-2 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded'
+										className='ml-2 bg-blue hover:bg-blue text-white font-bold py-2 px-4 rounded'
 										onClick={() => setProductSearch('')}>
 										<FaSearch />
 									</button>
@@ -660,7 +688,7 @@ const QuotationsPage: React.FC = () => {
 										{selectedVariants.map((variant, index) => (
 											<div key={index} className='mb-2 p-2 border rounded'>
 												<select
-													className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2'
+													className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
 													value={variant.product_variant_id}
 													onChange={e =>
 														handleVariantChange(
@@ -678,7 +706,7 @@ const QuotationsPage: React.FC = () => {
 												</select>
 												<input
 													type='number'
-													className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2'
+													className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
 													value={variant.quantity}
 													onChange={e =>
 														handleVariantChange(
@@ -688,6 +716,14 @@ const QuotationsPage: React.FC = () => {
 														)
 													}
 													placeholder='Quantity'
+												/>
+												<textarea
+													className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
+													value={variant.note}
+													onChange={e =>
+														handleVariantChange(index, 'note', e.target.value)
+													}
+													placeholder='Product Note'
 												/>
 												<button
 													type='button'
@@ -699,7 +735,7 @@ const QuotationsPage: React.FC = () => {
 										))}
 										<button
 											type='button'
-											className='bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded text-xs mr-2'
+											className='bg-blue hover:bg-blue text-white font-bold py-1 px-2 rounded text-xs mr-2'
 											onClick={handleAddVariant}>
 											Add Another Variant
 										</button>
@@ -725,13 +761,15 @@ const QuotationsPage: React.FC = () => {
 													const updatedProducts = newQuotation.products?.filter(
 														(_, i) => i !== index
 													)
-													const newTotalPrice = calculateTotalPrice(
-														updatedProducts || []
+													const { totalPrice, vatAmount } = calculateTotalPrice(
+														updatedProducts || [],
+														newQuotation.include_vat || false
 													)
 													setNewQuotation({
 														...newQuotation,
 														products: updatedProducts,
-														total_price: newTotalPrice
+														total_price: totalPrice,
+														vat_amount: vatAmount
 													})
 												}}>
 												Remove
@@ -756,18 +794,19 @@ const QuotationsPage: React.FC = () => {
 											}
 										</p>
 										<p>Quantity: {product.quantity}</p>
+										<p>Note: {product.note}</p>
 									</div>
 								))}
 							</div>
 							<div className='mb-4'>
 								<label
-									className='block text-gray-700 text-sm font-bold mb-2'
+									className='block text-gray text-sm font-bold mb-2'
 									htmlFor='note'>
 									Note
 								</label>
 								<textarea
 									id='note'
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 									value={newQuotation.note}
 									onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
 										setNewQuotation({ ...newQuotation, note: e.target.value })
@@ -775,23 +814,59 @@ const QuotationsPage: React.FC = () => {
 								/>
 							</div>
 							<div className='mb-4'>
-								<label className='block text-gray-700 text-sm font-bold mb-2'>
-									Total Price
+								<label className='flex items-center'>
+									<input
+										type='checkbox'
+										checked={newQuotation.include_vat}
+										onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+											const includeVAT = e.target.checked
+											const { totalPrice, vatAmount } = calculateTotalPrice(
+												newQuotation.products || [],
+												includeVAT
+											)
+											setNewQuotation({
+												...newQuotation,
+												include_vat: includeVAT,
+												vat_amount: vatAmount,
+												total_price: totalPrice
+											})
+										}}
+										className='form-checkbox h-5 w-5 text-blue'
+									/>
+									<span className='ml-2 text-gray'>Include 11% VAT</span>
+								</label>
+							</div>
+							<div className='mb-4'>
+								<label className='block text-gray text-sm font-bold mb-2'>
+									Total Price (including VAT if applicable)
 								</label>
 								<input
 									type='number'
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 									value={newQuotation.total_price}
 									readOnly
 								/>
 							</div>
+							{newQuotation.include_vat && (
+								<div className='mb-4'>
+									<label className='block text-gray text-sm font-bold mb-2'>
+										VAT Amount (11%)
+									</label>
+									<input
+										type='number'
+										className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+										value={newQuotation.vat_amount}
+										readOnly
+									/>
+								</div>
+							)}
 							{newQuotation.id && (
 								<div className='mb-4'>
-									<label className='block text-gray-700 text-sm font-bold mb-2'>
+									<label className='block text-gray text-sm font-bold mb-2'>
 										Status
 									</label>
 									<select
-										className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+										className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 										value={newQuotation.status}
 										onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
 											setNewQuotation({
@@ -813,13 +888,13 @@ const QuotationsPage: React.FC = () => {
 					<div className='bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse'>
 						<button
 							type='button'
-							className='w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm'
+							className='w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue text-base font-medium text-white hover:bg-blue focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue sm:ml-3 sm:w-auto sm:text-sm'
 							onClick={handleCreateQuotation}>
 							{newQuotation.id ? 'Update Quotation' : 'Create Quotation'}
 						</button>
 						<button
 							type='button'
-							className='mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
+							className='mt-3 w-full inline-flex justify-center rounded-md border border-gray shadow-sm px-4 py-2 bg-white text-base font-medium text-gray hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
 							onClick={() => {
 								setShowModal(false)
 								setNewQuotation({
@@ -827,7 +902,9 @@ const QuotationsPage: React.FC = () => {
 									total_price: 0,
 									note: '',
 									products: [],
-									status: 'pending'
+									status: 'pending',
+									include_vat: false,
+									vat_amount: 0
 								})
 								setSelectedProduct(null)
 								setSelectedVariants([])
@@ -844,39 +921,40 @@ const QuotationsPage: React.FC = () => {
 		if (!selectedQuotation) return null
 
 		return (
-			<div className='fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full'>
+			<div className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'>
 				<div className='relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white'>
 					<div className='mt-3 text-center'>
-						<h3 className='text-lg leading-6 font-medium text-gray-900'>
+						<h3 className='text-lg leading-6 font-medium text-gray'>
 							Quotation Details
 						</h3>
 						<div className='mt-2 px-7 py-3'>
-							<p className='text-sm text-gray-500'>
-								ID: {selectedQuotation.id}
-							</p>
-							<p className='text-sm text-gray-500'>
+							<p className='text-sm text-gray'>ID: {selectedQuotation.id}</p>
+							<p className='text-sm text-gray'>
 								Date:{' '}
 								{new Date(selectedQuotation.created_at).toLocaleDateString()}
 							</p>
-							<p className='text-sm text-gray-500'>
+							<p className='text-sm text-gray'>
 								Total Price: ${selectedQuotation.total_price?.toFixed(2)}
 							</p>
-							<p className='text-sm text-gray-500'>
+							{selectedQuotation.include_vat && (
+								<p className='text-sm text-gray'>
+									VAT Amount: ${selectedQuotation.vat_amount?.toFixed(2)}
+								</p>
+							)}
+							<p className='text-sm text-gray'>
 								Client:{' '}
 								{
 									clients.find(c => c.client_id === selectedQuotation.client_id)
 										?.name
 								}
 							</p>
-							<p className='text-sm text-gray-500'>
+							<p className='text-sm text-gray'>
 								Status: {selectedQuotation.status}
 							</p>
-							<p className='text-sm text-gray-500'>
+							<p className='text-sm text-gray'>
 								Note: {selectedQuotation.note}
 							</p>
-							<h4 className='text-sm font-medium text-gray-900 mt-4'>
-								Products:
-							</h4>
+							<h4 className='text-sm font-medium text-gray mt-4'>Products:</h4>
 							<ul className='list-disc list-inside'>
 								{selectedQuotation.products.map((product, index) => {
 									const variant = allProductVariants.find(
@@ -886,9 +964,14 @@ const QuotationsPage: React.FC = () => {
 										p => p.id === variant?.product_id
 									)
 									return (
-										<li key={index} className='text-sm text-gray-500'>
+										<li key={index} className='text-sm text-gray'>
 											{productItem?.name} - {variant?.size} - {variant?.color} -
 											Quantity: {product.quantity}
+											{product.note && (
+												<div className='ml-4 text-xs italic'>
+													Note: {product.note}
+												</div>
+											)}
 										</li>
 									)
 								})}
@@ -896,12 +979,12 @@ const QuotationsPage: React.FC = () => {
 						</div>
 						<div className='items-center px-4 py-3'>
 							<button
-								className='px-4 py-2 bg-blue text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 mb-2'
+								className='px-4 py-2 bg-blue text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue focus:outline-none focus:ring-2 focus:ring-blue mb-2'
 								onClick={() => generatePDF('quotation', selectedQuotation)}>
 								Download PDF
 							</button>
 							<button
-								className='px-4 py-2 bg-gray text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300'
+								className='px-4 py-2 bg-gray text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-gray focus:outline-none focus:ring-2 focus:ring-gray'
 								onClick={() => setSelectedQuotation(null)}>
 								Close
 							</button>
@@ -914,7 +997,7 @@ const QuotationsPage: React.FC = () => {
 
 	return (
 		<div className='mx-auto px-4 py-8 text-gray'>
-			<h1 className='text-3xl font-bold text-gray-800 mb-6'>
+			<h1 className='text-3xl font-bold text-gray mb-6'>
 				Quotation Management
 			</h1>
 			<div className='bg-white shadow-md rounded-lg'>
@@ -925,14 +1008,16 @@ const QuotationsPage: React.FC = () => {
 				</div>
 			</div>
 			<button
-				className='mt-6 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110'
+				className='mt-6 bg-blue hover:bg-blue text-white font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110'
 				onClick={() => {
 					setNewQuotation({
 						created_at: new Date().toISOString(),
 						total_price: 0,
 						note: '',
 						products: [],
-						status: 'pending'
+						status: 'pending',
+						include_vat: false,
+						vat_amount: 0
 					})
 					setShowModal(true)
 				}}>
