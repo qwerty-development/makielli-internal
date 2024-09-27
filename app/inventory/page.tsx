@@ -10,7 +10,18 @@ import {
 import { toast } from 'react-hot-toast'
 
 export default function ProductsPage() {
-	const sizeOptions = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', '6XL']
+	const sizeOptions = [
+		'OS',
+		'S',
+		'M',
+		'L',
+		'XL',
+		'2XL',
+		'3XL',
+		'4XL',
+		'5XL',
+		'6XL'
+	]
 	const [products, setProducts] = useState<Product[]>([])
 	const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
 	const [isLoading, setIsLoading] = useState(true)

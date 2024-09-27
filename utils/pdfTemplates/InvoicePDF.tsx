@@ -155,7 +155,18 @@ const InvoicePDF: React.FC<{
 	isClientInvoice: boolean
 	logoBase64?: string
 }> = ({ invoice, entity, company, isClientInvoice, logoBase64 }) => {
-	const sizeOptions = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', '6XL']
+	const sizeOptions = [
+		'OS',
+		'S',
+		'M',
+		'L',
+		'XL',
+		'2XL',
+		'3XL',
+		'4XL',
+		'5XL',
+		'6XL'
+	]
 	const addressLines = company.address.split('\n')
 
 	const subtotal = invoice.total_price - (invoice.vat_amount || 0)

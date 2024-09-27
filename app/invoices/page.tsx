@@ -447,30 +447,6 @@ const InvoicesPage: React.FC = () => {
 		})
 	}
 
-	const handleProductChange = (
-		index: number,
-		field: keyof InvoiceProduct,
-		value: string | number
-	) => {
-		const updatedProducts = [...(newInvoice.products || [])]
-		updatedProducts[index] = { ...updatedProducts[index], [field]: value }
-		if (field === 'product_id') {
-			updatedProducts[index].product_variant_id = ''
-		}
-		const isClientInvoice = activeTab === 'client'
-		const { totalPrice, vatAmount } = calculateTotalPrice(
-			updatedProducts,
-			isClientInvoice,
-			newInvoice.include_vat || false
-		)
-		setNewInvoice({
-			...newInvoice,
-			products: updatedProducts,
-			total_price: totalPrice,
-			vat_amount: vatAmount
-		})
-	}
-
 	const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
 		if (e.target.files && e.target.files.length > 0) {
 			setSelectedFile(e.target.files[0])
