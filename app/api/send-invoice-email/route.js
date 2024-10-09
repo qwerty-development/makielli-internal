@@ -126,9 +126,33 @@ export async function POST(request) {
 			})
 		)
 
+		// Calculate subtotal, discounts, and total
+		const subtotal = productsWithDetails.reduce((total, product) => {
+			const price =
+				activeTab === 'client' ? product.unitPrice : product.unitCost
+			return total + price * product.quantity
+		}, 0)
+
+		const totalDiscount = productsWithDetails.reduce((total, product) => {
+			const discount = invoice.discounts?.[product.product_id] || 0
+			return total + discount * product.quantity
+		}, 0)
+
+		const totalBeforeVAT = subtotal - totalDiscount
+		const vatAmount = invoice.include_vat ? totalBeforeVAT * 0.11 : 0
+		const totalAmount = totalBeforeVAT + vatAmount
+
 		// Generate PDF
 		const pdfComponent = InvoicePDF({
-			invoice: { ...invoice, products: productsWithDetails },
+			invoice: {
+				...invoice,
+				products: productsWithDetails,
+				subtotal,
+				totalDiscount,
+				totalBeforeVAT,
+				vatAmount,
+				totalAmount
+			},
 			entity: entityData,
 			company: companyData,
 			isClientInvoice: activeTab === 'client',
@@ -136,14 +160,21 @@ export async function POST(request) {
 		})
 		const pdfBuffer = await pdf(pdfComponent).toBuffer()
 
-		// Prepare VAT information for email body
-		const subtotal = invoice.total_price - (invoice.vat_amount || 0)
-		const vatInfo = invoice.include_vat
-			? `
-        <p>Subtotal: $${subtotal.toFixed(2)}</p>
-        <p>VAT (11%): $${invoice.vat_amount.toFixed(2)}</p>
-      `
-			: ''
+		// Prepare email body with discount and VAT information
+		const emailBody = `
+            <h1>Invoice #${invoice.id}</h1>
+            <p>Please find the attached invoice for your records.</p>
+            <p>Subtotal: $${subtotal.toFixed(2)}</p>
+            <p>Total Discount: $${totalDiscount.toFixed(2)}</p>
+            <p>Total Before VAT: $${totalBeforeVAT.toFixed(2)}</p>
+            ${
+							invoice.include_vat
+								? `<p>VAT (11%): $${vatAmount.toFixed(2)}</p>`
+								: ''
+						}
+            <p>Total Amount: $${totalAmount.toFixed(2)}</p>
+            <p>If you have any questions, please don't hesitate to contact us.</p>
+        `
 
 		const mailOptions = {
 			from: 'noreply@yourcompany.com',
@@ -151,13 +182,7 @@ export async function POST(request) {
 			subject: `Invoice #${invoice.id} - ${
 				activeTab === 'client' ? 'Client' : 'Supplier'
 			} Invoice`,
-			html: `
-        <h1>Invoice #${invoice.id}</h1>
-        <p>Please find the attached invoice for your records.</p>
-        ${vatInfo}
-        <p>Total Amount: $${invoice.total_price.toFixed(2)}</p>
-        <p>If you have any questions, please don't hesitate to contact us.</p>
-      `,
+			html: emailBody,
 			attachments: [
 				{
 					filename: `Invoice_${invoice.id}.pdf`,

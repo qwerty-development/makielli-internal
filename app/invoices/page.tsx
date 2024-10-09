@@ -404,6 +404,12 @@ const InvoicesPage: React.FC = () => {
 	}
 
 	const handleDiscountChange = (productId: string, discount: number) => {
+		const product = products.find(p => p.id === productId)
+		const maxDiscount = activeTab === 'client' ? product?.price : product?.cost
+
+		if (discount < 0) discount = 0
+		if (maxDiscount !== undefined && discount > maxDiscount)
+			discount = maxDiscount
 		setNewInvoice(prev => ({
 			...prev,
 			discounts: { ...prev.discounts, [productId]: discount }
@@ -896,10 +902,16 @@ const InvoicesPage: React.FC = () => {
 								{selectedProduct && (
 									<div className='mb-4 p-2 border rounded'>
 										<h4 className='font-bold mb-2'>{selectedProduct.name}</h4>
+										<label
+											className='block text-gray text-sm font-semibold mb-2'
+											htmlFor='discount'>
+											Discount per item
+										</label>
 										<input
 											type='number'
 											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
 											value={newInvoice.discounts?.[selectedProduct.id] || 0}
+											min={0}
 											onChange={e =>
 												handleDiscountChange(
 													selectedProduct.id,
@@ -1021,6 +1033,7 @@ const InvoicesPage: React.FC = () => {
 								<input
 									id='order_number'
 									type='text'
+									required
 									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 									value={newInvoice.order_number}
 									onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
@@ -1156,6 +1169,9 @@ const InvoicesPage: React.FC = () => {
 	const renderInvoiceDetails = () => {
 		if (!selectedInvoice) return null
 
+		let subtotal = 0
+		let totalDiscount = 0
+
 		return (
 			<div className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'>
 				<div className='relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white'>
@@ -1197,15 +1213,21 @@ const InvoicesPage: React.FC = () => {
 										selectedInvoice.discounts?.[product.product_id] || 0
 									const discountedPrice = (unitPrice || 0) - discount
 									const lineTotal = discountedPrice * product.quantity
+									const lineTotalDiscount = discount * product.quantity
+
+									subtotal += (unitPrice || 0) * product.quantity
+									totalDiscount += lineTotalDiscount
+
 									return (
 										<li key={index} className='text-sm text-gray'>
 											{parentProduct?.name} - {variant?.size} - {variant?.color}{' '}
 											- Quantity: {product.quantity} - Unit{' '}
 											{activeTab === 'client' ? 'Price' : 'Cost'}: $
 											{unitPrice?.toFixed(2)} - Discount per item: $
-											{discount.toFixed(2)} - Discounted Price: $
-											{discountedPrice.toFixed(2)} - Total: $
-											{lineTotal.toFixed(2)}
+											{discount.toFixed(2)}- Discounted Price: $
+											{discountedPrice.toFixed(2)}- Line Total: $
+											{lineTotal.toFixed(2)}- Line Discount: $
+											{lineTotalDiscount.toFixed(2)}
 											{product.note && (
 												<div className='ml-4 text-xs italic'>
 													Note: {product.note}
@@ -1215,6 +1237,25 @@ const InvoicesPage: React.FC = () => {
 									)
 								})}
 							</ul>
+							<div className='mt-4'>
+								<p className='text-sm text-gray'>
+									Subtotal: ${subtotal.toFixed(2)}
+								</p>
+								<p className='text-sm text-gray'>
+									Total Discount: ${totalDiscount.toFixed(2)}
+								</p>
+								<p className='text-sm text-gray'>
+									Total Before VAT: ${(subtotal - totalDiscount).toFixed(2)}
+								</p>
+								{selectedInvoice.include_vat && (
+									<p className='text-sm text-gray'>
+										VAT (11%): ${selectedInvoice.vat_amount?.toFixed(2)}
+									</p>
+								)}
+								<p className='text-sm font-bold text-gray'>
+									Final Total: ${selectedInvoice.total_price?.toFixed(2)}
+								</p>
+							</div>
 
 							<h4 className='text-sm font-medium text-gray mt-4'>Files:</h4>
 							<ul className='list-disc list-inside'>

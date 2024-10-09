@@ -216,7 +216,8 @@ export const generatePDF = async (
 			products: Array.from(productMap.values()).map(product => ({
 				...product,
 				notes: Array.from(product.notes)
-			}))
+			})),
+			discounts: data.discounts || {} // Ensure discounts are included
 		}
 	}
 

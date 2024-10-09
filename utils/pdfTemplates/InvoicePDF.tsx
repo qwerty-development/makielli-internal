@@ -142,9 +142,17 @@ const styles = StyleSheet.create({
 		fontSize: 10
 	},
 	productImage: {
-		width: 50,
-		height: 50,
-		objectFit: 'contain'
+		width: '100%',
+		height: 'auto',
+		maxHeight: 50,
+		objectFit: 'contain',
+		marginVertical: 2
+	},
+	imageContainer: {
+		width: '8%',
+		height: 54, // Slightly larger than the maxHeight of the image
+		justifyContent: 'center',
+		alignItems: 'center'
 	}
 })
 
@@ -169,7 +177,21 @@ const InvoicePDF: React.FC<{
 	]
 	const addressLines = company.address.split('\n')
 
-	const subtotal = invoice.total_price - (invoice.vat_amount || 0)
+	const subtotal = invoice.products.reduce((total: number, product: any) => {
+		const price = isClientInvoice ? product.unitPrice : product.unitCost
+		return total + price * product.totalQuantity
+	}, 0)
+
+	const totalDiscount = invoice.products.reduce(
+		(total: number, product: any) => {
+			const discount = invoice.discounts?.[product.product_id] || 0
+			return total + discount * product.totalQuantity
+		},
+		0
+	)
+
+	const totalBeforeVAT = subtotal - totalDiscount
+	const vatAmount = invoice.include_vat ? totalBeforeVAT * 0.11 : 0
 
 	return (
 		<Document>
@@ -247,6 +269,9 @@ const InvoicePDF: React.FC<{
 								{isClientInvoice ? 'PRICE' : 'COST'}
 							</Text>
 						</View>
+						<View style={[styles.tableColHeader, { width: '7%' }]}>
+							<Text style={styles.tableCellHeader}>DISCOUNT</Text>
+						</View>
 						<View style={[styles.tableColHeader, { width: '10%' }]}>
 							<Text style={styles.tableCellHeader}>TOTAL</Text>
 						</View>
@@ -254,7 +279,7 @@ const InvoicePDF: React.FC<{
 
 					{invoice.products.map((product: any, index: number) => (
 						<View key={index} style={styles.tableRow}>
-							<View style={[styles.tableCol, { width: '8%' }]}>
+							<View style={[styles.tableCol, styles.imageContainer]}>
 								<Image
 									src={product.image || '/placeholder-image.png'}
 									style={styles.productImage}
@@ -289,14 +314,18 @@ const InvoicePDF: React.FC<{
 									).toFixed(2)}
 								</Text>
 							</View>
+							<View style={[styles.tableCol, { width: '7%' }]}>
+								<Text style={styles.tableCell}>
+									${(invoice.discounts?.[product.product_id] || 0).toFixed(2)}
+								</Text>
+							</View>
 							<View style={[styles.tableCol, { width: '10%' }]}>
 								<Text style={styles.tableCell}>
 									$
 									{(
 										product.totalQuantity *
-										(isClientInvoice
-											? product.unitPrice
-											: product.unitCost || 0)
+										((isClientInvoice ? product.unitPrice : product.unitCost) -
+											(invoice.discounts?.[product.product_id] || 0))
 									).toFixed(2)}
 								</Text>
 							</View>
@@ -309,12 +338,20 @@ const InvoicePDF: React.FC<{
 					<Text style={styles.subtotalValue}>${subtotal.toFixed(2)}</Text>
 				</View>
 
+				<View style={styles.subtotal}>
+					<Text style={styles.subtotalLabel}>Total Discount:</Text>
+					<Text style={styles.subtotalValue}>${totalDiscount.toFixed(2)}</Text>
+				</View>
+
+				<View style={styles.subtotal}>
+					<Text style={styles.subtotalLabel}>Total Before VAT:</Text>
+					<Text style={styles.subtotalValue}>${totalBeforeVAT.toFixed(2)}</Text>
+				</View>
+
 				{invoice.include_vat && (
 					<View style={styles.subtotal}>
 						<Text style={styles.subtotalLabel}>VAT (11%):</Text>
-						<Text style={styles.subtotalValue}>
-							${invoice.vat_amount.toFixed(2)}
-						</Text>
+						<Text style={styles.subtotalValue}>${vatAmount.toFixed(2)}</Text>
 					</View>
 				)}
 
