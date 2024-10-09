@@ -41,6 +41,7 @@ interface Invoice {
 	remaining_amount: number
 	include_vat: boolean
 	vat_amount: number
+	discounts?: { [productId: string]: number }
 }
 
 const InvoicesPage: React.FC = () => {
@@ -70,7 +71,8 @@ const InvoicesPage: React.FC = () => {
 		files: [],
 		remaining_amount: 0,
 		include_vat: false,
-		vat_amount: 0
+		vat_amount: 0,
+		discounts: {}
 	})
 	const [selectedFile, setSelectedFile] = useState<File | null>(null)
 	const [uploadingFile, setUploadingFile] = useState(false)
@@ -170,6 +172,7 @@ const InvoicesPage: React.FC = () => {
 
 	const calculateTotalPrice = (
 		invoiceProducts: InvoiceProduct[],
+		discounts: { [productId: string]: number },
 		isClientInvoice: boolean,
 		includeVAT: boolean
 	) => {
@@ -178,7 +181,9 @@ const InvoicesPage: React.FC = () => {
 			if (!product) return total
 
 			const unitPrice = isClientInvoice ? product.price : product.cost
-			return total + unitPrice * invoiceProduct.quantity
+			const discountedPrice =
+				unitPrice - (discounts[invoiceProduct.product_id] || 0)
+			return total + discountedPrice * invoiceProduct.quantity
 		}, 0)
 
 		const vatAmount = includeVAT ? subtotal * 0.11 : 0
@@ -193,6 +198,7 @@ const InvoicesPage: React.FC = () => {
 
 		const { subtotal, vatAmount, totalPrice } = calculateTotalPrice(
 			newInvoice.products || [],
+			newInvoice.discounts || {},
 			isClientInvoice,
 			newInvoice.include_vat || false
 		)
@@ -206,30 +212,19 @@ const InvoicesPage: React.FC = () => {
 
 		let result
 		if (newInvoice.id) {
-			// Fetch the old invoice data
-			const { data: oldInvoice, error: fetchError } = await supabase
-				.from(table)
-				.select('*')
-				.eq('id', newInvoice.id)
-				.single()
-
-			if (fetchError) {
-				toast.error(`Error fetching old invoice: ${fetchError.message}`)
-				return
-			}
-
 			// Update existing invoice
 			result = await supabase
 				.from(table)
 				.update(invoiceData)
 				.eq('id', newInvoice.id)
 
-			// Revert old quantities and apply new quantities
-			await updateProductQuantities(oldInvoice.products, !isClientInvoice)
+			// Update product quantities
 			await updateProductQuantities(newInvoice.products || [], isClientInvoice)
 
 			// Update entity balance
-			await updateEntityBalance(totalPrice - oldInvoice.total_price)
+			await updateEntityBalance(
+				totalPrice - (newInvoice as Invoice).total_price
+			)
 		} else {
 			// Create new invoice
 			result = await supabase.from(table).insert(invoiceData).single()
@@ -365,18 +360,23 @@ const InvoicesPage: React.FC = () => {
 		setFilterEntity(id)
 		setCurrentPage(1)
 	}
-
 	const handleAddProduct = (product: Product) => {
 		setSelectedProduct(product)
-		// Automatically add an initial variant when a product is selected
 		setSelectedVariants([
 			{
 				product_id: product.id,
-				product_variant_id: product.variants[0]?.id || '', // Select the first variant by default, if available
+				product_variant_id: product.variants[0]?.id || '',
 				quantity: 1,
 				note: ''
 			}
 		])
+		// Initialize discount for this product if not already set
+		if (!newInvoice.discounts?.[product.id]) {
+			setNewInvoice(prev => ({
+				...prev,
+				discounts: { ...prev.discounts, [product.id]: 0 }
+			}))
+		}
 	}
 
 	const handleAddVariant = () => {
@@ -403,6 +403,27 @@ const InvoicesPage: React.FC = () => {
 		setSelectedVariants(updatedVariants)
 	}
 
+	const handleDiscountChange = (productId: string, discount: number) => {
+		setNewInvoice(prev => ({
+			...prev,
+			discounts: { ...prev.discounts, [productId]: discount }
+		}))
+
+		// Recalculate total price
+		const isClientInvoice = activeTab === 'client'
+		const { totalPrice, vatAmount } = calculateTotalPrice(
+			newInvoice.products || [],
+			{ ...newInvoice.discounts, [productId]: discount },
+			isClientInvoice,
+			newInvoice.include_vat || false
+		)
+		setNewInvoice(prev => ({
+			...prev,
+			total_price: totalPrice,
+			vat_amount: vatAmount
+		}))
+	}
+
 	const handleRemoveVariant = (index: number) => {
 		const updatedVariants = selectedVariants.filter((_, i) => i !== index)
 		setSelectedVariants(updatedVariants)
@@ -417,6 +438,7 @@ const InvoicesPage: React.FC = () => {
 			const isClientInvoice = activeTab === 'client'
 			const { totalPrice, vatAmount } = calculateTotalPrice(
 				updatedProducts,
+				newInvoice.discounts || {},
 				isClientInvoice,
 				newInvoice.include_vat || false
 			)
@@ -436,6 +458,7 @@ const InvoicesPage: React.FC = () => {
 		const isClientInvoice = activeTab === 'client'
 		const { totalPrice, vatAmount } = calculateTotalPrice(
 			updatedProducts || [],
+			newInvoice.discounts || {}, // Add this line
 			isClientInvoice,
 			newInvoice.include_vat || false
 		)
@@ -873,6 +896,18 @@ const InvoicesPage: React.FC = () => {
 								{selectedProduct && (
 									<div className='mb-4 p-2 border rounded'>
 										<h4 className='font-bold mb-2'>{selectedProduct.name}</h4>
+										<input
+											type='number'
+											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
+											value={newInvoice.discounts?.[selectedProduct.id] || 0}
+											onChange={e =>
+												handleDiscountChange(
+													selectedProduct.id,
+													Number(e.target.value)
+												)
+											}
+											placeholder='Discount per item'
+										/>
 										{selectedVariants.map((variant, index) => (
 											<div key={index} className='mb-2 p-2 border rounded'>
 												<select
@@ -968,6 +1003,11 @@ const InvoicesPage: React.FC = () => {
 											}
 										</p>
 										<p>Quantity: {product.quantity}</p>
+										<p>
+											Discount per item: $
+											{newInvoice.discounts?.[product.product_id]?.toFixed(2) ||
+												'0.00'}
+										</p>
 										<p>Note: {product.note}</p>
 									</div>
 								))}
@@ -1000,6 +1040,7 @@ const InvoicesPage: React.FC = () => {
 											const includeVAT = e.target.checked
 											const { totalPrice, vatAmount } = calculateTotalPrice(
 												newInvoice.products || [],
+												newInvoice.discounts || {}, // Add this line
 												activeTab === 'client',
 												includeVAT
 											)
@@ -1152,13 +1193,19 @@ const InvoicesPage: React.FC = () => {
 										activeTab === 'client'
 											? parentProduct?.price
 											: parentProduct?.cost
+									const discount =
+										selectedInvoice.discounts?.[product.product_id] || 0
+									const discountedPrice = (unitPrice || 0) - discount
+									const lineTotal = discountedPrice * product.quantity
 									return (
 										<li key={index} className='text-sm text-gray'>
 											{parentProduct?.name} - {variant?.size} - {variant?.color}{' '}
 											- Quantity: {product.quantity} - Unit{' '}
 											{activeTab === 'client' ? 'Price' : 'Cost'}: $
-											{unitPrice?.toFixed(2)} - Total: $
-											{(unitPrice! * product.quantity).toFixed(2)}
+											{unitPrice?.toFixed(2)} - Discount per item: $
+											{discount.toFixed(2)} - Discounted Price: $
+											{discountedPrice.toFixed(2)} - Total: $
+											{lineTotal.toFixed(2)}
 											{product.note && (
 												<div className='ml-4 text-xs italic'>
 													Note: {product.note}
@@ -1168,6 +1215,7 @@ const InvoicesPage: React.FC = () => {
 									)
 								})}
 							</ul>
+
 							<h4 className='text-sm font-medium text-gray mt-4'>Files:</h4>
 							<ul className='list-disc list-inside'>
 								{selectedInvoice.files.map((file, index) => (
@@ -1247,7 +1295,8 @@ const InvoicesPage: React.FC = () => {
 						remaining_amount: 0,
 						include_vat: false,
 						vat_amount: 0,
-						order_number: ''
+						order_number: '',
+						discounts: {}
 					})
 					setShowModal(true)
 				}}>
