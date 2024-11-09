@@ -81,6 +81,8 @@ const InvoicesPage: React.FC = () => {
 	const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
 	const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
 	const [selectedVariants, setSelectedVariants] = useState<InvoiceProduct[]>([])
+	const [originalInvoiceData, setOriginalInvoiceData] =
+		useState<Invoice | null>(null)
 
 	useEffect(() => {
 		fetchInvoices()
@@ -107,6 +109,19 @@ const InvoicesPage: React.FC = () => {
 	const handleProductSearch = debounce((searchTerm: string) => {
 		setProductSearch(searchTerm)
 	}, 300)
+
+	const getEntityId = (invoice: Partial<Invoice>) => {
+		const idField = activeTab === 'client' ? 'client_id' : 'supplier_id'
+		const id = invoice[idField as keyof typeof invoice]
+
+		if (!id) {
+			throw new Error(
+				`${activeTab === 'client' ? 'Client' : 'Supplier'} ID is required`
+			)
+		}
+
+		return id
+	}
 
 	const fetchInvoices = async () => {
 		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
@@ -179,11 +194,14 @@ const InvoicesPage: React.FC = () => {
 	) => {
 		const subtotal = invoiceProducts.reduce((total, invoiceProduct) => {
 			const product = products.find(p => p.id === invoiceProduct.product_id)
-			if (!product) return total
+			if (!product) {
+				console.warn(`Product not found: ${invoiceProduct.product_id}`)
+				return total
+			}
 
 			const unitPrice = isClientInvoice ? product.price : product.cost
-			const discountedPrice =
-				unitPrice - (discounts[invoiceProduct.product_id] || 0)
+			const discount = discounts[invoiceProduct.product_id] || 0
+			const discountedPrice = Math.max(0, unitPrice - discount) // Prevent negative prices
 			return total + discountedPrice * invoiceProduct.quantity
 		}, 0)
 
@@ -197,230 +215,243 @@ const InvoicesPage: React.FC = () => {
 		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
 		const isClientInvoice = activeTab === 'client'
 
-		const { subtotal, vatAmount, totalPrice } = calculateTotalPrice(
-			newInvoice.products || [],
-			newInvoice.discounts || {},
-			isClientInvoice,
-			newInvoice.include_vat || false
-		)
+		try {
+			// Validate entity ID first
+			const entityId: any = getEntityId(newInvoice)
 
-		const finalTotalPrice =
-			newInvoice.type === 'return' ? -totalPrice : totalPrice
-		const finalVatAmount = newInvoice.type === 'return' ? -vatAmount : vatAmount
-
-		const invoiceData = {
-			...newInvoice,
-			total_price: finalTotalPrice,
-			remaining_amount: finalTotalPrice,
-			vat_amount: finalVatAmount
-		}
-
-		let result
-		if (newInvoice.id) {
-			// Update existing invoice
-			result = await supabase
-				.from(table)
-				.update(invoiceData)
-				.eq('id', newInvoice.id)
-
-			// Update product quantities
-			await updateProductQuantities(
+			const { subtotal, vatAmount, totalPrice } = calculateTotalPrice(
 				newInvoice.products || [],
+				newInvoice.discounts || {},
 				isClientInvoice,
+				newInvoice.include_vat || false
+			)
+
+			const finalTotalPrice =
 				newInvoice.type === 'return'
-			)
-
-			// Update entity balance
-			const balanceChange =
-				finalTotalPrice - (newInvoice as Invoice).total_price
-			await updateEntityBalance(balanceChange)
-		} else {
-			// Create new invoice
-			result = await supabase.from(table).insert(invoiceData).single()
-
-			// Update product quantities
-			await updateProductQuantities(
-				newInvoice.products || [],
-				isClientInvoice,
+					? -Math.abs(totalPrice)
+					: Math.abs(totalPrice)
+			const finalVatAmount =
 				newInvoice.type === 'return'
-			)
+					? -Math.abs(vatAmount)
+					: Math.abs(vatAmount)
 
-			// Update entity balance
-			await updateEntityBalance(finalTotalPrice)
-		}
+			const invoiceData = {
+				...newInvoice,
+				total_price: finalTotalPrice,
+				remaining_amount: finalTotalPrice,
+				vat_amount: finalVatAmount,
+				[isClientInvoice ? 'client_id' : 'supplier_id']: entityId // Explicitly set ID
+			}
 
-		const { data, error } = result
+			if (newInvoice.id && originalInvoiceData) {
+				// Update existing invoice
+				const { error: updateError } = await supabase
+					.from(table)
+					.update(invoiceData)
+					.eq('id', newInvoice.id)
 
-		if (error) {
-			toast.error(
-				`Error ${newInvoice.id ? 'updating' : 'creating'} invoice: ${
-					error.message
-				}`
-			)
-		} else {
+				if (updateError) throw updateError
+
+				// Update quantities and balance
+				await updateProductQuantities(
+					originalInvoiceData.products,
+					isClientInvoice,
+					originalInvoiceData.type === 'return',
+					true
+				)
+				await updateProductQuantities(
+					newInvoice.products || [],
+					isClientInvoice,
+					newInvoice.type === 'return',
+					false
+				)
+
+				const oldAmount = originalInvoiceData.total_price
+				const balanceChange = finalTotalPrice - oldAmount
+				await updateEntityBalance(balanceChange, entityId)
+			} else {
+				// Create new invoice
+				const { error: createError } = await supabase
+					.from(table)
+					.insert(invoiceData)
+					.single()
+
+				if (createError) throw createError
+
+				// Update quantities and balance
+				await updateProductQuantities(
+					newInvoice.products || [],
+					isClientInvoice,
+					newInvoice.type === 'return',
+					false
+				)
+				await updateEntityBalance(finalTotalPrice, entityId)
+			}
+
 			toast.success(
 				`Invoice ${newInvoice.id ? 'updated' : 'created'} successfully`
 			)
 			setShowModal(false)
+			setOriginalInvoiceData(null)
 			fetchInvoices()
+		} catch (error: any) {
+			console.error('Invoice operation error:', error)
+			toast.error(error.message || 'Error processing invoice')
 		}
 	}
 
 	const updateProductQuantities = async (
 		products: InvoiceProduct[],
 		isClientInvoice: boolean,
-		isReturn: boolean
+		isReturn: boolean,
+		isReversal: boolean = false
 	) => {
 		for (const product of products) {
-			// For returns, we add to inventory instead of subtracting
-			const baseQuantityChange = isClientInvoice
-				? -product.quantity
-				: product.quantity
-			const quantityChange = isReturn ? -baseQuantityChange : baseQuantityChange
+			try {
+				// Calculate quantity change direction
+				let quantityChange = isClientInvoice
+					? -product.quantity
+					: product.quantity
 
-			const { error } = await supabase.rpc('update_product_variant_quantity', {
-				variant_id: product.product_variant_id,
-				quantity_change: quantityChange
-			})
+				// Adjust for returns
+				if (isReturn) {
+					quantityChange = -quantityChange
+				}
 
-			if (error) {
-				toast.error(`Error updating product quantity: ${error.message}`)
+				// Adjust for reversals (when undoing previous changes)
+				if (isReversal) {
+					quantityChange = -quantityChange
+				}
+
+				const { error } = await supabase.rpc(
+					'update_product_variant_quantity',
+					{
+						variant_id: product.product_variant_id,
+						quantity_change: quantityChange
+					}
+				)
+
+				if (error) throw error
+			} catch (error: any) {
+				throw new Error(
+					`Error updating quantity for product ${product.product_id}: ${error.message}`
+				)
 			}
 		}
 	}
 
-	const updateEntityBalance = async (amount: number) => {
-		const table = activeTab === 'client' ? 'Clients' : 'Suppliers'
-		const idField = activeTab === 'client' ? 'client_id' : 'supplier_id'
-		const id = newInvoice[idField as keyof typeof newInvoice]
-		const field = activeTab === 'client' ? 'client_id' : 'id'
+	const updateEntityBalance = async (
+		amount: number,
+		forcedEntityId?: number | string
+	) => {
+		try {
+			const table = activeTab === 'client' ? 'Clients' : 'Suppliers'
+			const field = activeTab === 'client' ? 'client_id' : 'id'
 
-		if (!id) {
-			toast.error('Entity ID is undefined')
-			return
-		}
+			// Use forcedEntityId if provided, otherwise get from newInvoice
+			const id = forcedEntityId || getEntityId(newInvoice)
 
-		const { data, error } = await supabase
-			.from(table)
-			.select('balance')
-			.eq(field, id)
-			.single()
+			if (!id) {
+				throw new Error('No valid entity ID found')
+			}
 
-		if (error) {
-			toast.error(`Error fetching current balance: ${error.message}`)
-			return
-		}
+			// Fetch current balance
+			const { data, error } = await supabase
+				.from(table)
+				.select('balance')
+				.eq(field, id)
+				.single()
 
-		const currentBalance = data?.balance || 0
-		const newBalance = currentBalance + amount
+			if (error) {
+				throw new Error(`Error fetching current balance: ${error.message}`)
+			}
 
-		const { error: updateError } = await supabase
-			.from(table)
-			.update({ balance: newBalance })
-			.eq(field, id)
+			const currentBalance = data?.balance || 0
+			const newBalance = currentBalance + amount
 
-		if (updateError) {
-			toast.error(`Error updating ${activeTab} balance: ${updateError.message}`)
+			// Update balance
+			const { error: updateError } = await supabase
+				.from(table)
+				.update({ balance: newBalance })
+				.eq(field, id)
+
+			if (updateError) {
+				throw new Error(`Error updating balance: ${updateError.message}`)
+			}
+		} catch (error: any) {
+			console.error('Balance update error:', error)
+			toast.error(error.message || 'Error updating balance')
+			throw error // Re-throw to handle in calling function
 		}
 	}
 
 	const handleDeleteInvoice = async (id: number) => {
-		if (window.confirm('Are you sure you want to delete this invoice?')) {
-			const table =
-				activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
-			const isClientInvoice = activeTab === 'client'
+		if (!window.confirm('Are you sure you want to delete this invoice?')) {
+			return
+		}
 
-			// Fetch the invoice data first
+		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
+		const isClientInvoice = activeTab === 'client'
+
+		try {
+			// Fetch invoice data
 			const { data: invoiceData, error: fetchError } = await supabase
 				.from(table)
 				.select('*')
 				.eq('id', id)
 				.single()
 
-			if (fetchError) {
-				toast.error(`Error fetching invoice: ${fetchError.message}`)
-				return
+			if (fetchError)
+				throw new Error(`Error fetching invoice: ${fetchError.message}`)
+
+			// Validate entity ID
+			const entityId = isClientInvoice
+				? invoiceData.client_id
+				: invoiceData.supplier_id
+			if (!entityId) {
+				throw new Error(
+					`${isClientInvoice ? 'Client' : 'Supplier'} ID not found in invoice`
+				)
 			}
 
-			try {
-				for (const fileUrl of invoiceData.files) {
-					await handleFileDelete(fileUrl)
-				}
+			// Delete files
+			await Promise.all(
+				invoiceData.files.map((fileUrl: string) => handleFileDelete(fileUrl))
+			)
 
-				const quantityMultiplier = invoiceData.type === 'return' ? -1 : 1
-
-				for (const product of invoiceData.products) {
-					const quantityChange = quantityMultiplier * product.quantity
-					const { error: quantityError } = await supabase.rpc(
-						'update_product_variant_quantity',
-						{
+			// Update quantities
+			const quantityMultiplier = invoiceData.type === 'return' ? -1 : 1
+			await Promise.all(
+				invoiceData.products.map(
+					(product: { product_variant_id: any; quantity: number }) =>
+						supabase.rpc('update_product_variant_quantity', {
 							variant_id: product.product_variant_id,
-							quantity_change: quantityChange
-						}
-					)
+							quantity_change: quantityMultiplier * product.quantity
+						})
+				)
+			)
 
-					if (quantityError) {
-						throw new Error(
-							`Error updating product quantity: ${quantityError.message}`
-						)
-					}
-				}
+			// Delete invoice
+			const { error: deleteError } = await supabase
+				.from(table)
+				.delete()
+				.eq('id', id)
 
-				const balanceChange =
-					invoiceData.type === 'return'
-						? invoiceData.total_price // Return invoice: Add the negative amount back
-						: -invoiceData.total_price // Regular invoice: Subtract the positive amount
+			if (deleteError) throw deleteError
 
-				// Store current entity id for balance update
-				const entityIdField = isClientInvoice ? 'client_id' : 'supplier_id'
-				const entityId = invoiceData[entityIdField]
+			// Update balance
+			const balanceChange =
+				invoiceData.type === 'return'
+					? invoiceData.total_price
+					: -invoiceData.total_price
 
-				// Delete the invoice
-				const { error: deleteError } = await supabase
-					.from(table)
-					.delete()
-					.eq('id', id)
+			await updateEntityBalance(balanceChange, entityId)
 
-				if (deleteError) {
-					throw new Error(`Error deleting invoice: ${deleteError.message}`)
-				}
-
-				// Update the entity balance using the stored entity id
-				const entityTable = isClientInvoice ? 'Clients' : 'Suppliers'
-				const entityField = isClientInvoice ? 'client_id' : 'id'
-
-				const { data: entityData, error: entityFetchError } = await supabase
-					.from(entityTable)
-					.select('balance')
-					.eq(entityField, entityId)
-					.single()
-
-				if (entityFetchError) {
-					throw new Error(
-						`Error fetching entity balance: ${entityFetchError.message}`
-					)
-				}
-
-				const currentBalance = entityData.balance || 0
-				const newBalance = currentBalance + balanceChange
-
-				const { error: balanceUpdateError } = await supabase
-					.from(entityTable)
-					.update({ balance: newBalance })
-					.eq(entityField, entityId)
-
-				if (balanceUpdateError) {
-					throw new Error(
-						`Error updating entity balance: ${balanceUpdateError.message}`
-					)
-				}
-
-				toast.success('Invoice deleted successfully')
-				fetchInvoices()
-			} catch (error: any) {
-				console.error('Error in delete process:', error)
-				toast.error(error.message || 'Error deleting invoice')
-			}
+			toast.success('Invoice deleted successfully')
+			fetchInvoices()
+		} catch (error: any) {
+			console.error('Delete error:', error)
+			toast.error(error.message || 'Error deleting invoice')
 		}
 	}
 
@@ -433,9 +464,42 @@ const InvoicesPage: React.FC = () => {
 		}
 	}
 
-	const handleEditInvoice = (invoice: Invoice) => {
-		setNewInvoice(invoice)
-		setShowModal(true)
+	const handleEditInvoice = async (invoice: Invoice) => {
+		try {
+			// Validate entity ID first
+
+			const isClientInvoice = activeTab === 'client'
+			const entityId = isClientInvoice ? invoice.client_id : invoice.supplier_id
+			if (!entityId) {
+				throw new Error(
+					`${isClientInvoice ? 'Client' : 'Supplier'} ID not found in invoice`
+				)
+			}
+
+			const table =
+				activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
+			const { data: currentInvoice, error: fetchError } = await supabase
+				.from(table)
+				.select('*')
+				.eq('id', invoice.id)
+				.single()
+
+			if (fetchError)
+				throw new Error(`Error fetching invoice: ${fetchError.message}`)
+
+			setOriginalInvoiceData(currentInvoice)
+			setNewInvoice({
+				...currentInvoice,
+				products: [...currentInvoice.products],
+				discounts: { ...(currentInvoice.discounts || {}) },
+				[isClientInvoice ? 'client_id' : 'supplier_id']: entityId // Explicitly set ID
+			})
+
+			setShowModal(true)
+		} catch (error: any) {
+			console.error('Edit error:', error)
+			toast.error(error.message || 'Error preparing invoice for edit')
+		}
 	}
 
 	const handleInvoiceClick = (invoice: Invoice) => {
