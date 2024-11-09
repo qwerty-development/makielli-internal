@@ -1363,6 +1363,7 @@ const InvoicesPage: React.FC = () => {
 						</h3>
 						<div className='mt-2 px-7 py-3'>
 							<p className='text-sm text-gray'>ID: {selectedInvoice.id}</p>
+
 							<p className='text-sm text-gray'>
 								Date:{' '}
 								{new Date(selectedInvoice.created_at).toLocaleDateString()}

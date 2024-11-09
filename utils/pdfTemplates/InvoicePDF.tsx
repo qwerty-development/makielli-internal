@@ -51,6 +51,30 @@ const styles = StyleSheet.create({
 		marginBottom: 20,
 		color: '#1E40AF'
 	},
+	returnTitle: {
+		fontSize: 24,
+		fontWeight: 'bold',
+		marginBottom: 20,
+		color: '#DC2626'
+	},
+	returnBadge: {
+		backgroundColor: '#FEE2E2',
+		padding: 4,
+		borderRadius: 4,
+		marginBottom: 10
+	},
+	returnBadgeText: {
+		color: '#DC2626',
+		fontSize: 12,
+		fontWeight: 'bold',
+		textAlign: 'center'
+	},
+	returnNote: {
+		fontSize: 8,
+		color: '#DC2626',
+		fontStyle: 'italic',
+		marginTop: 5
+	},
 	section: {
 		marginBottom: 10
 	},
@@ -150,7 +174,7 @@ const styles = StyleSheet.create({
 	},
 	imageContainer: {
 		width: '8%',
-		height: 54, // Slightly larger than the maxHeight of the image
+		height: 54,
 		justifyContent: 'center',
 		alignItems: 'center'
 	}
@@ -176,16 +200,19 @@ const InvoicePDF: React.FC<{
 		'6XL'
 	]
 	const addressLines = company.address.split('\n')
+	const isReturn = invoice.type === 'return'
 
 	const subtotal = invoice.products.reduce((total: number, product: any) => {
 		const price = isClientInvoice ? product.unitPrice : product.unitCost
-		return total + price * product.totalQuantity
+		const lineTotal = price * product.totalQuantity
+		return total + (isReturn ? -lineTotal : lineTotal)
 	}, 0)
 
 	const totalDiscount = invoice.products.reduce(
 		(total: number, product: any) => {
 			const discount = invoice.discounts?.[product.product_id] || 0
-			return total + discount * product.totalQuantity
+			const lineDiscount = discount * product.totalQuantity
+			return total + (isReturn ? -lineDiscount : lineDiscount)
 		},
 		0
 	)
@@ -213,7 +240,15 @@ const InvoicePDF: React.FC<{
 					</View>
 				</View>
 
-				<Text style={styles.title}>INVOICE</Text>
+				<Text style={isReturn ? styles.returnTitle : styles.title}>
+					{isReturn ? 'RETURN INVOICE' : 'INVOICE'}
+				</Text>
+
+				{isReturn && (
+					<View style={styles.returnBadge}>
+						<Text style={styles.returnBadgeText}>Return Invoice</Text>
+					</View>
+				)}
 
 				<View style={styles.row}>
 					<View style={styles.column}>
@@ -277,88 +312,98 @@ const InvoicePDF: React.FC<{
 						</View>
 					</View>
 
-					{invoice.products.map((product: any, index: number) => (
-						<View key={index} style={styles.tableRow}>
-							<View style={[styles.tableCol, styles.imageContainer]}>
-								<Image
-									src={product.image || '/placeholder-image.png'}
-									style={styles.productImage}
-								/>
-							</View>
-							<View style={[styles.tableCol, { width: '18%' }]}>
-								<Text style={styles.tableCell}>{product.name || 'N/A'}</Text>
-							</View>
-							<View style={[styles.tableCol, { width: '8%' }]}>
-								<Text style={styles.tableCell}>{product.color || 'N/A'}</Text>
-							</View>
-							<View style={[styles.tableCol, { width: '11%' }]}>
-								{product.notes.map((note: string, noteIndex: number) => (
-									<Text key={noteIndex} style={styles.notes}>
-										{note}
-									</Text>
+					{invoice.products.map((product: any, index: number) => {
+						const basePrice = isClientInvoice
+							? product.unitPrice
+							: product.unitCost
+						const discount = invoice.discounts?.[product.product_id] || 0
+						const priceAfterDiscount = basePrice - discount
+						const lineTotal = priceAfterDiscount * product.totalQuantity
+						const displayLineTotal = isReturn ? -lineTotal : lineTotal
+
+						return (
+							<View key={index} style={styles.tableRow}>
+								<View style={[styles.tableCol, styles.imageContainer]}>
+									<Image
+										src={product.image || '/placeholder-image.png'}
+										style={styles.productImage}
+									/>
+								</View>
+								<View style={[styles.tableCol, { width: '18%' }]}>
+									<Text style={styles.tableCell}>{product.name || 'N/A'}</Text>
+								</View>
+								<View style={[styles.tableCol, { width: '8%' }]}>
+									<Text style={styles.tableCell}>{product.color || 'N/A'}</Text>
+								</View>
+								<View style={[styles.tableCol, { width: '11%' }]}>
+									{product.notes.map((note: string, noteIndex: number) => (
+										<Text key={noteIndex} style={styles.notes}>
+											{note}
+										</Text>
+									))}
+								</View>
+								{sizeOptions.map(size => (
+									<View key={size} style={[styles.tableCol, { width: '5%' }]}>
+										<Text style={styles.tableCell}>
+											{product.sizes[size] || '-'}
+										</Text>
+									</View>
 								))}
-							</View>
-							{sizeOptions.map(size => (
-								<View key={size} style={[styles.tableCol, { width: '5%' }]}>
+								<View style={[styles.tableCol, { width: '7%' }]}>
+									<Text style={styles.tableCell}>${basePrice.toFixed(2)}</Text>
+								</View>
+								<View style={[styles.tableCol, { width: '7%' }]}>
+									<Text style={styles.tableCell}>${discount.toFixed(2)}</Text>
+								</View>
+								<View style={[styles.tableCol, { width: '10%' }]}>
 									<Text style={styles.tableCell}>
-										{product.sizes[size] || '-'}
+										${Math.abs(displayLineTotal).toFixed(2)}
 									</Text>
 								</View>
-							))}
-							<View style={[styles.tableCol, { width: '7%' }]}>
-								<Text style={styles.tableCell}>
-									$
-									{(isClientInvoice
-										? product.unitPrice
-										: product.unitCost || 0
-									).toFixed(2)}
-								</Text>
 							</View>
-							<View style={[styles.tableCol, { width: '7%' }]}>
-								<Text style={styles.tableCell}>
-									${(invoice.discounts?.[product.product_id] || 0).toFixed(2)}
-								</Text>
-							</View>
-							<View style={[styles.tableCol, { width: '10%' }]}>
-								<Text style={styles.tableCell}>
-									$
-									{(
-										product.totalQuantity *
-										((isClientInvoice ? product.unitPrice : product.unitCost) -
-											(invoice.discounts?.[product.product_id] || 0))
-									).toFixed(2)}
-								</Text>
-							</View>
-						</View>
-					))}
+						)
+					})}
 				</View>
 
 				<View style={styles.subtotal}>
 					<Text style={styles.subtotalLabel}>Subtotal:</Text>
-					<Text style={styles.subtotalValue}>${subtotal.toFixed(2)}</Text>
+					<Text style={styles.subtotalValue}>
+						${Math.abs(subtotal).toFixed(2)}
+						{isReturn && ' (Return)'}
+					</Text>
 				</View>
 
 				<View style={styles.subtotal}>
 					<Text style={styles.subtotalLabel}>Total Discount:</Text>
-					<Text style={styles.subtotalValue}>${totalDiscount.toFixed(2)}</Text>
+					<Text style={styles.subtotalValue}>
+						${Math.abs(totalDiscount).toFixed(2)}
+						{isReturn && ' (Return)'}
+					</Text>
 				</View>
 
 				<View style={styles.subtotal}>
 					<Text style={styles.subtotalLabel}>Total Before VAT:</Text>
-					<Text style={styles.subtotalValue}>${totalBeforeVAT.toFixed(2)}</Text>
+					<Text style={styles.subtotalValue}>
+						${Math.abs(totalBeforeVAT).toFixed(2)}
+						{isReturn && ' (Return)'}
+					</Text>
 				</View>
 
 				{invoice.include_vat && (
 					<View style={styles.subtotal}>
 						<Text style={styles.subtotalLabel}>VAT (11%):</Text>
-						<Text style={styles.subtotalValue}>${vatAmount.toFixed(2)}</Text>
+						<Text style={styles.subtotalValue}>
+							${Math.abs(vatAmount).toFixed(2)}
+							{isReturn && ' (Return)'}
+						</Text>
 					</View>
 				)}
 
 				<View style={styles.subtotal}>
 					<Text style={styles.subtotalLabel}>Total:</Text>
 					<Text style={styles.subtotalValue}>
-						${invoice.total_price.toFixed(2)}
+						${Math.abs(invoice.total_price).toFixed(2)}
+						{isReturn && ' (Return)'}
 					</Text>
 				</View>
 
@@ -372,6 +417,14 @@ const InvoicePDF: React.FC<{
 						Routing Number: {company.bank_routing_number}
 					</Text>
 				</View>
+
+				{isReturn && (
+					<Text
+						style={[styles.returnNote, { marginTop: 20, textAlign: 'center' }]}>
+						This is a return invoice. All amounts shown are credits to be
+						applied to your account.
+					</Text>
+				)}
 
 				<Text style={styles.footer}>Thank you for your business!</Text>
 			</Page>

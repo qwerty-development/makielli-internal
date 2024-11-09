@@ -1,4 +1,3 @@
-// utils/pdfGenerator.ts
 import { pdf } from '@react-pdf/renderer'
 import InvoicePDF from './pdfTemplates/InvoicePDF'
 import ReceiptPDF from './pdfTemplates/ReceiptPDF'
@@ -122,9 +121,10 @@ const fetchClientFinancialData = async (clientId: number) => {
 	const financialData = [
 		...invoices.map(invoice => ({
 			date: invoice.created_at,
-			type: 'invoice',
+			type: invoice.type || 'regular', // Include invoice type
 			id: invoice.id,
-			amount: invoice.total_price
+			amount:
+				invoice.type === 'return' ? -invoice.total_price : invoice.total_price // Adjust sign for returns
 		})),
 		...receipts.map(receipt => ({
 			date: receipt.paid_at,
@@ -137,6 +137,7 @@ const fetchClientFinancialData = async (clientId: number) => {
 
 	return financialData
 }
+
 const fetchSupplierFinancialData = async (supplierId: string) => {
 	const { data: invoices, error: invoiceError } = await supabase
 		.from('SupplierInvoices')
@@ -155,9 +156,10 @@ const fetchSupplierFinancialData = async (supplierId: string) => {
 	const financialData = [
 		...invoices.map(invoice => ({
 			date: invoice.created_at,
-			type: 'invoice',
+			type: invoice.type || 'regular', // Include invoice type
 			id: invoice.id,
-			amount: invoice.total_price
+			amount:
+				invoice.type === 'return' ? -invoice.total_price : invoice.total_price // Adjust sign for returns
 		})),
 		...receipts.map(receipt => ({
 			date: receipt.paid_at,
@@ -211,13 +213,16 @@ export const generatePDF = async (
 			})
 		)
 
+		const productsArray = Array.from(productMap.values()).map(product => ({
+			...product,
+			notes: Array.from(product.notes)
+		}))
+
 		data = {
 			...data,
-			products: Array.from(productMap.values()).map(product => ({
-				...product,
-				notes: Array.from(product.notes)
-			})),
-			discounts: data.discounts || {} // Ensure discounts are included
+			products: productsArray,
+			discounts: data.discounts || {},
+			type: data.type || 'regular'
 		}
 	}
 
@@ -235,14 +240,23 @@ export const generatePDF = async (
 			} else {
 				throw new Error('Invalid invoice: missing client_id or supplier_id')
 			}
+
 			component = InvoicePDF({
-				invoice: data,
+				invoice: {
+					...data,
+					total_price: Math.abs(data.total_price),
+					vat_amount: Math.abs(data.vat_amount || 0),
+					type: data.type
+				},
 				entity: entityData,
 				company: companyData,
 				isClientInvoice
 			})
-			fileName = `invoice_${data.id}.pdf`
+
+			const filePrefix = data.type === 'return' ? 'return_invoice' : 'invoice'
+			fileName = `${filePrefix}_${data.id}.pdf`
 			break
+
 		case 'receipt':
 			let entityData2, companyData2, invoiceData, isClientReceipt
 			if (data.client_id) {
@@ -268,12 +282,12 @@ export const generatePDF = async (
 			})
 			fileName = `receipt_${data.id}.pdf`
 			break
+
 		case 'quotation':
 			const quotationClientData = await fetchClientDetails(data.client_id)
 			const quotationCompanyData = await fetchCompanyDetails(
 				quotationClientData.company_id
 			)
-			// Ensure the data structure matches what QuotationPDF expects
 			const preparedQuotationData = {
 				...data,
 				products: data.products.map((product: any) => ({
@@ -294,6 +308,7 @@ export const generatePDF = async (
 			})
 			fileName = `quotation_${data.id}.pdf`
 			break
+
 		case 'clientFinancialReport':
 			const clientReportData = await fetchClientDetails(data.clientId)
 			const clientCompanyData = await fetchCompanyDetails(
@@ -312,6 +327,7 @@ export const generatePDF = async (
 				'_'
 			)}.pdf`
 			break
+
 		case 'supplierFinancialReport':
 			const supplierData = await fetchSupplierDetails(data.supplierId)
 			const supplierCompanyData = await fetchCompanyDetails(
@@ -332,6 +348,7 @@ export const generatePDF = async (
 				'_'
 			)}.pdf`
 			break
+
 		default:
 			throw new Error(`Invalid PDF type: ${type}`)
 	}
