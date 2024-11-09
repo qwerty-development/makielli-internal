@@ -75,7 +75,7 @@ const fetchProductDetails = async productVariantId => {
 		size: data.size,
 		color: data.color,
 		quantity: data.quantity,
-		note: '' // Add this if you have notes for individual products
+		note: ''
 	}
 }
 
@@ -126,66 +126,90 @@ export async function POST(request) {
 			})
 		)
 
-		// Calculate subtotal, discounts, and total
+		// Calculate subtotal, discounts, and total with return handling
 		const subtotal = productsWithDetails.reduce((total, product) => {
 			const price =
 				activeTab === 'client' ? product.unitPrice : product.unitCost
-			return total + price * product.quantity
+			const lineTotal = price * product.quantity
+			return total + (invoice.type === 'return' ? -lineTotal : lineTotal)
 		}, 0)
 
 		const totalDiscount = productsWithDetails.reduce((total, product) => {
 			const discount = invoice.discounts?.[product.product_id] || 0
-			return total + discount * product.quantity
+			const lineDiscount = discount * product.quantity
+			return total + (invoice.type === 'return' ? -lineDiscount : lineDiscount)
 		}, 0)
 
 		const totalBeforeVAT = subtotal - totalDiscount
 		const vatAmount = invoice.include_vat ? totalBeforeVAT * 0.11 : 0
 		const totalAmount = totalBeforeVAT + vatAmount
 
-		// Generate PDF
+		// Generate PDF with return handling
 		const pdfComponent = InvoicePDF({
 			invoice: {
 				...invoice,
 				products: productsWithDetails,
-				subtotal,
-				totalDiscount,
-				totalBeforeVAT,
-				vatAmount,
-				totalAmount
+				subtotal: Math.abs(subtotal),
+				totalDiscount: Math.abs(totalDiscount),
+				totalBeforeVAT: Math.abs(totalBeforeVAT),
+				vatAmount: Math.abs(vatAmount),
+				totalAmount: Math.abs(totalAmount),
+				type: invoice.type || 'regular' // Ensure type is passed
 			},
 			entity: entityData,
 			company: companyData,
 			isClientInvoice: activeTab === 'client',
 			logoBase64
 		})
+
 		const pdfBuffer = await pdf(pdfComponent).toBuffer()
 
-		// Prepare email body with discount and VAT information
+		// Prepare email body with return handling
+		const isReturn = invoice.type === 'return'
 		const emailBody = `
-            <h1>Invoice #${invoice.id}</h1>
-            <p>Please find the attached invoice for your records.</p>
-            <p>Subtotal: $${subtotal.toFixed(2)}</p>
-            <p>Total Discount: $${totalDiscount.toFixed(2)}</p>
-            <p>Total Before VAT: $${totalBeforeVAT.toFixed(2)}</p>
+            <h1>${isReturn ? 'Return Invoice' : 'Invoice'} #${invoice.id}</h1>
+            <p>Please find the attached ${
+							isReturn ? 'return invoice' : 'invoice'
+						} for your records.</p>
             ${
-							invoice.include_vat
-								? `<p>VAT (11%): $${vatAmount.toFixed(2)}</p>`
+							isReturn
+								? '<p style="color: #DC2626; font-weight: bold;">This is a return invoice. All amounts shown are credits to your account.</p>'
 								: ''
 						}
-            <p>Total Amount: $${totalAmount.toFixed(2)}</p>
+            <p>Subtotal: $${Math.abs(subtotal).toFixed(2)}${
+			isReturn ? ' (Credit)' : ''
+		}</p>
+            <p>Total Discount: $${Math.abs(totalDiscount).toFixed(2)}${
+			isReturn ? ' (Credit)' : ''
+		}</p>
+            <p>Total Before VAT: $${Math.abs(totalBeforeVAT).toFixed(2)}${
+			isReturn ? ' (Credit)' : ''
+		}</p>
+            ${
+							invoice.include_vat
+								? `<p>VAT (11%): $${Math.abs(vatAmount).toFixed(2)}${
+										isReturn ? ' (Credit)' : ''
+								  }</p>`
+								: ''
+						}
+            <p>Total Amount: $${Math.abs(totalAmount).toFixed(2)}${
+			isReturn ? ' (Credit)' : ''
+		}</p>
             <p>If you have any questions, please don't hesitate to contact us.</p>
         `
 
 		const mailOptions = {
 			from: 'noreply@yourcompany.com',
 			to: 'asif@notqwerty.com',
-			subject: `Invoice #${invoice.id} - ${
+			subject: `${isReturn ? 'Return Invoice' : 'Invoice'} #${invoice.id} - ${
 				activeTab === 'client' ? 'Client' : 'Supplier'
-			} Invoice`,
+			}`,
 			html: emailBody,
 			attachments: [
 				{
-					filename: `Invoice_${invoice.id}.pdf`,
+					filename: `${isReturn ? 'Return_Invoice' : 'Invoice'}_${
+						invoice.id
+					}.pdf`,
 					content: pdfBuffer,
 					contentType: 'application/pdf'
 				}
