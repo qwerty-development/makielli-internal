@@ -42,6 +42,7 @@ interface Invoice {
 	include_vat: boolean
 	vat_amount: number
 	discounts?: { [productId: string]: number }
+	type: 'regular' | 'return'
 }
 
 const InvoicesPage: React.FC = () => {
@@ -203,11 +204,15 @@ const InvoicesPage: React.FC = () => {
 			newInvoice.include_vat || false
 		)
 
+		const finalTotalPrice =
+			newInvoice.type === 'return' ? -totalPrice : totalPrice
+		const finalVatAmount = newInvoice.type === 'return' ? -vatAmount : vatAmount
+
 		const invoiceData = {
 			...newInvoice,
-			total_price: totalPrice,
-			remaining_amount: totalPrice,
-			vat_amount: vatAmount
+			total_price: finalTotalPrice,
+			remaining_amount: finalTotalPrice,
+			vat_amount: finalVatAmount
 		}
 
 		let result
@@ -219,21 +224,29 @@ const InvoicesPage: React.FC = () => {
 				.eq('id', newInvoice.id)
 
 			// Update product quantities
-			await updateProductQuantities(newInvoice.products || [], isClientInvoice)
+			await updateProductQuantities(
+				newInvoice.products || [],
+				isClientInvoice,
+				newInvoice.type === 'return'
+			)
 
 			// Update entity balance
-			await updateEntityBalance(
-				totalPrice - (newInvoice as Invoice).total_price
-			)
+			const balanceChange =
+				finalTotalPrice - (newInvoice as Invoice).total_price
+			await updateEntityBalance(balanceChange)
 		} else {
 			// Create new invoice
 			result = await supabase.from(table).insert(invoiceData).single()
 
 			// Update product quantities
-			await updateProductQuantities(newInvoice.products || [], isClientInvoice)
+			await updateProductQuantities(
+				newInvoice.products || [],
+				isClientInvoice,
+				newInvoice.type === 'return'
+			)
 
 			// Update entity balance
-			await updateEntityBalance(totalPrice)
+			await updateEntityBalance(finalTotalPrice)
 		}
 
 		const { data, error } = result
@@ -255,12 +268,16 @@ const InvoicesPage: React.FC = () => {
 
 	const updateProductQuantities = async (
 		products: InvoiceProduct[],
-		isClientInvoice: boolean
+		isClientInvoice: boolean,
+		isReturn: boolean
 	) => {
 		for (const product of products) {
-			const quantityChange = isClientInvoice
+			// For returns, we add to inventory instead of subtracting
+			const baseQuantityChange = isClientInvoice
 				? -product.quantity
 				: product.quantity
+			const quantityChange = isReturn ? -baseQuantityChange : baseQuantityChange
+
 			const { error } = await supabase.rpc('update_product_variant_quantity', {
 				variant_id: product.product_variant_id,
 				quantity_change: quantityChange
@@ -277,6 +294,11 @@ const InvoicesPage: React.FC = () => {
 		const idField = activeTab === 'client' ? 'client_id' : 'supplier_id'
 		const id = newInvoice[idField as keyof typeof newInvoice]
 		const field = activeTab === 'client' ? 'client_id' : 'id'
+
+		if (!id) {
+			toast.error('Entity ID is undefined')
+			return
+		}
 
 		const { data, error } = await supabase
 			.from(table)
@@ -306,6 +328,9 @@ const InvoicesPage: React.FC = () => {
 		if (window.confirm('Are you sure you want to delete this invoice?')) {
 			const table =
 				activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
+			const isClientInvoice = activeTab === 'client'
+
+			// Fetch the invoice data first
 			const { data: invoiceData, error: fetchError } = await supabase
 				.from(table)
 				.select('*')
@@ -317,23 +342,84 @@ const InvoicesPage: React.FC = () => {
 				return
 			}
 
-			// Delete associated files
-			for (const fileUrl of invoiceData.files) {
-				await handleFileDelete(fileUrl)
-			}
+			try {
+				for (const fileUrl of invoiceData.files) {
+					await handleFileDelete(fileUrl)
+				}
 
-			const { error: deleteError } = await supabase
-				.from(table)
-				.delete()
-				.eq('id', id)
+				const quantityMultiplier = invoiceData.type === 'return' ? -1 : 1
 
-			if (deleteError) {
-				toast.error(`Error deleting invoice: ${deleteError.message}`)
-			} else {
+				for (const product of invoiceData.products) {
+					const quantityChange = quantityMultiplier * product.quantity
+					const { error: quantityError } = await supabase.rpc(
+						'update_product_variant_quantity',
+						{
+							variant_id: product.product_variant_id,
+							quantity_change: quantityChange
+						}
+					)
+
+					if (quantityError) {
+						throw new Error(
+							`Error updating product quantity: ${quantityError.message}`
+						)
+					}
+				}
+
+				const balanceChange =
+					invoiceData.type === 'return'
+						? invoiceData.total_price // Return invoice: Add the negative amount back
+						: -invoiceData.total_price // Regular invoice: Subtract the positive amount
+
+				// Store current entity id for balance update
+				const entityIdField = isClientInvoice ? 'client_id' : 'supplier_id'
+				const entityId = invoiceData[entityIdField]
+
+				// Delete the invoice
+				const { error: deleteError } = await supabase
+					.from(table)
+					.delete()
+					.eq('id', id)
+
+				if (deleteError) {
+					throw new Error(`Error deleting invoice: ${deleteError.message}`)
+				}
+
+				// Update the entity balance using the stored entity id
+				const entityTable = isClientInvoice ? 'Clients' : 'Suppliers'
+				const entityField = isClientInvoice ? 'client_id' : 'id'
+
+				const { data: entityData, error: entityFetchError } = await supabase
+					.from(entityTable)
+					.select('balance')
+					.eq(entityField, entityId)
+					.single()
+
+				if (entityFetchError) {
+					throw new Error(
+						`Error fetching entity balance: ${entityFetchError.message}`
+					)
+				}
+
+				const currentBalance = entityData.balance || 0
+				const newBalance = currentBalance + balanceChange
+
+				const { error: balanceUpdateError } = await supabase
+					.from(entityTable)
+					.update({ balance: newBalance })
+					.eq(entityField, entityId)
+
+				if (balanceUpdateError) {
+					throw new Error(
+						`Error updating entity balance: ${balanceUpdateError.message}`
+					)
+				}
+
 				toast.success('Invoice deleted successfully')
-				updateEntityBalance(-invoiceData.total_price)
-				updateProductQuantities(invoiceData.products, true)
 				fetchInvoices()
+			} catch (error: any) {
+				console.error('Error in delete process:', error)
+				toast.error(error.message || 'Error deleting invoice')
 			}
 		}
 	}
@@ -635,13 +721,16 @@ const InvoicesPage: React.FC = () => {
 						<th className='py-3 px-6 text-left'>Order Number</th>
 						<th className='py-3 px-6 text-center'>Files</th>
 						<th className='py-3 px-6 text-center'>Actions</th>
+						<th className='py-3 px-6 text-center'>Type</th>
 					</tr>
 				</thead>
 				<tbody className='text-gray text-sm font-light'>
 					{invoices.map(invoice => (
 						<tr
 							key={invoice.id}
-							className='border-b border-gray cursor-pointer'
+							className={`border-b border-gray cursor-pointer ${
+								invoice.type === 'return' ? 'bg-red-50' : ''
+							}`}
 							onClick={() => handleInvoiceClick(invoice)}>
 							<td className='py-3 px-6 text-left whitespace-nowrap'>
 								{invoice.id}
@@ -687,6 +776,18 @@ const InvoicesPage: React.FC = () => {
 										<FaTrash />
 									</button>
 								</div>
+							</td>
+							<td className='py-3 px-6 text-left'>
+								{invoice.type === 'return' && (
+									<span className='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800'>
+										Return
+									</span>
+								)}
+								{invoice.type === 'regular' && (
+									<span className='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800'>
+										Regular
+									</span>
+								)}
 							</td>
 						</tr>
 					))}
@@ -834,6 +935,23 @@ const InvoicesPage: React.FC = () => {
 									}
 									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 								/>
+							</div>
+							<div className='mb-4'>
+								<label className='block text-gray text-sm font-bold mb-2'>
+									Invoice Type
+								</label>
+								<select
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									value={newInvoice.type}
+									onChange={e =>
+										setNewInvoice({
+											...newInvoice,
+											type: e.target.value as 'regular' | 'return'
+										})
+									}>
+									<option value='regular'>Regular Invoice</option>
+									<option value='return'>Return Invoice</option>
+								</select>
 							</div>
 							<div className='mb-4'>
 								<label
