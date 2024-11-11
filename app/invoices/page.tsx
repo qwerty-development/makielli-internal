@@ -1025,7 +1025,7 @@ const InvoicesPage: React.FC = () => {
 										<p className='font-medium'>Return Invoice Notice</p>
 										<p className='text-sm'>
 											This is a return invoice. The total amount will be
-											deducted from the client's balance and products will be
+											deducted from the client balance and products will be
 											added back to inventory.
 										</p>
 									</div>
