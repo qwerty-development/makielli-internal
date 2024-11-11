@@ -73,7 +73,8 @@ const InvoicesPage: React.FC = () => {
 		remaining_amount: 0,
 		include_vat: false,
 		vat_amount: 0,
-		discounts: {}
+		discounts: {},
+		type: 'regular'
 	})
 	const [selectedFile, setSelectedFile] = useState<File | null>(null)
 	const [uploadingFile, setUploadingFile] = useState(false)
@@ -240,7 +241,7 @@ const InvoicesPage: React.FC = () => {
 				total_price: finalTotalPrice,
 				remaining_amount: finalTotalPrice,
 				vat_amount: finalVatAmount,
-				[isClientInvoice ? 'client_id' : 'supplier_id']: entityId // Explicitly set ID
+				[isClientInvoice ? 'client_id' : 'supplier_id']: entityId
 			}
 
 			if (newInvoice.id && originalInvoiceData) {
@@ -292,8 +293,8 @@ const InvoicesPage: React.FC = () => {
 				`Invoice ${newInvoice.id ? 'updated' : 'created'} successfully`
 			)
 			setShowModal(false)
-			setOriginalInvoiceData(null)
-			fetchInvoices()
+			resetInvoiceState() // Use the new reset function
+			await fetchInvoices()
 		} catch (error: any) {
 			console.error('Invoice operation error:', error)
 			toast.error(error.message || 'Error processing invoice')
@@ -385,6 +386,24 @@ const InvoicesPage: React.FC = () => {
 		}
 	}
 
+	const resetInvoiceState = () => {
+		setNewInvoice({
+			created_at: new Date().toISOString(),
+			total_price: 0,
+			order_number: '',
+			products: [],
+			files: [],
+			remaining_amount: 0,
+			include_vat: false,
+			vat_amount: 0,
+			discounts: {},
+			type: 'regular'
+		})
+		setSelectedProduct(null)
+		setSelectedVariants([])
+		setOriginalInvoiceData(null)
+	}
+
 	const handleDeleteInvoice = async (id: number) => {
 		if (!window.confirm('Are you sure you want to delete this invoice?')) {
 			return
@@ -419,8 +438,8 @@ const InvoicesPage: React.FC = () => {
 				invoiceData.files.map((fileUrl: string) => handleFileDelete(fileUrl))
 			)
 
-			// Update quantities
-			const quantityMultiplier = invoiceData.type === 'return' ? -1 : 1
+			const isReturn = invoiceData.type === 'return'
+			const quantityMultiplier = isReturn ? -1 : 1
 			await Promise.all(
 				invoiceData.products.map(
 					(product: { product_variant_id: any; quantity: number }) =>
@@ -439,16 +458,15 @@ const InvoicesPage: React.FC = () => {
 
 			if (deleteError) throw deleteError
 
-			// Update balance
-			const balanceChange =
-				invoiceData.type === 'return'
-					? invoiceData.total_price
-					: -invoiceData.total_price
+			const balanceChange = isReturn
+				? -invoiceData.total_price
+				: -invoiceData.total_price
 
 			await updateEntityBalance(balanceChange, entityId)
 
 			toast.success('Invoice deleted successfully')
-			fetchInvoices()
+			resetInvoiceState() // Add this line
+			await fetchInvoices()
 		} catch (error: any) {
 			console.error('Delete error:', error)
 			toast.error(error.message || 'Error deleting invoice')
@@ -487,12 +505,18 @@ const InvoicesPage: React.FC = () => {
 			if (fetchError)
 				throw new Error(`Error fetching invoice: ${fetchError.message}`)
 
-			setOriginalInvoiceData(currentInvoice)
+			setOriginalInvoiceData({
+				...currentInvoice,
+				products: [...currentInvoice.products],
+				discounts: { ...(currentInvoice.discounts || {}) },
+				type: currentInvoice.type // Important to store original type
+			})
+
 			setNewInvoice({
 				...currentInvoice,
 				products: [...currentInvoice.products],
 				discounts: { ...(currentInvoice.discounts || {}) },
-				[isClientInvoice ? 'client_id' : 'supplier_id']: entityId // Explicitly set ID
+				[isClientInvoice ? 'client_id' : 'supplier_id']: entityId
 			})
 
 			setShowModal(true)
@@ -802,8 +826,12 @@ const InvoicesPage: React.FC = () => {
 							<td className='py-3 px-6 text-left'>
 								{new Date(invoice.created_at).toLocaleDateString()}
 							</td>
-							<td className='py-3 px-6 text-left'>
-								${invoice.total_price?.toFixed(2)}
+							<td
+								className={`py-3 px-6 text-left ${
+									invoice.type === 'return' ? 'text-red-600' : 'text-green-600'
+								}`}>
+								${Math.abs(invoice.total_price)?.toFixed(2)}
+								{invoice.type === 'return' && ' (Return)'}
 							</td>
 							<td className='py-3 px-6 text-left'>{invoice.order_number}</td>
 							<td className='py-3 px-6 text-center'>
@@ -841,17 +869,15 @@ const InvoicesPage: React.FC = () => {
 									</button>
 								</div>
 							</td>
-							<td className='py-3 px-6 text-left'>
-								{invoice.type === 'return' && (
-									<span className='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800'>
-										Return
-									</span>
-								)}
-								{invoice.type === 'regular' && (
-									<span className='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800'>
-										Regular
-									</span>
-								)}
+							<td className='py-3 px-6 text-center'>
+								<span
+									className={`px-2 py-1 rounded-full text-xs font-medium ${
+										invoice.type === 'return'
+											? 'bg-red-100 text-red-800'
+											: 'bg-green-100 text-green-800'
+									}`}>
+									{invoice.type === 'return' ? 'Return' : 'Regular'}
+								</span>
 							</td>
 						</tr>
 					))}
@@ -980,6 +1006,16 @@ const InvoicesPage: React.FC = () => {
 						</h3>
 						<form>
 							<div className='mb-4'>
+								{newInvoice.type === 'return' && (
+									<div className='mb-4 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700'>
+										<p className='font-medium'>Return Invoice Notice</p>
+										<p className='text-sm'>
+											This is a return invoice. The total amount will be
+											deducted from the client's balance and products will be
+											added back to inventory.
+										</p>
+									</div>
+								)}
 								<label
 									className='block text-gray text-sm font-bold mb-2'
 									htmlFor='date'>
@@ -1327,18 +1363,7 @@ const InvoicesPage: React.FC = () => {
 							className='mt-3 w-full inline-flex justify-center rounded-md border border-gray shadow-sm px-4 py-2 bg-white text-base font-medium text-gray hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
 							onClick={() => {
 								setShowModal(false)
-								setNewInvoice({
-									created_at: new Date().toISOString(),
-									total_price: 0,
-									products: [],
-									files: [],
-									remaining_amount: 0,
-									include_vat: false,
-									vat_amount: 0,
-									order_number: ''
-								})
-								setSelectedProduct(null)
-								setSelectedVariants([])
+								resetInvoiceState()
 							}}>
 							Cancel
 						</button>
