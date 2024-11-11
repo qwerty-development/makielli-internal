@@ -270,31 +270,32 @@ const InvoicesPage: React.FC = () => {
 				const oldAmount = originalInvoiceData.total_price
 				const balanceChange = finalTotalPrice - oldAmount
 				await updateEntityBalance(balanceChange, entityId)
-			} else {
-				// Create new invoice
-				const { error: createError } = await supabase
-					.from(table)
-					.insert(invoiceData)
-					.single()
 
-				if (createError) throw createError
-
-				// Update quantities and balance
-				await updateProductQuantities(
-					newInvoice.products || [],
-					isClientInvoice,
-					newInvoice.type === 'return',
-					false
-				)
-				await updateEntityBalance(finalTotalPrice, entityId)
+				toast.success('Invoice updated successfully')
+				setShowModal(false)
+				resetInvoiceState()
+				window.location.reload()
+				return
 			}
+			const { error: createError } = await supabase
+				.from(table)
+				.insert(invoiceData)
+				.single()
 
-			toast.success(
-				`Invoice ${newInvoice.id ? 'updated' : 'created'} successfully`
+			if (createError) throw createError
+
+			await updateProductQuantities(
+				newInvoice.products || [],
+				isClientInvoice,
+				newInvoice.type === 'return',
+				false
 			)
+			await updateEntityBalance(finalTotalPrice, entityId)
+
+			toast.success('Invoice created successfully')
 			setShowModal(false)
-			resetInvoiceState() // Use the new reset function
-			await fetchInvoices()
+			resetInvoiceState()
+			fetchInvoices() // Only fetch for new invoices
 		} catch (error: any) {
 			console.error('Invoice operation error:', error)
 			toast.error(error.message || 'Error processing invoice')
@@ -471,6 +472,7 @@ const InvoicesPage: React.FC = () => {
 			console.error('Delete error:', error)
 			toast.error(error.message || 'Error deleting invoice')
 		}
+		window.location.reload()
 	}
 
 	const handleSort = (field: keyof Invoice) => {
@@ -484,10 +486,9 @@ const InvoicesPage: React.FC = () => {
 
 	const handleEditInvoice = async (invoice: Invoice) => {
 		try {
-			// Validate entity ID first
-
 			const isClientInvoice = activeTab === 'client'
 			const entityId = isClientInvoice ? invoice.client_id : invoice.supplier_id
+
 			if (!entityId) {
 				throw new Error(
 					`${isClientInvoice ? 'Client' : 'Supplier'} ID not found in invoice`
@@ -505,24 +506,37 @@ const InvoicesPage: React.FC = () => {
 			if (fetchError)
 				throw new Error(`Error fetching invoice: ${fetchError.message}`)
 
+			// Store original invoice data for comparison
 			setOriginalInvoiceData({
 				...currentInvoice,
 				products: [...currentInvoice.products],
 				discounts: { ...(currentInvoice.discounts || {}) },
-				type: currentInvoice.type // Important to store original type
+				type: currentInvoice.type
 			})
 
-			setNewInvoice({
+			// Set all required fields explicitly, including the entity ID
+			const updatedInvoice = {
 				...currentInvoice,
 				products: [...currentInvoice.products],
 				discounts: { ...(currentInvoice.discounts || {}) },
-				[isClientInvoice ? 'client_id' : 'supplier_id']: entityId
-			})
+				type: currentInvoice.type || 'regular',
+				created_at: currentInvoice.created_at,
+				total_price: currentInvoice.total_price,
+				order_number: currentInvoice.order_number,
+				files: currentInvoice.files || [],
+				remaining_amount: currentInvoice.remaining_amount,
+				include_vat: currentInvoice.include_vat || false,
+				vat_amount: currentInvoice.vat_amount || 0,
+				client_id: isClientInvoice ? entityId : undefined, // Set only the appropriate ID
+				supplier_id: !isClientInvoice ? entityId : undefined
+			}
 
+			setNewInvoice(updatedInvoice)
 			setShowModal(true)
 		} catch (error: any) {
 			console.error('Edit error:', error)
 			toast.error(error.message || 'Error preparing invoice for edit')
+			resetInvoiceState()
 		}
 	}
 
@@ -1062,12 +1076,17 @@ const InvoicesPage: React.FC = () => {
 								<select
 									id='entity'
 									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									value={
+										activeTab === 'client'
+											? newInvoice.client_id
+											: newInvoice.supplier_id
+									}
 									onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
 										const idField =
 											activeTab === 'client' ? 'client_id' : 'supplier_id'
 										setNewInvoice({ ...newInvoice, [idField]: e.target.value })
 									}}>
-									<option>
+									<option value=''>
 										Select {activeTab === 'client' ? 'Client' : 'Supplier'}
 									</option>
 									{activeTab === 'client'
