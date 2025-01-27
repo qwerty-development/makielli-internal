@@ -43,10 +43,10 @@ export default function Home() {
 							<p>Manage your Invoices</p>
 						</div>
 					</Link>
-					<Link href='/quotations'>
+					<Link href='/orders'>
 						<div className=' hover:bg-blue text-white border border-white font-bold py-8 px-6 rounded-lg text-center transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-105'>
-							<h2 className='text-2xl mb-2'>Quotations</h2>
-							<p>Manage your Quotations</p>
+							<h2 className='text-2xl mb-2'>Orders</h2>
+							<p>Manage your Orders</p>
 						</div>
 					</Link>
 					<Link href='/receipts'>

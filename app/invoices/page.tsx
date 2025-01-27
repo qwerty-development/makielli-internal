@@ -809,6 +809,9 @@ const InvoicesPage: React.FC = () => {
 							onClick={() => handleSort('id')}>
 							ID {sortField === 'id' && <FaSort className='inline' />}
 						</th>
+						<th className='py-3 px-6 text-left'>
+							{activeTab === 'client' ? 'Client' : 'Supplier'}
+						</th>
 						<th
 							className='py-3 px-6 text-left cursor-pointer'
 							onClick={() => handleSort('created_at')}>
@@ -836,6 +839,15 @@ const InvoicesPage: React.FC = () => {
 							onClick={() => handleInvoiceClick(invoice)}>
 							<td className='py-3 px-6 text-left whitespace-nowrap'>
 								{invoice.id}
+							</td>
+							<td className='py-3 px-6 text-left whitespace-nowrap'>
+								{activeTab === 'client'
+									? clients.find(
+											client => client.client_id === invoice.client_id
+									  )?.name
+									: suppliers.find(
+											supplier => supplier.id === invoice.supplier_id
+									  )?.name || '-'}
 							</td>
 							<td className='py-3 px-6 text-left'>
 								{new Date(invoice.created_at).toLocaleDateString()}

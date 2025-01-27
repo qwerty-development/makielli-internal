@@ -123,7 +123,7 @@ const QuotationsPage: React.FC = () => {
 		)
 
 		if (error) {
-			toast.error(`Error fetching quotations: ${error.message}`)
+			toast.error(`Error fetching Orders: ${error.message}`)
 		} else {
 			setQuotations(data || [])
 			setTotalQuotations(count || 0)
@@ -213,7 +213,7 @@ const QuotationsPage: React.FC = () => {
 
 		if (error) {
 			toast.error(
-				`Error ${newQuotation.id ? 'updating' : 'creating'} quotation: ${
+				`Error ${newQuotation.id ? 'updating' : 'creating'} Order: ${
 					error.message
 				}`
 			)
@@ -234,7 +234,7 @@ const QuotationsPage: React.FC = () => {
 			.eq('id', quotation.id)
 
 		if (updateError) {
-			toast.error(`Error updating quotation status: ${updateError.message}`)
+			toast.error(`Error updating Order status: ${updateError.message}`)
 			return
 		}
 
@@ -298,16 +298,16 @@ const QuotationsPage: React.FC = () => {
 			toast.error(`Error updating client balance: ${balanceError.message}`)
 		}
 
-		toast.success('Quotation accepted and converted to invoice successfully')
+		toast.success('Order accepted and converted to invoice successfully')
 		fetchQuotations()
 	}
 
 	const handleDeleteQuotation = async (id: number) => {
-		if (window.confirm('Are you sure you want to delete this quotation?')) {
+		if (window.confirm('Are you sure you want to delete this Order?')) {
 			const { error } = await supabase.from('Quotations').delete().eq('id', id)
 
 			if (error) {
-				toast.error(`Error deleting quotation: ${error.message}`)
+				toast.error(`Error deleting Order: ${error.message}`)
 			} else {
 				toast.success('Quotation deleted successfully')
 				fetchQuotations()
@@ -600,7 +600,7 @@ const QuotationsPage: React.FC = () => {
 				<div className='inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full'>
 					<div className='bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4'>
 						<h3 className='text-lg leading-6 font-medium text-gray mb-4'>
-							{newQuotation.id ? 'Edit Quotation' : 'Create New Quotation'}
+							{newQuotation.id ? 'Edit Order' : 'Create New Order'}
 						</h3>
 						<form>
 							<div className='mb-4'>
@@ -743,7 +743,7 @@ const QuotationsPage: React.FC = () => {
 											type='button'
 											className='bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-xs'
 											onClick={handleAddSelectedProductToQuotation}>
-											Add to Quotation
+											Add to Order
 										</button>
 									</div>
 								)}
@@ -890,7 +890,7 @@ const QuotationsPage: React.FC = () => {
 							type='button'
 							className='w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue text-base font-medium text-white hover:bg-blue focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue sm:ml-3 sm:w-auto sm:text-sm'
 							onClick={handleCreateQuotation}>
-							{newQuotation.id ? 'Update Quotation' : 'Create Quotation'}
+							{newQuotation.id ? 'Update Order' : 'Create Order'}
 						</button>
 						<button
 							type='button'
@@ -925,7 +925,7 @@ const QuotationsPage: React.FC = () => {
 				<div className='relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white'>
 					<div className='mt-3 text-center'>
 						<h3 className='text-lg leading-6 font-medium text-gray'>
-							Quotation Details
+							Order Details
 						</h3>
 						<div className='mt-2 px-7 py-3'>
 							<p className='text-sm text-gray'>ID: {selectedQuotation.id}</p>
@@ -997,9 +997,7 @@ const QuotationsPage: React.FC = () => {
 
 	return (
 		<div className='mx-auto px-4 py-8 text-gray'>
-			<h1 className='text-3xl font-bold text-gray mb-6'>
-				Quotation Management
-			</h1>
+			<h1 className='text-3xl font-bold text-gray mb-6'>Order Management</h1>
 			<div className='bg-white shadow-md rounded-lg'>
 				<div className='p-6'>
 					{renderFilters()}
@@ -1021,7 +1019,7 @@ const QuotationsPage: React.FC = () => {
 					})
 					setShowModal(true)
 				}}>
-				<FaPlus className='inline-block mr-2' /> Create New Quotation
+				<FaPlus className='inline-block mr-2' /> Create New Order
 			</button>
 			{renderQuotationModal()}
 			{renderQuotationDetails()}

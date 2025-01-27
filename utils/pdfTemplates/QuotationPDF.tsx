@@ -189,11 +189,11 @@ const QuotationPDF: React.FC<{
 					</View>
 				</View>
 
-				<Text style={styles.title}>QUOTATION</Text>
+				<Text style={styles.title}>ORDER</Text>
 
 				<View style={styles.row}>
 					<View style={styles.column}>
-						<Text style={styles.label}>Quote To:</Text>
+						<Text style={styles.label}>Order To:</Text>
 						<Text style={styles.value}>{client.name}</Text>
 						<Text style={styles.value}>{client.address}</Text>
 						<Text style={styles.value}>Phone: {client.phone}</Text>
@@ -201,8 +201,8 @@ const QuotationPDF: React.FC<{
 						<Text style={styles.value}>Tax Number: {client.tax_number}</Text>
 					</View>
 					<View style={styles.column}>
-						<Text style={styles.label}>Quotation Details:</Text>
-						<Text style={styles.value}>Quotation Number: {quotation.id}</Text>
+						<Text style={styles.label}>Order Details:</Text>
+						<Text style={styles.value}>Order Number: {quotation.id}</Text>
 						<Text style={styles.value}>
 							Date: {format(new Date(quotation.created_at), 'PP')}
 						</Text>
@@ -330,8 +330,8 @@ const QuotationPDF: React.FC<{
 				</View>
 
 				<Text style={styles.footer}>
-					This quotation was generated on {format(new Date(), 'MMMM d, yyyy')}{' '}
-					at {format(new Date(), 'HH:mm:ss')}
+					This Order was generated on {format(new Date(), 'MMMM d, yyyy')} at{' '}
+					{format(new Date(), 'HH:mm:ss')}
 					<br />
 					Thank you for choosing us!
 				</Text>

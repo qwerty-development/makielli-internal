@@ -384,6 +384,9 @@ const ReceiptsPage: React.FC = () => {
 							onClick={() => handleSort('id')}>
 							ID {sortField === 'id' && <FaSort className='inline' />}
 						</th>
+						<th className='py-3 px-6 text-left'>
+							{activeTab === 'client' ? 'Client' : 'Supplier'}
+						</th>
 						<th
 							className='py-3 px-6 text-left cursor-pointer'
 							onClick={() => handleSort('paid_at')}>
@@ -412,6 +415,14 @@ const ReceiptsPage: React.FC = () => {
 							onClick={() => setSelectedReceipt(receipt)}>
 							<td className='py-3 px-6 text-left whitespace-nowrap'>
 								{receipt.id}
+							</td>
+							<td className='py-3 px-6 text-left whitespace-nowrap'>
+								{activeTab === 'client'
+									? entities.find(
+											entity => entity.client_id === receipt.client_id
+									  )?.name
+									: entities.find(entity => entity.id === receipt.supplier_id)
+											?.name || '-'}
 							</td>
 							<td className='py-3 px-6 text-left'>
 								{new Date(receipt.paid_at).toLocaleDateString()}
