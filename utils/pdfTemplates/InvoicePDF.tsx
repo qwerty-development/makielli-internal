@@ -9,6 +9,16 @@ import {
 } from '@react-pdf/renderer'
 import { format } from 'date-fns'
 import { Font } from '@react-pdf/renderer'
+import { ToWords } from 'to-words'
+
+const toWords = new ToWords({
+	localeCode: 'en-US',
+	converterOptions: {
+		currency: true,
+		ignoreDecimal: false,
+		ignoreZeroCurrency: false
+	}
+})
 
 Font.register({
 	family: 'Times New Roman',
@@ -177,8 +187,42 @@ const styles = StyleSheet.create({
 		height: 54,
 		justifyContent: 'center',
 		alignItems: 'center'
+	},
+	amountInWords: {
+		fontSize: 8,
+		fontStyle: 'italic',
+		color: '#4B5563',
+		marginTop: 5,
+		textAlign: 'right'
+	},
+	paymentInfo: {
+		fontSize: 8,
+		marginTop: 10
 	}
 })
+
+const convertAmountToWords = (
+	amount: number,
+	currency: 'usd' | 'euro'
+): string => {
+	const absAmount = Math.abs(amount)
+	const mainUnit = currency === 'usd' ? 'dollar' : 'euro'
+	const subUnit = currency === 'usd' ? 'cent' : 'cent'
+
+	return toWords.convert(absAmount, {
+		currency: true,
+		currencyOptions: {
+			name: mainUnit,
+			plural: mainUnit + 's',
+			symbol: currency === 'usd' ? '$' : '€',
+			fractionalUnit: {
+				name: subUnit,
+				plural: subUnit + 's',
+				symbol: 'c'
+			}
+		}
+	})
+}
 
 const InvoicePDF: React.FC<{
 	invoice: any
@@ -203,6 +247,16 @@ const InvoicePDF: React.FC<{
 	]
 	const addressLines = company.address.split('\n')
 	const isReturn = invoice.type === 'return'
+	const hasDiscounts = invoice.products.some(
+		(product: any) => invoice.discounts?.[product.product_id]
+	)
+
+	const currencySymbol = invoice.currency === 'euro' ? '€' : '$'
+
+	const amountInWords = convertAmountToWords(
+		invoice.total_price,
+		invoice.currency || 'usd'
+	)
 
 	const subtotal = invoice.products.reduce((total: number, product: any) => {
 		const price = isClientInvoice ? product.unitPrice : product.unitCost
@@ -276,9 +330,16 @@ const InvoicePDF: React.FC<{
 						<Text style={styles.value}>
 							Order Number: {invoice.order_number}
 						</Text>
-						<Text style={styles.value}>
-							Due Date: {format(new Date(invoice.created_at), 'PP')}
-						</Text>
+						{invoice.delivery_date && (
+							<Text style={styles.value}>
+								Delivery Date: {format(new Date(invoice.delivery_date), 'PP')}
+							</Text>
+						)}
+						{invoice.payment_term && (
+							<Text style={styles.value}>
+								Payment Term: {invoice.payment_term}
+							</Text>
+						)}
 					</View>
 				</View>
 
@@ -287,28 +348,31 @@ const InvoicePDF: React.FC<{
 						<View style={[styles.tableColHeader, { width: '8%' }]}>
 							<Text style={styles.tableCellHeader}>IMAGE</Text>
 						</View>
-						<View style={[styles.tableColHeader, { width: '18%' }]}>
+						<View style={[styles.tableColHeader, { width: '12%' }]}>
 							<Text style={styles.tableCellHeader}>STYLE</Text>
+						</View>
+						<View style={[styles.tableColHeader, { width: '12%' }]}>
+							<Text style={styles.tableCellHeader}>DESCRIPTION</Text>
 						</View>
 						<View style={[styles.tableColHeader, { width: '8%' }]}>
 							<Text style={styles.tableCellHeader}>COLOR</Text>
 						</View>
-						<View style={[styles.tableColHeader, { width: '11%' }]}>
-							<Text style={styles.tableCellHeader}>NOTES</Text>
-						</View>
 						{sizeOptions.map(size => (
-							<View key={size} style={[styles.tableColHeader, { width: '5%' }]}>
+							<View key={size} style={[styles.tableColHeader, { width: '4%' }]}>
 								<Text style={styles.tableCellHeader}>{size}</Text>
 							</View>
 						))}
-						<View style={[styles.tableColHeader, { width: '7%' }]}>
-							<Text style={styles.tableCellHeader}>
-								{isClientInvoice ? 'PRICE' : 'COST'}
-							</Text>
+						<View style={[styles.tableColHeader, { width: '9%' }]}>
+							<Text style={styles.tableCellHeader}>TOTAL PCS</Text>
 						</View>
-						<View style={[styles.tableColHeader, { width: '7%' }]}>
-							<Text style={styles.tableCellHeader}>DISCOUNT</Text>
+						<View style={[styles.tableColHeader, { width: '8%' }]}>
+							<Text style={styles.tableCellHeader}>UNIT PRICE</Text>
 						</View>
+						{hasDiscounts && (
+							<View style={[styles.tableColHeader, { width: '7%' }]}>
+								<Text style={styles.tableCellHeader}>DISCOUNT</Text>
+							</View>
+						)}
 						<View style={[styles.tableColHeader, { width: '10%' }]}>
 							<Text style={styles.tableCellHeader}>TOTAL</Text>
 						</View>
@@ -331,35 +395,48 @@ const InvoicePDF: React.FC<{
 										style={styles.productImage}
 									/>
 								</View>
-								<View style={[styles.tableCol, { width: '18%' }]}>
+								<View style={[styles.tableCol, { width: '12%' }]}>
 									<Text style={styles.tableCell}>{product.name || 'N/A'}</Text>
 								</View>
-								<View style={[styles.tableCol, { width: '8%' }]}>
-									<Text style={styles.tableCell}>{product.color || 'N/A'}</Text>
-								</View>
-								<View style={[styles.tableCol, { width: '11%' }]}>
+								<View style={[styles.tableCol, { width: '12%' }]}>
 									{product.notes.map((note: string, noteIndex: number) => (
 										<Text key={noteIndex} style={styles.notes}>
 											{note}
 										</Text>
 									))}
 								</View>
+								<View style={[styles.tableCol, { width: '8%' }]}>
+									<Text style={styles.tableCell}>{product.color || 'N/A'}</Text>
+								</View>
 								{sizeOptions.map(size => (
-									<View key={size} style={[styles.tableCol, { width: '5%' }]}>
+									<View key={size} style={[styles.tableCol, { width: '4%' }]}>
 										<Text style={styles.tableCell}>
 											{product.sizes[size] || '-'}
 										</Text>
 									</View>
 								))}
-								<View style={[styles.tableCol, { width: '7%' }]}>
-									<Text style={styles.tableCell}>${basePrice.toFixed(2)}</Text>
+								<View style={[styles.tableCol, { width: '9%' }]}>
+									<Text style={styles.tableCell}>{product.totalQuantity}</Text>
 								</View>
-								<View style={[styles.tableCol, { width: '7%' }]}>
-									<Text style={styles.tableCell}>${discount.toFixed(2)}</Text>
+								<View style={[styles.tableCol, { width: '8%' }]}>
+									<Text style={styles.tableCell}>
+										{currencySymbol}
+										{basePrice.toFixed(2)}
+									</Text>
 								</View>
+								{hasDiscounts && (
+									<View style={[styles.tableCol, { width: '7%' }]}>
+										<Text style={styles.tableCell}>
+											{discount > 0
+												? `${currencySymbol}${discount.toFixed(2)}`
+												: '-'}
+										</Text>
+									</View>
+								)}
 								<View style={[styles.tableCol, { width: '10%' }]}>
 									<Text style={styles.tableCell}>
-										${Math.abs(displayLineTotal).toFixed(2)}
+										{currencySymbol}
+										{Math.abs(displayLineTotal).toFixed(2)}
 									</Text>
 								</View>
 							</View>
@@ -367,49 +444,65 @@ const InvoicePDF: React.FC<{
 					})}
 				</View>
 
-				<View style={styles.subtotal}>
-					<Text style={styles.subtotalLabel}>Subtotal:</Text>
-					<Text style={styles.subtotalValue}>
-						${Math.abs(subtotal).toFixed(2)}
-						{isReturn && ' (Return)'}
-					</Text>
-				</View>
-
-				<View style={styles.subtotal}>
-					<Text style={styles.subtotalLabel}>Total Discount:</Text>
-					<Text style={styles.subtotalValue}>
-						${Math.abs(totalDiscount).toFixed(2)}
-						{isReturn && ' (Return)'}
-					</Text>
-				</View>
-
-				<View style={styles.subtotal}>
-					<Text style={styles.subtotalLabel}>Total Before VAT:</Text>
-					<Text style={styles.subtotalValue}>
-						${Math.abs(totalBeforeVAT).toFixed(2)}
-						{isReturn && ' (Return)'}
-					</Text>
-				</View>
-
-				{invoice.include_vat && (
+				{Math.abs(subtotal) != Math.abs(invoice.total_price) && (
 					<View style={styles.subtotal}>
-						<Text style={styles.subtotalLabel}>VAT (11%):</Text>
+						<Text style={styles.subtotalLabel}>Subtotal:</Text>
 						<Text style={styles.subtotalValue}>
-							${Math.abs(vatAmount).toFixed(2)}
+							{currencySymbol}
+							{Math.abs(subtotal).toFixed(2)}
 							{isReturn && ' (Return)'}
 						</Text>
 					</View>
 				)}
 
+				{totalDiscount > 0 && (
+					<View style={styles.subtotal}>
+						<Text style={styles.subtotalLabel}>Total Discount:</Text>
+						<Text style={styles.subtotalValue}>
+							{currencySymbol}
+							{Math.abs(totalDiscount).toFixed(2)}
+							{isReturn && ' (Return)'}
+						</Text>
+					</View>
+				)}
+				{invoice.include_vat && (
+					<>
+						{totalBeforeVAT !== subtotal && (
+							<View style={styles.subtotal}>
+								<Text style={styles.subtotalLabel}>Total Before VAT:</Text>
+								<Text style={styles.subtotalValue}>
+									{currencySymbol}
+									{Math.abs(totalBeforeVAT).toFixed(2)}
+									{isReturn && ' (Return)'}
+								</Text>
+							</View>
+						)}
+						<View style={styles.subtotal}>
+							<Text style={styles.subtotalLabel}>VAT (11%):</Text>
+							<Text style={styles.subtotalValue}>
+								{currencySymbol}
+								{Math.abs(vatAmount).toFixed(2)}
+								{isReturn && ' (Return)'}
+							</Text>
+						</View>
+					</>
+				)}
+
 				<View style={styles.subtotal}>
 					<Text style={styles.subtotalLabel}>Total:</Text>
 					<Text style={styles.subtotalValue}>
-						${Math.abs(invoice.total_price).toFixed(2)}
+						{currencySymbol}
+						{Math.abs(invoice.total_price).toFixed(2)}
 						{isReturn && ' (Return)'}
 					</Text>
 				</View>
 
-				<View style={styles.section}>
+				<Text style={styles.amountInWords}>
+					Amount in words: {amountInWords}
+					{isReturn && ' (Credit)'}
+				</Text>
+
+				<View style={[styles.section, styles.paymentInfo]}>
 					<Text style={styles.label}>Payment Information:</Text>
 					<Text style={styles.value}>Bank: {company.bank_name}</Text>
 					<Text style={styles.value}>
@@ -417,6 +510,9 @@ const InvoicePDF: React.FC<{
 					</Text>
 					<Text style={styles.value}>
 						Routing Number: {company.bank_routing_number}
+					</Text>
+					<Text style={styles.value}>
+						Beneficiary Account: Frisson International LLC
 					</Text>
 				</View>
 

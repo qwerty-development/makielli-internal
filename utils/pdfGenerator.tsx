@@ -246,7 +246,10 @@ export const generatePDF = async (
 					...data,
 					total_price: Math.abs(data.total_price),
 					vat_amount: Math.abs(data.vat_amount || 0),
-					type: data.type
+					type: data.type || 'regular',
+					currency: data.currency || 'usd',
+					payment_term: data.payment_term,
+					delivery_date: data.delivery_date
 				},
 				entity: entityData,
 				company: companyData,

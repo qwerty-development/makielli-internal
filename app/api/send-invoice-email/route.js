@@ -154,7 +154,10 @@ export async function POST(request) {
 				totalBeforeVAT: Math.abs(totalBeforeVAT),
 				vatAmount: Math.abs(vatAmount),
 				totalAmount: Math.abs(totalAmount),
-				type: invoice.type || 'regular' // Ensure type is passed
+				type: invoice.type || 'regular',
+				currency: data.currency || 'usd',
+				payment_term: data.payment_term,
+				delivery_date: data.delivery_date
 			},
 			entity: entityData,
 			company: companyData,
@@ -164,38 +167,44 @@ export async function POST(request) {
 
 		const pdfBuffer = await pdf(pdfComponent).toBuffer()
 
-		// Prepare email body with return handling
 		const isReturn = invoice.type === 'return'
 		const emailBody = `
-            <h1>${isReturn ? 'Return Invoice' : 'Invoice'} #${invoice.id}</h1>
-            <p>Please find the attached ${
-							isReturn ? 'return invoice' : 'invoice'
-						} for your records.</p>
-            ${
-							isReturn
-								? '<p style="color: #DC2626; font-weight: bold;">This is a return invoice. All amounts shown are credits to your account.</p>'
-								: ''
-						}
-            <p>Subtotal: $${Math.abs(subtotal).toFixed(2)}${
+              <h1>${isReturn ? 'Return Invoice' : 'Invoice'} #${invoice.id}</h1>
+  <p>Please find the attached ${
+		isReturn ? 'return invoice' : 'invoice'
+	} for your records.</p>
+  ${
+		isReturn
+			? '<p style="color: #DC2626; font-weight: bold;">This is a return invoice. All amounts shown are credits to your account.</p>'
+			: ''
+	}
+  <p>Subtotal: ${currencySymbol}${Math.abs(subtotal).toFixed(2)}${
 			isReturn ? ' (Credit)' : ''
 		}</p>
-            <p>Total Discount: $${Math.abs(totalDiscount).toFixed(2)}${
+  <p>Total Discount: ${currencySymbol}${Math.abs(totalDiscount).toFixed(2)}${
 			isReturn ? ' (Credit)' : ''
 		}</p>
-            <p>Total Before VAT: $${Math.abs(totalBeforeVAT).toFixed(2)}${
+  <p>Total Before VAT: ${currencySymbol}${Math.abs(totalBeforeVAT).toFixed(2)}${
 			isReturn ? ' (Credit)' : ''
 		}</p>
-            ${
-							invoice.include_vat
-								? `<p>VAT (11%): $${Math.abs(vatAmount).toFixed(2)}${
-										isReturn ? ' (Credit)' : ''
-								  }</p>`
-								: ''
-						}
-            <p>Total Amount: $${Math.abs(totalAmount).toFixed(2)}${
+  ${
+		invoice.include_vat
+			? `<p>VAT (11%): ${currencySymbol}${Math.abs(vatAmount).toFixed(2)}${
+					isReturn ? ' (Credit)' : ''
+			  }</p>`
+			: ''
+	}
+  <p>Total Amount: ${currencySymbol}${Math.abs(totalAmount).toFixed(2)}${
 			isReturn ? ' (Credit)' : ''
 		}</p>
-            <p>If you have any questions, please don't hesitate to contact us.</p>
+  <p>Amount in Words: ${amountInWords}</p>
+  ${invoice.payment_term ? `<p>Payment Term: ${invoice.payment_term}</p>` : ''}
+  ${
+		invoice.delivery_date
+			? `<p>Delivery Date: ${format(new Date(invoice.delivery_date), 'PP')}</p>`
+			: ''
+	}
+  <p>If you have any questions, please don't hesitate to contact us.</p>
         `
 
 		const mailOptions = {
