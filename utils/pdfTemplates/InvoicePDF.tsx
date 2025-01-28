@@ -189,15 +189,17 @@ const InvoicePDF: React.FC<{
 }> = ({ invoice, entity, company, isClientInvoice, logoBase64 }) => {
 	const sizeOptions = [
 		'OS',
+		'XS',
 		'S',
 		'M',
 		'L',
 		'XL',
 		'2XL',
-		'3XL',
-		'4XL',
-		'5XL',
-		'6XL'
+		'38',
+		'40',
+		'42',
+		'44',
+		'46'
 	]
 	const addressLines = company.address.split('\n')
 	const isReturn = invoice.type === 'return'

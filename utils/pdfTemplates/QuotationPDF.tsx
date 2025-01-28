@@ -156,15 +156,17 @@ const QuotationPDF: React.FC<{
 }> = ({ quotation, client, company, logoBase64 }) => {
 	const sizeOptions = [
 		'OS',
+		'XS',
 		'S',
 		'M',
 		'L',
 		'XL',
 		'2XL',
-		'3XL',
-		'4XL',
-		'5XL',
-		'6XL'
+		'38',
+		'40',
+		'42',
+		'44',
+		'46'
 	]
 	const addressLines = company.address.split('\n')
 	const subtotal = quotation.total_price - (quotation.vat_amount || 0)
