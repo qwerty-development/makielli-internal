@@ -49,6 +49,7 @@ interface Invoice {
 		| '30% deposit 70% before shipping'
 		| '30 days after shipping'
 		| '60 days after shipping'
+		| '100% after delivery'
 
 	delivery_date: string
 }
@@ -1372,6 +1373,9 @@ const InvoicesPage: React.FC = () => {
 									}
 									required>
 									<option value=''>Select Payment Term</option>
+									<option value='100% after delivery'>
+										100% after delivery
+									</option>
 									<option value='30% deposit 70% before shipping'>
 										30% deposit 70% before shipping
 									</option>
