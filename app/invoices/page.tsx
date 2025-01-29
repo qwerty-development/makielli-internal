@@ -255,11 +255,7 @@ const InvoicesPage: React.FC = () => {
 				[isClientInvoice ? 'client_id' : 'supplier_id']: entityId,
 				currency: newInvoice.currency || 'usd',
 				payment_term: newInvoice.payment_term,
-				delivery_date: `${
-					newInvoice.delivery_date
-						? new Date(newInvoice.delivery_date).toISOString()
-						: new Date().toISOString()
-				}`
+				delivery_date: newInvoice.delivery_date
 			}
 
 			if (newInvoice.id && originalInvoiceData) {
@@ -1376,7 +1372,12 @@ const InvoicesPage: React.FC = () => {
 									onChange={(date: Date | null) =>
 										setNewInvoice({
 											...newInvoice,
-											delivery_date: date ? date.toISOString() : ''
+											delivery_date: date
+												? date.toLocaleString('en-US', {
+														timeZone:
+															Intl.DateTimeFormat().resolvedOptions().timeZone
+												  })
+												: ''
 										})
 									}
 									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
