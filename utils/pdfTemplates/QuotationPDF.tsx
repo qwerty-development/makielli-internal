@@ -203,14 +203,11 @@ const QuotationPDF: React.FC<{
 						<Text style={styles.value}>Tax Number: {client.tax_number}</Text>
 					</View>
 					<View style={styles.column}>
-						<Text style={styles.label}>Order Details:</Text>
 						<Text style={styles.value}>Order Number: {quotation.id}</Text>
 						<Text style={styles.value}>
 							Date: {format(new Date(quotation.created_at), 'PP')}
 						</Text>
-						<Text style={styles.value}>
-							Valid Until: {format(new Date(quotation.created_at), 'PP')}
-						</Text>
+
 						<Text style={styles.value}>Status: {quotation.status}</Text>
 					</View>
 				</View>
