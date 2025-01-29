@@ -4,6 +4,7 @@ import { getLogoBase64 } from '@/utils/serverUtils'
 import { pdf } from '@react-pdf/renderer'
 import InvoicePDF from '@/utils/pdfTemplates/InvoicePDF'
 import { supabase } from '@/utils/supabase'
+import { format } from 'date-fns'
 
 const fetchClientDetails = async clientId => {
 	const { data, error } = await supabase
@@ -143,12 +144,16 @@ export async function POST(request) {
 		const totalBeforeVAT = subtotal - totalDiscount
 		const vatAmount = invoice.include_vat ? totalBeforeVAT * 0.11 : 0
 		const totalAmount = totalBeforeVAT + vatAmount
+		const currencySymbol = invoice.currency === 'euro' ? '€' : '$'
 
 		// Generate PDF with return handling
 		const pdfComponent = InvoicePDF({
 			invoice: {
 				...invoice,
-				products: productsWithDetails,
+				products: invoice.products.map(product => ({
+					...product,
+					totalQuantity: Object.values(product.sizes).reduce((a, b) => a + b, 0)
+				})),
 				subtotal: Math.abs(subtotal),
 				totalDiscount: Math.abs(totalDiscount),
 				totalBeforeVAT: Math.abs(totalBeforeVAT),
@@ -164,7 +169,6 @@ export async function POST(request) {
 			isClientInvoice: activeTab === 'client',
 			logoBase64
 		})
-
 		const pdfBuffer = await pdf(pdfComponent).toBuffer()
 
 		const isReturn = invoice.type === 'return'
@@ -197,7 +201,6 @@ export async function POST(request) {
   <p>Total Amount: ${currencySymbol}${Math.abs(totalAmount).toFixed(2)}${
 			isReturn ? ' (Credit)' : ''
 		}</p>
-  <p>Amount in Words: ${amountInWords}</p>
   ${invoice.payment_term ? `<p>Payment Term: ${invoice.payment_term}</p>` : ''}
   ${
 		invoice.delivery_date
@@ -208,8 +211,8 @@ export async function POST(request) {
         `
 
 		const mailOptions = {
-			from: 'noreply@yourcompany.com',
-			to: 'asif@notqwerty.com',
+			from: 'noreply@notqwerty.com',
+			to: recipientEmail,
 			subject: `${isReturn ? 'Return Invoice' : 'Invoice'} #${invoice.id} - ${
 				activeTab === 'client' ? 'Client' : 'Supplier'
 			}`,

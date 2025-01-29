@@ -711,16 +711,43 @@ const InvoicesPage: React.FC = () => {
 			const variant = parentProduct?.variants.find(
 				v => v.id === product.product_variant_id
 			)
+
+			const sizeOptions = [
+				'OS',
+				'XS',
+				'S',
+				'M',
+				'L',
+				'XL',
+				'2XL',
+				'38',
+				'40',
+				'42',
+				'44',
+				'46'
+			]
+
+			const sizes = sizeOptions.reduce((acc: any, size: any) => {
+				acc[size] = 0
+				return acc
+			}, {})
+
+			if (variant) {
+				sizes[variant.size] = product.quantity
+			}
+
 			return {
 				product_variant_id: product.product_variant_id,
 				quantity: product.quantity,
 				note: product.note,
-				name: `${parentProduct?.name} - ${variant?.size} - ${variant?.color}`,
-				unit_price:
-					activeTab === 'client' ? parentProduct?.price : parentProduct?.cost
+				name: parentProduct?.name,
+				color: variant?.color,
+				sizes: sizes,
+				unitPrice:
+					activeTab === 'client' ? parentProduct?.price : parentProduct?.cost, // Corrected property name
+				image: parentProduct?.photo
 			}
 		})
-
 		const invoiceData = {
 			...invoice,
 			products: productsWithDetails,
