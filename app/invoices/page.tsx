@@ -21,6 +21,7 @@ import {
 } from 'react-icons/fa'
 import { generatePDF } from '@/utils/pdfGenerator'
 import { debounce } from 'lodash'
+import { format } from 'date-fns'
 
 interface InvoiceProduct {
 	product_id: string
@@ -43,6 +44,13 @@ interface Invoice {
 	vat_amount: number
 	discounts?: { [productId: string]: number }
 	type: 'regular' | 'return'
+	currency: 'usd' | 'euro'
+	payment_term:
+		| '30% deposit 70% before shipping'
+		| '30 days after shipping'
+		| '60 days after shipping'
+
+	delivery_date: string
 }
 
 const InvoicesPage: React.FC = () => {
@@ -74,7 +82,10 @@ const InvoicesPage: React.FC = () => {
 		include_vat: false,
 		vat_amount: 0,
 		discounts: {},
-		type: 'regular'
+		type: 'regular',
+		currency: 'usd',
+		payment_term: '30% deposit 70% before shipping',
+		delivery_date: new Date().toISOString()
 	})
 	const [selectedFile, setSelectedFile] = useState<File | null>(null)
 	const [uploadingFile, setUploadingFile] = useState(false)
@@ -241,7 +252,14 @@ const InvoicesPage: React.FC = () => {
 				total_price: finalTotalPrice,
 				remaining_amount: finalTotalPrice,
 				vat_amount: finalVatAmount,
-				[isClientInvoice ? 'client_id' : 'supplier_id']: entityId
+				[isClientInvoice ? 'client_id' : 'supplier_id']: entityId,
+				currency: newInvoice.currency || 'usd',
+				payment_term: newInvoice.payment_term,
+				delivery_date: `${
+					newInvoice.delivery_date
+						? new Date(newInvoice.delivery_date).toISOString()
+						: new Date().toISOString()
+				}`
 			}
 
 			if (newInvoice.id && originalInvoiceData) {
@@ -295,7 +313,7 @@ const InvoicesPage: React.FC = () => {
 			toast.success('Invoice created successfully')
 			setShowModal(false)
 			resetInvoiceState()
-			fetchInvoices() // Only fetch for new invoices
+			fetchInvoices()
 		} catch (error: any) {
 			console.error('Invoice operation error:', error)
 			toast.error(error.message || 'Error processing invoice')
@@ -398,7 +416,10 @@ const InvoicesPage: React.FC = () => {
 			include_vat: false,
 			vat_amount: 0,
 			discounts: {},
-			type: 'regular'
+			type: 'regular',
+			currency: 'usd',
+			payment_term: '30% deposit 70% before shipping',
+			delivery_date: ''
 		})
 		setSelectedProduct(null)
 		setSelectedVariants([])
@@ -527,7 +548,10 @@ const InvoicesPage: React.FC = () => {
 				remaining_amount: currentInvoice.remaining_amount,
 				include_vat: currentInvoice.include_vat || false,
 				vat_amount: currentInvoice.vat_amount || 0,
-				client_id: isClientInvoice ? entityId : undefined, // Set only the appropriate ID
+				currency: currentInvoice.currency || 'usd',
+				payment_term: currentInvoice.payment_term || '',
+				delivery_date: currentInvoice.delivery_date || '',
+				client_id: isClientInvoice ? entityId : undefined,
 				supplier_id: !isClientInvoice ? entityId : undefined
 			}
 
@@ -804,11 +828,6 @@ const InvoicesPage: React.FC = () => {
 			<table className='w-full table-auto'>
 				<thead>
 					<tr className='bg-gray text-white uppercase text-sm leading-normal'>
-						<th
-							className='py-3 px-6 text-left cursor-pointer'
-							onClick={() => handleSort('id')}>
-							ID {sortField === 'id' && <FaSort className='inline' />}
-						</th>
 						<th className='py-3 px-6 text-left'>
 							{activeTab === 'client' ? 'Client' : 'Supplier'}
 						</th>
@@ -837,9 +856,6 @@ const InvoicesPage: React.FC = () => {
 								invoice.type === 'return' ? 'bg-red-50' : ''
 							}`}
 							onClick={() => handleInvoiceClick(invoice)}>
-							<td className='py-3 px-6 text-left whitespace-nowrap'>
-								{invoice.id}
-							</td>
 							<td className='py-3 px-6 text-left whitespace-nowrap'>
 								{activeTab === 'client'
 									? clients.find(
@@ -1294,6 +1310,82 @@ const InvoicesPage: React.FC = () => {
 								/>
 							</div>
 							<div className='mb-4'>
+								<label
+									className='block text-gray text-sm font-bold mb-2'
+									htmlFor='currency'>
+									Currency
+								</label>
+								<select
+									id='currency'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									value={newInvoice.currency || 'usd'}
+									onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+										setNewInvoice({
+											...newInvoice,
+											currency: e.target.value as 'usd' | 'euro'
+										})
+									}
+									required>
+									<option value='usd'>USD ($)</option>
+									<option value='euro'>EUR (€)</option>
+								</select>
+							</div>
+
+							<div className='mb-4'>
+								<label
+									className='block text-gray text-sm font-bold mb-2'
+									htmlFor='payment_term'>
+									Payment Terms
+								</label>
+								<select
+									id='payment_term'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									value={newInvoice.payment_term || ''}
+									onChange={(e: any) =>
+										setNewInvoice({
+											...newInvoice,
+											payment_term: e.target.value
+										})
+									}
+									required>
+									<option value=''>Select Payment Term</option>
+									<option value='30% deposit 70% before shipping'>
+										30% deposit 70% before shipping
+									</option>
+									<option value='30 days after shipping'>
+										30 days after shipping
+									</option>
+									<option value='60 days after shipping'>
+										60 days after shipping
+									</option>
+								</select>
+							</div>
+
+							<div className='mb-4'>
+								<label
+									className='block text-gray text-sm font-bold mb-2'
+									htmlFor='delivery_date'>
+									Delivery Date
+								</label>
+								<DatePicker
+									selected={
+										newInvoice.delivery_date
+											? new Date(newInvoice.delivery_date)
+											: null
+									}
+									onChange={(date: Date | null) =>
+										setNewInvoice({
+											...newInvoice,
+											delivery_date: date ? date.toISOString() : ''
+										})
+									}
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									minDate={new Date()}
+									placeholderText='Select delivery date'
+									required
+								/>
+							</div>
+							<div className='mb-4'>
 								<label className='flex items-center'>
 									<input
 										type='checkbox'
@@ -1419,11 +1511,6 @@ const InvoicesPage: React.FC = () => {
 						</h3>
 						<div className='mt-2 px-7 py-3'>
 							<p className='text-sm text-gray'>ID: {selectedInvoice.id}</p>
-
-							<p className='text-sm text-gray'>
-								Date:{' '}
-								{new Date(selectedInvoice.created_at).toLocaleDateString()}
-							</p>
 							<p className='text-sm text-gray'>
 								Total Price: ${selectedInvoice.total_price?.toFixed(2)}
 							</p>
@@ -1435,6 +1522,20 @@ const InvoicesPage: React.FC = () => {
 							<p className='text-sm text-gray'>
 								Order Number: {selectedInvoice.order_number}
 							</p>
+
+							<p className='text-sm text-gray-500'>
+								Currency:{' '}
+								{selectedInvoice.currency === 'euro' ? '€ (EUR)' : '$ (USD)'}
+							</p>
+							<p className='text-sm text-gray-500'>
+								Payment Terms: {selectedInvoice.payment_term}
+							</p>
+							{selectedInvoice.delivery_date && (
+								<p className='text-sm text-gray-500'>
+									Delivery Date:{' '}
+									{format(new Date(selectedInvoice.delivery_date), 'PP')}
+								</p>
+							)}
 							<h4 className='text-sm font-medium text-gray mt-4'>Products:</h4>
 							<ul className='list-disc list-inside'>
 								{selectedInvoice.products.map((product, index) => {

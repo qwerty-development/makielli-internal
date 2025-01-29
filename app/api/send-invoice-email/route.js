@@ -155,9 +155,9 @@ export async function POST(request) {
 				vatAmount: Math.abs(vatAmount),
 				totalAmount: Math.abs(totalAmount),
 				type: invoice.type || 'regular',
-				currency: data.currency || 'usd',
-				payment_term: data.payment_term,
-				delivery_date: data.delivery_date
+				currency: invoice.currency || 'usd',
+				payment_term: invoice.payment_term,
+				delivery_date: invoice.delivery_date
 			},
 			entity: entityData,
 			company: companyData,

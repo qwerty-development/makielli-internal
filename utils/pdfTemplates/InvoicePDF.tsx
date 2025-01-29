@@ -287,7 +287,7 @@ const InvoicePDF: React.FC<{
 					)}
 					<View style={styles.companyInfo}>
 						<Text>{company.name}</Text>
-						{addressLines.map((line: string, index: number) => (
+						{addressLines?.map((line: string, index: number) => (
 							<Text key={index}>{line}</Text>
 						))}
 						<Text>
@@ -357,7 +357,7 @@ const InvoicePDF: React.FC<{
 						<View style={[styles.tableColHeader, { width: '8%' }]}>
 							<Text style={styles.tableCellHeader}>COLOR</Text>
 						</View>
-						{sizeOptions.map(size => (
+						{sizeOptions?.map(size => (
 							<View key={size} style={[styles.tableColHeader, { width: '4%' }]}>
 								<Text style={styles.tableCellHeader}>{size}</Text>
 							</View>
@@ -378,7 +378,7 @@ const InvoicePDF: React.FC<{
 						</View>
 					</View>
 
-					{invoice.products.map((product: any, index: number) => {
+					{invoice?.products?.map((product: any, index: number) => {
 						const basePrice = isClientInvoice
 							? product.unitPrice
 							: product.unitCost
@@ -399,7 +399,7 @@ const InvoicePDF: React.FC<{
 									<Text style={styles.tableCell}>{product.name || 'N/A'}</Text>
 								</View>
 								<View style={[styles.tableCol, { width: '12%' }]}>
-									{product.notes.map((note: string, noteIndex: number) => (
+									{product?.notes?.map((note: string, noteIndex: number) => (
 										<Text key={noteIndex} style={styles.notes}>
 											{note}
 										</Text>
@@ -408,7 +408,7 @@ const InvoicePDF: React.FC<{
 								<View style={[styles.tableCol, { width: '8%' }]}>
 									<Text style={styles.tableCell}>{product.color || 'N/A'}</Text>
 								</View>
-								{sizeOptions.map(size => (
+								{sizeOptions?.map(size => (
 									<View key={size} style={[styles.tableCol, { width: '4%' }]}>
 										<Text style={styles.tableCell}>
 											{product.sizes[size] || '-'}
