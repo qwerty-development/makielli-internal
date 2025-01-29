@@ -227,79 +227,92 @@ const QuotationsPage: React.FC = () => {
 	}
 
 	const handleAcceptQuotation = async (quotation: Quotation) => {
-		// Update quotation status
-		const { error: updateError } = await supabase
-			.from('Quotations')
-			.update({ status: 'accepted' })
-			.eq('id', quotation.id)
+		try {
+			// 1. Update quotation status to 'accepted'
+			const { error: updateError } = await supabase
+				.from('Quotations')
+				.update({ status: 'accepted' })
+				.eq('id', quotation.id)
 
-		if (updateError) {
-			toast.error(`Error updating Order status: ${updateError.message}`)
-			return
-		}
-
-		// Create new invoice
-		const invoiceData = {
-			created_at: new Date().toISOString(),
-			total_price: quotation.total_price,
-			note: quotation.note,
-			client_id: quotation.client_id,
-			products: quotation.products,
-			remaining_amount: quotation.total_price,
-			include_vat: quotation.include_vat,
-			vat_amount: quotation.vat_amount
-		}
-
-		const { data: invoice, error: invoiceError } = await supabase
-			.from('ClientInvoices')
-			.insert(invoiceData)
-			.single()
-
-		if (invoiceError) {
-			toast.error(`Error creating invoice: ${invoiceError.message}`)
-			return
-		}
-
-		// Update product quantities
-		for (const product of quotation.products) {
-			const { error: quantityError } = await supabase.rpc(
-				'update_product_variant_quantity',
-				{
-					variant_id: product.product_variant_id,
-					quantity_change: -product.quantity
-				}
-			)
-
-			if (quantityError) {
-				toast.error(`Error updating product quantity: ${quantityError.message}`)
+			if (updateError) {
+				throw new Error(
+					`Error updating quotation status: ${updateError.message}`
+				)
 			}
+
+			// 2. Create new invoice with default values
+			const invoiceData = {
+				created_at: new Date().toISOString(),
+				total_price: quotation.total_price,
+				client_id: quotation.client_id,
+				products: quotation.products, // Assuming product structure is the same
+				files: [], // Default: No files initially
+				remaining_amount: quotation.total_price,
+				order_number: `${quotation.id}`, // Default: Use quotation ID as order number initially
+				include_vat: quotation.include_vat,
+				vat_amount: quotation.vat_amount,
+				discounts: {}, // Default: No discounts initially
+				type: 'regular', // Default: Regular invoice
+				currency: 'usd', // Default: USD
+				payment_term: '30% deposit 70% before shipping', // Default payment term
+				delivery_date: new Date().toISOString() // Default: Set delivery date to today
+			}
+
+			const { data: invoice, error: invoiceError } = await supabase
+				.from('ClientInvoices')
+				.insert(invoiceData)
+				.single()
+
+			if (invoiceError) {
+				throw new Error(`Error creating invoice: ${invoiceError.message}`)
+			}
+
+			// 3. Update product quantities (deduct from inventory)
+			for (const product of quotation.products) {
+				const { error: quantityError } = await supabase.rpc(
+					'update_product_variant_quantity',
+					{
+						variant_id: product.product_variant_id,
+						quantity_change: -product.quantity // Deduct quantity
+					}
+				)
+
+				if (quantityError) {
+					throw new Error(
+						`Error updating product quantity: ${quantityError.message}`
+					)
+				}
+			}
+
+			// 4. Update client balance (add invoice total to balance)
+			const { data: clientData, error: clientError } = await supabase
+				.from('Clients')
+				.select('balance')
+				.eq('client_id', quotation.client_id)
+				.single()
+
+			if (clientError) {
+				throw new Error(`Error fetching client balance: ${clientError.message}`)
+			}
+
+			const newBalance = (clientData?.balance || 0) + quotation.total_price
+
+			const { error: balanceError } = await supabase
+				.from('Clients')
+				.update({ balance: newBalance })
+				.eq('client_id', quotation.client_id)
+
+			if (balanceError) {
+				throw new Error(
+					`Error updating client balance: ${balanceError.message}`
+				)
+			}
+
+			toast.success('Quotation accepted and converted to invoice successfully')
+			fetchQuotations() // Refresh the quotations list
+		} catch (error: any) {
+			toast.error(error.message)
 		}
-
-		// Update client balance
-		const { data: clientData, error: clientError } = await supabase
-			.from('Clients')
-			.select('balance')
-			.eq('client_id', quotation.client_id)
-			.single()
-
-		if (clientError) {
-			toast.error(`Error fetching client balance: ${clientError.message}`)
-			return
-		}
-
-		const newBalance = (clientData?.balance || 0) + quotation.total_price
-
-		const { error: balanceError } = await supabase
-			.from('Clients')
-			.update({ balance: newBalance })
-			.eq('client_id', quotation.client_id)
-
-		if (balanceError) {
-			toast.error(`Error updating client balance: ${balanceError.message}`)
-		}
-
-		toast.success('Order accepted and converted to invoice successfully')
-		fetchQuotations()
 	}
 
 	const handleDeleteQuotation = async (id: number) => {
@@ -403,7 +416,7 @@ const QuotationsPage: React.FC = () => {
 						<th
 							className='py-3 px-6 text-left cursor-pointer'
 							onClick={() => handleSort('id')}>
-							ID {sortField === 'id' && <FaSort className='inline' />}
+							Order Number {sortField === 'id' && <FaSort className='inline' />}
 						</th>
 						<th
 							className='py-3 px-6 text-left cursor-pointer'
