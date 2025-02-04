@@ -315,19 +315,6 @@ const QuotationPDF: React.FC<{
 					</View>
 				)}
 
-				<View style={styles.section}>
-					<Text style={styles.label}>Terms and Conditions:</Text>
-					<Text style={styles.value}>
-						1. Prices are subject to change without notice.
-					</Text>
-					<Text style={styles.value}>
-						2. Delivery time may vary depending on product availability.
-					</Text>
-					<Text style={styles.value}>
-						3. All prices are in USD unless otherwise stated.
-					</Text>
-				</View>
-
 				<Text style={styles.footer}>
 					This Order was generated on {format(new Date(), 'MMMM d, yyyy')} at{' '}
 					{format(new Date(), 'HH:mm:ss')}
