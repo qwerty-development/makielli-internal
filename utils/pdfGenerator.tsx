@@ -198,7 +198,9 @@ export const generatePDF = async (
 						...details,
 						sizes: {},
 						totalQuantity: 0,
-						notes: new Set()
+						notes: new Set(),
+						// Ensure discount handling for quotations
+						discount: data.discounts?.[details.product_id] || 0
 					})
 				}
 
@@ -287,28 +289,45 @@ export const generatePDF = async (
 			break
 
 		case 'quotation':
+			// 1. Fetch base data
 			const quotationClientData = await fetchClientDetails(data.client_id)
 			const quotationCompanyData = await fetchCompanyDetails(
 				quotationClientData.company_id
 			)
+
+			// 2. Transform and prepare data with new fields
 			const preparedQuotationData = {
 				...data,
+				// Ensure all new fields are included
+				currency: data.currency || 'usd',
+				payment_term: data.payment_term || '',
+				delivery_date: data.delivery_date || '',
+				order_number: data.order_number || '0',
+				discounts: data.discounts || {},
+
+				// Transform products with additional calculations
 				products: data.products.map((product: any) => ({
 					...product,
 					totalQuantity: Object.values(product.sizes as number[]).reduce(
 						(sum: number, quantity: number) => sum + quantity,
 						0
 					),
+					// Handle notes array consistently
 					notes: Array.isArray(product.notes)
 						? product.notes
 						: [product.note].filter(Boolean)
 				}))
 			}
+
+			// 3. Generate component with prepared data
 			component = QuotationPDF({
 				quotation: preparedQuotationData,
 				client: quotationClientData,
-				company: quotationCompanyData
+				company: quotationCompanyData,
+				logoBase64: data.logoBase64 // Optional: If you're using a logo
 			})
+
+			// 4. Set filename
 			fileName = `quotation_${data.id}.pdf`
 			break
 
