@@ -23,11 +23,11 @@ const toWords = new ToWords({
 Font.register({
 	family: 'Times New Roman',
 	fonts: [
-		{ src: './public/fonts/times-new-roman.ttf' },
-		{ src: './public/fonts/times-new-roman-bold.ttf', fontWeight: 700 },
-		{ src: './public/fonts/times-new-roman-italic.ttf', fontStyle: 'italic' },
+		{ src: '/fonts/times-new-roman.ttf' },
+		{ src: '/fonts/times-new-roman-bold.ttf', fontWeight: 700 },
+		{ src: '/fonts/times-new-roman-italic.ttf', fontStyle: 'italic' },
 		{
-			src: './public/fonts/times-new-roman-bold-italic.ttf',
+			src: '/fonts/times-new-roman-bold-italic.ttf',
 			fontWeight: 700,
 			fontStyle: 'italic'
 		}
@@ -391,7 +391,7 @@ const InvoicePDF: React.FC<{
 							<View key={index} style={styles.tableRow}>
 								<View style={[styles.tableCol, styles.imageContainer]}>
 									<Image
-										src={product.image || '/placeholder-image.png'}
+										src={product.image || '/placeholder-image.jpg'}
 										style={styles.productImage}
 									/>
 								</View>

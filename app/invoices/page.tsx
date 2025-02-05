@@ -50,7 +50,6 @@ interface Invoice {
 		| '30 days after shipping'
 		| '60 days after shipping'
 		| '100% after delivery'
-
 	delivery_date: string
 }
 
@@ -73,6 +72,9 @@ const InvoicesPage: React.FC = () => {
 	const [allProductVariants, setAllProductVariants] = useState<
 		ProductVariant[]
 	>([])
+	const [editingProductIndex, setEditingProductIndex] = useState<number | null>(
+		null
+	)
 	const [newInvoice, setNewInvoice] = useState<Partial<Invoice>>({
 		created_at: new Date().toISOString(),
 		total_price: 0,
@@ -402,27 +404,6 @@ const InvoicesPage: React.FC = () => {
 		}
 	}
 
-	const resetInvoiceState = () => {
-		setNewInvoice({
-			created_at: new Date().toISOString(),
-			total_price: 0,
-			order_number: '',
-			products: [],
-			files: [],
-			remaining_amount: 0,
-			include_vat: false,
-			vat_amount: 0,
-			discounts: {},
-			type: 'regular',
-			currency: 'usd',
-			payment_term: '30% deposit 70% before shipping',
-			delivery_date: ''
-		})
-		setSelectedProduct(null)
-		setSelectedVariants([])
-		setOriginalInvoiceData(null)
-	}
-
 	const handleDeleteInvoice = async (id: number) => {
 		if (!window.confirm('Are you sure you want to delete this invoice?')) {
 			return
@@ -644,30 +625,6 @@ const InvoicesPage: React.FC = () => {
 		setSelectedVariants(updatedVariants)
 	}
 
-	const handleAddSelectedProductToInvoice = () => {
-		if (selectedProduct && selectedVariants.length > 0) {
-			const updatedProducts = [
-				...(newInvoice.products || []),
-				...selectedVariants
-			]
-			const isClientInvoice = activeTab === 'client'
-			const { totalPrice, vatAmount } = calculateTotalPrice(
-				updatedProducts,
-				newInvoice.discounts || {},
-				isClientInvoice,
-				newInvoice.include_vat || false
-			)
-			setNewInvoice({
-				...newInvoice,
-				products: updatedProducts,
-				total_price: totalPrice,
-				vat_amount: vatAmount
-			})
-			setSelectedProduct(null)
-			setSelectedVariants([])
-		}
-	}
-
 	const handleRemoveProduct = (index: number) => {
 		const updatedProducts = newInvoice.products?.filter((_, i) => i !== index)
 		const isClientInvoice = activeTab === 'client'
@@ -845,6 +802,77 @@ const InvoicesPage: React.FC = () => {
 			console.error('Error deleting file:', error)
 			toast.error('Error deleting file. Please try again.')
 		}
+	}
+
+	const handleEditExistingProduct = (index: number) => {
+		if (!newInvoice.products) return
+
+		const productToEdit = newInvoice.products[index]
+		const parentProduct = products.find(p => p.id === productToEdit.product_id)
+
+		if (parentProduct) {
+			setSelectedProduct(parentProduct)
+			setSelectedVariants([productToEdit])
+			setEditingProductIndex(index)
+		}
+	}
+
+	const handleAddSelectedProductToInvoice = () => {
+		if (selectedProduct && selectedVariants.length > 0) {
+			let updatedProducts = [...(newInvoice.products || [])]
+
+			if (editingProductIndex !== null) {
+				// Update existing product
+				updatedProducts[editingProductIndex] = selectedVariants[0]
+			} else {
+				// Add new products
+				updatedProducts = [...updatedProducts, ...selectedVariants]
+			}
+
+			const isClientInvoice = activeTab === 'client'
+			const { totalPrice, vatAmount } = calculateTotalPrice(
+				updatedProducts,
+				newInvoice.discounts || {},
+				isClientInvoice,
+				newInvoice.include_vat || false
+			)
+
+			setNewInvoice({
+				...newInvoice,
+				products: updatedProducts,
+				total_price: totalPrice,
+				vat_amount: vatAmount
+			})
+
+			// Reset selection states
+			setSelectedProduct(null)
+			setSelectedVariants([])
+			setEditingProductIndex(null)
+		}
+	}
+
+	const resetInvoiceState = () => {
+		setNewInvoice({
+			created_at: new Date().toISOString(),
+			total_price: 0,
+			order_number: '',
+			products: [],
+			files: [],
+			remaining_amount: 0,
+			include_vat: false,
+			vat_amount: 0,
+			discounts: {},
+			type: 'regular',
+			currency: 'usd',
+			payment_term: '30% deposit 70% before shipping',
+			delivery_date: '',
+			client_id: undefined,
+			supplier_id: undefined
+		})
+		setSelectedProduct(null)
+		setSelectedVariants([])
+		setEditingProductIndex(null)
+		setOriginalInvoiceData(null)
 	}
 
 	const renderInvoiceTable = () => (
@@ -1278,12 +1306,20 @@ const InvoicesPage: React.FC = () => {
 											<span className='font-bold'>
 												{products.find(p => p.id === product.product_id)?.name}
 											</span>
-											<button
-												type='button'
-												className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
-												onClick={() => handleRemoveProduct(index)}>
-												Remove
-											</button>
+											<div className='space-x-2'>
+												<button
+													type='button'
+													className='bg-blue hover:bg-indigo-700 text-white font-bold py-1 px-2 rounded text-xs'
+													onClick={() => handleEditExistingProduct(index)}>
+													Edit
+												</button>
+												<button
+													type='button'
+													className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
+													onClick={() => handleRemoveProduct(index)}>
+													Remove
+												</button>
+											</div>
 										</div>
 										<p>
 											Variant:{' '}
