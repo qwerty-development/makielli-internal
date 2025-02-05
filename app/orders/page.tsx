@@ -18,6 +18,7 @@ import {
 } from 'react-icons/fa'
 import { generatePDF } from '@/utils/pdfGenerator'
 import { debounce } from 'lodash'
+import { format } from 'date-fns/format'
 
 interface QuotationProduct {
 	product_id: string
@@ -36,6 +37,15 @@ interface Quotation {
 	status: 'pending' | 'accepted' | 'rejected'
 	include_vat: boolean
 	vat_amount: number
+	order_number: string // New field
+	discounts: { [productId: string]: number } // New field
+	currency: 'usd' | 'euro' // New field
+	payment_term:
+		| '30% deposit 70% before shipping'
+		| '30 days after shipping'
+		| '60 days after shipping'
+		| '100% after delivery' // New field
+	delivery_date: string // New field
 }
 
 const QuotationsPage: React.FC = () => {
@@ -52,6 +62,9 @@ const QuotationsPage: React.FC = () => {
 	const [filterClient, setFilterClient] = useState<number | null>(null)
 	const [filterStatus, setFilterStatus] = useState<string | null>(null)
 	const [totalQuotations, setTotalQuotations] = useState(0)
+	const [editingProductIndex, setEditingProductIndex] = useState<number | null>(
+		null
+	)
 	const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(
 		null
 	)
@@ -65,8 +78,14 @@ const QuotationsPage: React.FC = () => {
 		products: [],
 		status: 'pending',
 		include_vat: false,
-		vat_amount: 0
+		vat_amount: 0,
+		order_number: '0', // Default value
+		discounts: {}, // Empty object for discounts
+		currency: 'usd', // Default currency
+		payment_term: '30% deposit 70% before shipping', // Default payment term
+		delivery_date: new Date().toISOString() // Default to current date
 	})
+
 	const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
 	const [selectedVariants, setSelectedVariants] = useState<QuotationProduct[]>(
 		[]
@@ -98,6 +117,19 @@ const QuotationsPage: React.FC = () => {
 	const handleProductSearch = debounce((searchTerm: string) => {
 		setProductSearch(searchTerm)
 	}, 300)
+
+	const handleEditExistingProduct = (index: number) => {
+		if (!newQuotation.products) return
+
+		const productToEdit = newQuotation.products[index]
+		const parentProduct = products.find(p => p.id === productToEdit.product_id)
+
+		if (parentProduct) {
+			setSelectedProduct(parentProduct)
+			setSelectedVariants([productToEdit])
+			setEditingProductIndex(index)
+		}
+	}
 
 	const fetchQuotations = async () => {
 		let query = supabase.from('Quotations').select('*', { count: 'exact' })
@@ -156,30 +188,19 @@ const QuotationsPage: React.FC = () => {
 
 	const calculateTotalPrice = (
 		quotationProducts: QuotationProduct[],
+		discounts: { [productId: string]: number },
 		includeVAT: boolean
 	) => {
 		const subtotal = quotationProducts.reduce((total, quotationProduct) => {
-			const variant = allProductVariants.find(
-				v => v.id === quotationProduct.product_variant_id
+			const parentProduct = products.find(
+				p => p.id === quotationProduct.product_id
 			)
+			if (!parentProduct) return total
 
-			if (!variant) {
-				console.error(
-					`Variant not found for id: ${quotationProduct.product_variant_id}`
-				)
-				return total
-			}
-
-			const parentProduct = products.find(p => p.id === variant.product_id)
-
-			if (!parentProduct) {
-				console.error(
-					`Product not found for variant id: ${quotationProduct.product_variant_id}`
-				)
-				return total
-			}
-
-			return total + parentProduct.price * quotationProduct.quantity
+			const unitPrice = parentProduct.price
+			const discount = discounts[quotationProduct.product_id] || 0
+			const discountedPrice = Math.max(0, unitPrice - discount)
+			return total + discountedPrice * quotationProduct.quantity
 		}, 0)
 
 		const vatAmount = includeVAT ? subtotal * 0.11 : 0
@@ -188,9 +209,35 @@ const QuotationsPage: React.FC = () => {
 		return { subtotal, vatAmount, totalPrice }
 	}
 
+	const handleDiscountChange = (productId: string, discount: number) => {
+		const product = products.find(p => p.id === productId)
+		const maxDiscount = product?.price
+
+		if (discount < 0) discount = 0
+		if (maxDiscount !== undefined && discount > maxDiscount)
+			discount = maxDiscount
+
+		setNewQuotation(prev => ({
+			...prev,
+			discounts: { ...prev.discounts, [productId]: discount }
+		}))
+
+		const { totalPrice, vatAmount } = calculateTotalPrice(
+			newQuotation.products || [],
+			{ ...newQuotation.discounts, [productId]: discount },
+			newQuotation.include_vat || false
+		)
+
+		setNewQuotation(prev => ({
+			...prev,
+			total_price: totalPrice,
+			vat_amount: vatAmount
+		}))
+	}
 	const handleCreateQuotation = async () => {
 		const { subtotal, vatAmount, totalPrice } = calculateTotalPrice(
 			newQuotation.products || [],
+			newQuotation.discounts || {},
 			newQuotation.include_vat || false
 		)
 		const quotationData = {
@@ -228,7 +275,7 @@ const QuotationsPage: React.FC = () => {
 
 	const handleAcceptQuotation = async (quotation: Quotation) => {
 		try {
-			// 1. Update quotation status to 'accepted'
+			// Update quotation status to 'accepted'
 			const { error: updateError } = await supabase
 				.from('Quotations')
 				.update({ status: 'accepted' })
@@ -240,22 +287,22 @@ const QuotationsPage: React.FC = () => {
 				)
 			}
 
-			// 2. Create new invoice with default values
+			// Create new invoice with all fields
 			const invoiceData = {
 				created_at: new Date().toISOString(),
 				total_price: quotation.total_price,
 				client_id: quotation.client_id,
-				products: quotation.products, // Assuming product structure is the same
-				files: [], // Default: No files initially
+				products: quotation.products,
+				files: [],
 				remaining_amount: quotation.total_price,
-				order_number: `${quotation.id}`, // Default: Use quotation ID as order number initially
+				order_number: quotation.order_number,
 				include_vat: quotation.include_vat,
 				vat_amount: quotation.vat_amount,
-				discounts: {}, // Default: No discounts initially
-				type: 'regular', // Default: Regular invoice
-				currency: 'usd', // Default: USD
-				payment_term: '30% deposit 70% before shipping', // Default payment term
-				delivery_date: new Date().toISOString() // Default: Set delivery date to today
+				discounts: quotation.discounts, // Include discounts
+				type: 'regular',
+				currency: quotation.currency, // Include currency
+				payment_term: quotation.payment_term, // Include payment term
+				delivery_date: quotation.delivery_date // Include delivery date
 			}
 
 			const { data: invoice, error: invoiceError } = await supabase
@@ -389,23 +436,40 @@ const QuotationsPage: React.FC = () => {
 
 	const handleAddSelectedProductToQuotation = () => {
 		if (selectedProduct && selectedVariants.length > 0) {
-			const updatedProducts = [
-				...(newQuotation.products || []),
-				...selectedVariants
-			]
+			let updatedProducts = [...(newQuotation.products || [])]
+
+			if (editingProductIndex !== null) {
+				// Update existing product
+				updatedProducts[editingProductIndex] = selectedVariants[0]
+			} else {
+				// Add new products
+				updatedProducts = [...updatedProducts, ...selectedVariants]
+			}
+
 			const { totalPrice, vatAmount } = calculateTotalPrice(
 				updatedProducts,
+				newQuotation.discounts || {},
 				newQuotation.include_vat || false
 			)
+
 			setNewQuotation({
 				...newQuotation,
 				products: updatedProducts,
 				total_price: totalPrice,
 				vat_amount: vatAmount
 			})
+
+			// Reset selection states
 			setSelectedProduct(null)
 			setSelectedVariants([])
+			setEditingProductIndex(null)
 		}
+	}
+
+	const resetProductEditingState = () => {
+		setSelectedProduct(null)
+		setSelectedVariants([])
+		setEditingProductIndex(null)
 	}
 
 	const renderQuotationTable = () => (
@@ -540,6 +604,25 @@ const QuotationsPage: React.FC = () => {
 				</nav>
 			</div>
 		)
+	}
+	const handleCloseModal = () => {
+		setShowModal(false)
+		setNewQuotation({
+			created_at: new Date().toISOString(),
+			total_price: 0,
+			note: '',
+			products: [],
+			status: 'pending',
+			include_vat: false,
+			vat_amount: 0,
+			order_number: '0',
+			discounts: {},
+			currency: 'usd',
+			payment_term: '30% deposit 70% before shipping',
+			delivery_date: new Date().toISOString(),
+			client_id: undefined
+		})
+		resetProductEditingState()
 	}
 
 	const renderFilters = () => (
@@ -698,6 +781,24 @@ const QuotationsPage: React.FC = () => {
 								{selectedProduct && (
 									<div className='mb-4 p-2 border rounded'>
 										<h4 className='font-bold mb-2'>{selectedProduct.name}</h4>
+										<label
+											className='block text-gray text-sm font-semibold mb-2'
+											htmlFor='discount'>
+											Discount per item
+										</label>
+										<input
+											type='number'
+											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
+											value={newQuotation.discounts?.[selectedProduct.id] || 0}
+											min={0}
+											onChange={e =>
+												handleDiscountChange(
+													selectedProduct.id,
+													Number(e.target.value)
+												)
+											}
+											placeholder='Discount per item'
+										/>
 										{selectedVariants.map((variant, index) => (
 											<div key={index} className='mb-2 p-2 border rounded'>
 												<select
@@ -767,26 +868,37 @@ const QuotationsPage: React.FC = () => {
 											<span className='font-bold'>
 												{products.find(p => p.id === product.product_id)?.name}
 											</span>
-											<button
-												type='button'
-												className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
-												onClick={() => {
-													const updatedProducts = newQuotation.products?.filter(
-														(_, i) => i !== index
-													)
-													const { totalPrice, vatAmount } = calculateTotalPrice(
-														updatedProducts || [],
-														newQuotation.include_vat || false
-													)
-													setNewQuotation({
-														...newQuotation,
-														products: updatedProducts,
-														total_price: totalPrice,
-														vat_amount: vatAmount
-													})
-												}}>
-												Remove
-											</button>
+											<div className='space-x-2'>
+												<button
+													type='button'
+													className='bg-blue hover:bg-indigo-700 text-white font-bold py-1 px-2 rounded text-xs'
+													onClick={() => handleEditExistingProduct(index)}>
+													Edit
+												</button>
+												<button
+													type='button'
+													className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
+													onClick={() => {
+														const updatedProducts =
+															newQuotation.products?.filter(
+																(_, i) => i !== index
+															)
+														const { totalPrice, vatAmount } =
+															calculateTotalPrice(
+																updatedProducts || [],
+																newQuotation.discounts || {},
+																newQuotation.include_vat || false
+															)
+														setNewQuotation({
+															...newQuotation,
+															products: updatedProducts,
+															total_price: totalPrice,
+															vat_amount: vatAmount
+														})
+													}}>
+													Remove
+												</button>
+											</div>
 										</div>
 										<p>
 											Variant:{' '}
@@ -807,6 +919,12 @@ const QuotationsPage: React.FC = () => {
 											}
 										</p>
 										<p>Quantity: {product.quantity}</p>
+										<p>
+											Discount per item: $
+											{newQuotation.discounts?.[product.product_id]?.toFixed(
+												2
+											) || '0.00'}
+										</p>
 										<p>Note: {product.note}</p>
 									</div>
 								))}
@@ -827,6 +945,106 @@ const QuotationsPage: React.FC = () => {
 								/>
 							</div>
 							<div className='mb-4'>
+								<label
+									className='block text-gray text-sm font-bold mb-2'
+									htmlFor='order_number'>
+									Order Number
+								</label>
+								<input
+									type='text'
+									id='order_number'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									value={newQuotation.order_number}
+									onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+										setNewQuotation({
+											...newQuotation,
+											order_number: e.target.value
+										})
+									}
+									required
+								/>
+							</div>
+
+							<div className='mb-4'>
+								<label
+									className='block text-gray text-sm font-bold mb-2'
+									htmlFor='currency'>
+									Currency
+								</label>
+								<select
+									id='currency'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									value={newQuotation.currency || 'usd'}
+									onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+										setNewQuotation({
+											...newQuotation,
+											currency: e.target.value as 'usd' | 'euro'
+										})
+									}
+									required>
+									<option value='usd'>USD ($)</option>
+									<option value='euro'>EUR (€)</option>
+								</select>
+							</div>
+
+							<div className='mb-4'>
+								<label
+									className='block text-gray text-sm font-bold mb-2'
+									htmlFor='payment_term'>
+									Payment Terms
+								</label>
+								<select
+									id='payment_term'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									value={newQuotation.payment_term || ''}
+									onChange={(e: any) =>
+										setNewQuotation({
+											...newQuotation,
+											payment_term: e.target.value
+										})
+									}
+									required>
+									<option value=''>Select Payment Term</option>
+									<option value='100% after delivery'>
+										100% after delivery
+									</option>
+									<option value='30% deposit 70% before shipping'>
+										30% deposit 70% before shipping
+									</option>
+									<option value='30 days after shipping'>
+										30 days after shipping
+									</option>
+									<option value='60 days after shipping'>
+										60 days after shipping
+									</option>
+								</select>
+							</div>
+
+							<div className='mb-4'>
+								<label
+									className='block text-gray text-sm font-bold mb-2'
+									htmlFor='delivery_date'>
+									Delivery Date
+								</label>
+								<DatePicker
+									selected={
+										newQuotation.delivery_date
+											? new Date(newQuotation.delivery_date)
+											: null
+									}
+									onChange={(date: Date | null) =>
+										setNewQuotation({
+											...newQuotation,
+											delivery_date: date ? date.toISOString() : ''
+										})
+									}
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									minDate={new Date()}
+									placeholderText='Select delivery date'
+									required
+								/>
+							</div>
+							<div className='mb-4'>
 								<label className='flex items-center'>
 									<input
 										type='checkbox'
@@ -835,6 +1053,7 @@ const QuotationsPage: React.FC = () => {
 											const includeVAT = e.target.checked
 											const { totalPrice, vatAmount } = calculateTotalPrice(
 												newQuotation.products || [],
+												newQuotation.discounts || {},
 												includeVAT
 											)
 											setNewQuotation({
@@ -908,20 +1127,7 @@ const QuotationsPage: React.FC = () => {
 						<button
 							type='button'
 							className='mt-3 w-full inline-flex justify-center rounded-md border border-gray shadow-sm px-4 py-2 bg-white text-base font-medium text-gray hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
-							onClick={() => {
-								setShowModal(false)
-								setNewQuotation({
-									created_at: new Date().toISOString(),
-									total_price: 0,
-									note: '',
-									products: [],
-									status: 'pending',
-									include_vat: false,
-									vat_amount: 0
-								})
-								setSelectedProduct(null)
-								setSelectedVariants([])
-							}}>
+							onClick={() => handleCloseModal()}>
 							Cancel
 						</button>
 					</div>
@@ -967,6 +1173,22 @@ const QuotationsPage: React.FC = () => {
 							<p className='text-sm text-gray'>
 								Note: {selectedQuotation.note}
 							</p>
+							<p className='text-sm text-gray'>
+								Order Number: {selectedQuotation.order_number}
+							</p>
+							<p className='text-sm text-gray'>
+								Currency:{' '}
+								{selectedQuotation.currency === 'euro' ? '€ (EUR)' : '$ (USD)'}
+							</p>
+							<p className='text-sm text-gray'>
+								Payment Terms: {selectedQuotation.payment_term}
+							</p>
+							{selectedQuotation.delivery_date && (
+								<p className='text-sm text-gray'>
+									Delivery Date:{' '}
+									{format(new Date(selectedQuotation.delivery_date), 'PP')}
+								</p>
+							)}
 							<h4 className='text-sm font-medium text-gray mt-4'>Products:</h4>
 							<ul className='list-disc list-inside'>
 								{selectedQuotation.products.map((product, index) => {
