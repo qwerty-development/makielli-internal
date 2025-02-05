@@ -1090,7 +1090,7 @@ const InvoicesPage: React.FC = () => {
 					<button
 						onClick={() => setCurrentPage(1)}
 						disabled={currentPage === 1}
-						className={`relative inline-flex items-center text-blue px-2 py-2 rounded-l-md border border-gray bg-white text-sm font-medium hover:bg-gray-50 ${
+						className={`relative inline-flex items-center text-blue px-2 py-2 rounded-l-md border border-gray bg-white text-sm font-medium hover:bg-neutral-50 ${
 							currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>First</span>⟪
@@ -1098,7 +1098,7 @@ const InvoicesPage: React.FC = () => {
 					<button
 						onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
 						disabled={currentPage === 1}
-						className={`relative inline-flex text-blue items-center px-2 py-2 border border-gray bg-white text-sm font-medium hover:bg-gray-50 ${
+						className={`relative inline-flex text-blue items-center px-2 py-2 border border-gray bg-white text-sm font-medium hover:bg-neutral-50 ${
 							currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>Previous</span>⟨
@@ -1111,7 +1111,7 @@ const InvoicesPage: React.FC = () => {
 							setCurrentPage(Math.min(totalPages, currentPage + 1))
 						}
 						disabled={currentPage === totalPages}
-						className={`relative inline-flex items-center text-blue px-2 py-2 rounded-r-md border border-gray bg-white text-sm font-medium hover:bg-gray-50 ${
+						className={`relative inline-flex items-center text-blue px-2 py-2 rounded-r-md border border-gray bg-white text-sm font-medium hover:bg-neutral-50 ${
 							currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>Next</span>⟩
@@ -1642,7 +1642,7 @@ const InvoicesPage: React.FC = () => {
 							</div>
 						</form>
 					</div>
-					<div className='bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse'>
+					<div className='bg-neutral-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse'>
 						<button
 							type='button'
 							className='w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue text-base font-medium text-white hover:bg-blue focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue sm:ml-3 sm:w-auto sm:text-sm'
@@ -1651,7 +1651,7 @@ const InvoicesPage: React.FC = () => {
 						</button>
 						<button
 							type='button'
-							className='mt-3 w-full inline-flex justify-center rounded-md border border-gray shadow-sm px-4 py-2 bg-white text-base font-medium text-gray hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
+							className='mt-3 w-full inline-flex justify-center rounded-md border border-gray shadow-sm px-4 py-2 bg-white text-base font-medium text-gray hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
 							onClick={() => {
 								setShowModal(false)
 								resetInvoiceState()
@@ -1691,15 +1691,15 @@ const InvoicesPage: React.FC = () => {
 								Order Number: {selectedInvoice.order_number}
 							</p>
 
-							<p className='text-sm text-gray-500'>
+							<p className='text-sm text-neutral-500'>
 								Currency:{' '}
 								{selectedInvoice.currency === 'euro' ? '€ (EUR)' : '$ (USD)'}
 							</p>
-							<p className='text-sm text-gray-500'>
+							<p className='text-sm text-neutral-500'>
 								Payment Terms: {selectedInvoice.payment_term}
 							</p>
 							{selectedInvoice.delivery_date && (
-								<p className='text-sm text-gray-500'>
+								<p className='text-sm text-neutral-500'>
 									Delivery Date:{' '}
 									{format(new Date(selectedInvoice.delivery_date), 'PP')}
 								</p>

@@ -14,7 +14,8 @@ import {
 	FaFilter,
 	FaPlus,
 	FaCheck,
-	FaSearch
+	FaSearch,
+	FaSpinner
 } from 'react-icons/fa'
 import { generatePDF } from '@/utils/pdfGenerator'
 import { debounce } from 'lodash'
@@ -47,6 +48,44 @@ interface Quotation {
 		| '100% after delivery' // New field
 	delivery_date: string // New field
 }
+
+interface LoadingStates {
+	isMainLoading: boolean
+	isPDFGenerating: boolean
+	isOrderCreating: boolean
+	isOrderUpdating: boolean
+	isOrderDeleting: boolean
+	isOrderAccepting: boolean
+}
+
+const LoadingOverlay = ({
+	children,
+	isLoading
+}: {
+	children: React.ReactNode
+	isLoading: boolean
+}) => (
+	<div className='relative'>
+		{children}
+		{isLoading && (
+			<div
+				className='fixed inset-0 z-50 overflow-y-auto'
+				style={{
+					backdropFilter: 'blur(5px)',
+					WebkitBackdropFilter: 'blur(5px)'
+				}}>
+				<div
+					className='flex items-center justify-center min-h-screen'
+					onClick={e => e.stopPropagation()}>
+					<div className='bg-gray bg-opacity-75 p-6 rounded-lg shadow-xl text-white'>
+						<FaSpinner className='animate-spin mx-auto text-6xl' />
+						<p className='mt-4 text-lg font-semibold'>Loading...</p>
+					</div>
+				</div>
+			</div>
+		)}
+	</div>
+)
 
 const QuotationsPage: React.FC = () => {
 	const [quotations, setQuotations] = useState<Quotation[]>([])
@@ -92,6 +131,24 @@ const QuotationsPage: React.FC = () => {
 	)
 	const [productSearch, setProductSearch] = useState('')
 	const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
+	const [loadingStates, setLoadingStates] = useState<LoadingStates>({
+		isMainLoading: true,
+		isPDFGenerating: false,
+		isOrderCreating: false,
+		isOrderUpdating: false,
+		isOrderDeleting: false,
+		isOrderAccepting: false
+	})
+
+	const handleError = (error: any, context: string) => {
+		console.error(`Error in ${context}:`, error)
+		const errorMessage = error?.message || `Failed to ${context.toLowerCase()}`
+		toast.error(errorMessage)
+	}
+
+	const updateLoadingState = (key: keyof LoadingStates, value: boolean) => {
+		setLoadingStates(prev => ({ ...prev, [key]: value }))
+	}
 
 	useEffect(() => {
 		fetchQuotations()
@@ -132,33 +189,37 @@ const QuotationsPage: React.FC = () => {
 	}
 
 	const fetchQuotations = async () => {
-		let query = supabase.from('Quotations').select('*', { count: 'exact' })
+		updateLoadingState('isMainLoading', true)
+		try {
+			let query = supabase.from('Quotations').select('*', { count: 'exact' })
 
-		if (filterStartDate) {
-			query = query.gte('created_at', filterStartDate.toISOString())
-		}
-		if (filterEndDate) {
-			query = query.lte('created_at', filterEndDate.toISOString())
-		}
-		if (filterClient) {
-			query = query.eq('client_id', filterClient)
-		}
-		if (filterStatus) {
-			query = query.eq('status', filterStatus)
-		}
+			if (filterStartDate) {
+				query = query.gte('created_at', filterStartDate.toISOString())
+			}
+			if (filterEndDate) {
+				query = query.lte('created_at', filterEndDate.toISOString())
+			}
+			if (filterClient) {
+				query = query.eq('client_id', filterClient)
+			}
+			if (filterStatus) {
+				query = query.eq('status', filterStatus)
+			}
 
-		query = query.order(sortField, { ascending: sortOrder === 'asc' })
+			query = query.order(sortField, { ascending: sortOrder === 'asc' })
 
-		const { data, error, count } = await query.range(
-			(currentPage - 1) * itemsPerPage,
-			currentPage * itemsPerPage - 1
-		)
+			const { data, error, count } = await query.range(
+				(currentPage - 1) * itemsPerPage,
+				currentPage * itemsPerPage - 1
+			)
 
-		if (error) {
-			toast.error(`Error fetching Orders: ${error.message}`)
-		} else {
+			if (error) throw error
 			setQuotations(data || [])
 			setTotalQuotations(count || 0)
+		} catch (error) {
+			handleError(error, 'fetch orders')
+		} finally {
+			updateLoadingState('isMainLoading', false)
 		}
 	}
 
@@ -235,45 +296,44 @@ const QuotationsPage: React.FC = () => {
 		}))
 	}
 	const handleCreateQuotation = async () => {
-		const { subtotal, vatAmount, totalPrice } = calculateTotalPrice(
-			newQuotation.products || [],
-			newQuotation.discounts || {},
-			newQuotation.include_vat || false
-		)
-		const quotationData = {
-			...newQuotation,
-			total_price: totalPrice,
-			vat_amount: vatAmount
-		}
+		const isUpdate = Boolean(newQuotation.id)
+		updateLoadingState(isUpdate ? 'isOrderUpdating' : 'isOrderCreating', true)
 
-		let result
-		if (newQuotation.id) {
-			result = await supabase
+		try {
+			const { subtotal, vatAmount, totalPrice } = calculateTotalPrice(
+				newQuotation.products || [],
+				newQuotation.discounts || {},
+				newQuotation.include_vat || false
+			)
+
+			const quotationData = {
+				...newQuotation,
+				total_price: totalPrice,
+				vat_amount: vatAmount
+			}
+
+			const { error } = await supabase
 				.from('Quotations')
-				.update(quotationData)
-				.eq('id', newQuotation.id)
-		} else {
-			result = await supabase.from('Quotations').insert(quotationData).single()
-		}
+				[isUpdate ? 'update' : 'insert'](quotationData)
+				.eq(isUpdate ? 'id' : '', isUpdate ? newQuotation.id : '')
 
-		const { data, error } = result
+			if (error) throw error
 
-		if (error) {
-			toast.error(
-				`Error ${newQuotation.id ? 'updating' : 'creating'} Order: ${
-					error.message
-				}`
-			)
-		} else {
-			toast.success(
-				`Quotation ${newQuotation.id ? 'updated' : 'created'} successfully`
-			)
+			toast.success(`Order ${isUpdate ? 'updated' : 'created'} successfully`)
 			setShowModal(false)
 			fetchQuotations()
+		} catch (error) {
+			handleError(error, isUpdate ? 'update order' : 'create order')
+		} finally {
+			updateLoadingState(
+				isUpdate ? 'isOrderUpdating' : 'isOrderCreating',
+				false
+			)
 		}
 	}
 
 	const handleAcceptQuotation = async (quotation: Quotation) => {
+		updateLoadingState('isOrderAccepting', true)
 		try {
 			// Update quotation status to 'accepted'
 			const { error: updateError } = await supabase
@@ -355,10 +415,12 @@ const QuotationsPage: React.FC = () => {
 				)
 			}
 
-			toast.success('Quotation accepted and converted to invoice successfully')
-			fetchQuotations() // Refresh the quotations list
-		} catch (error: any) {
-			toast.error(error.message)
+			toast.success('Order accepted and converted to invoice successfully')
+			fetchQuotations()
+		} catch (error) {
+			handleError(error, 'accept order')
+		} finally {
+			updateLoadingState('isOrderAccepting', false)
 		}
 	}
 
@@ -466,6 +528,18 @@ const QuotationsPage: React.FC = () => {
 		}
 	}
 
+	const handlePDFGeneration = async (quotation: Quotation) => {
+		updateLoadingState('isPDFGenerating', true)
+		try {
+			await generatePDF('quotation', quotation)
+			toast.success('PDF generated successfully')
+		} catch (error) {
+			handleError(error, 'generate PDF')
+		} finally {
+			updateLoadingState('isPDFGenerating', false)
+		}
+	}
+
 	const resetProductEditingState = () => {
 		setSelectedProduct(null)
 		setSelectedVariants([])
@@ -474,97 +548,104 @@ const QuotationsPage: React.FC = () => {
 
 	const renderQuotationTable = () => (
 		<div className='overflow-x-auto bg-white rounded-lg shadow'>
-			<table className='w-full table-auto'>
-				<thead>
-					<tr className='bg-gray text-white uppercase text-sm leading-normal'>
-						<th
-							className='py-3 px-6 text-left cursor-pointer'
-							onClick={() => handleSort('id')}>
-							Order Number {sortField === 'id' && <FaSort className='inline' />}
-						</th>
-						<th
-							className='py-3 px-6 text-left cursor-pointer'
-							onClick={() => handleSort('created_at')}>
-							Date {sortField === 'created_at' && <FaSort className='inline' />}
-						</th>
-						<th
-							className='py-3 px-6 text-left cursor-pointer'
-							onClick={() => handleSort('total_price')}>
-							Total Price{' '}
-							{sortField === 'total_price' && <FaSort className='inline' />}
-						</th>
-						<th className='py-3 px-6 text-left'>Client</th>
-						<th className='py-3 px-6 text-left'>Status</th>
-						<th className='py-3 px-6 text-center'>Actions</th>
-					</tr>
-				</thead>
-				<tbody className='text-gray text-sm font-light'>
-					{quotations.map(quotation => (
-						<tr
-							key={quotation.id}
-							className='border-b border-gray hover:bg-gray-100 cursor-pointer'
-							onClick={() => handleQuotationClick(quotation)}>
-							<td className='py-3 px-6 text-left whitespace-nowrap'>
-								{quotation.id}
-							</td>
-							<td className='py-3 px-6 text-left'>
-								{new Date(quotation.created_at).toLocaleDateString()}
-							</td>
-							<td className='py-3 px-6 text-left'>
-								${quotation.total_price?.toFixed(2)}
-							</td>
-							<td className='py-3 px-6 text-left'>
-								{clients.find(c => c.client_id === quotation.client_id)?.name}
-							</td>
-							<td className='py-3 px-6 text-left'>
-								<span
-									className={`px-2 py-1 rounded-full text-xs ${
-										quotation.status === 'pending'
-											? 'bg-yellow-200 text-yellow-800'
-											: quotation.status === 'accepted'
-											? 'bg-green-200 text-green-800'
-											: 'bg-red-200 text-red-800'
-									}`}>
-									{quotation.status}
-								</span>
-							</td>
-							<td className='py-3 px-6 text-center'>
-								<div className='flex item-center justify-center'>
-									{quotation.status === 'pending' && (
+			{loadingStates.isMainLoading ? (
+				<div className='flex justify-center items-center p-8'>
+					<FaSpinner className='animate-spin text-4xl text-blue' />
+				</div>
+			) : (
+				<table className='w-full table-auto'>
+					<thead>
+						<tr className='bg-gray text-white uppercase text-sm leading-normal'>
+							<th
+								className='py-3 px-6 text-left cursor-pointer'
+								onClick={() => handleSort('id')}>
+								Order Number{' '}
+								{sortField === 'id' && <FaSort className='inline' />}
+							</th>
+							<th
+								className='py-3 px-6 text-left cursor-pointer'
+								onClick={() => handleSort('created_at')}>
+								Date{' '}
+								{sortField === 'created_at' && <FaSort className='inline' />}
+							</th>
+							<th
+								className='py-3 px-6 text-left cursor-pointer'
+								onClick={() => handleSort('total_price')}>
+								Total Price{' '}
+								{sortField === 'total_price' && <FaSort className='inline' />}
+							</th>
+							<th className='py-3 px-6 text-left'>Client</th>
+							<th className='py-3 px-6 text-left'>Status</th>
+							<th className='py-3 px-6 text-center'>Actions</th>
+						</tr>
+					</thead>
+					<tbody className='text-gray text-sm font-light'>
+						{quotations.map(quotation => (
+							<tr
+								key={quotation.id}
+								className='border-b border-gray hover:bg-neutral-100 cursor-pointer'
+								onClick={() => handleQuotationClick(quotation)}>
+								<td className='py-3 px-6 text-left whitespace-nowrap'>
+									{quotation.id}
+								</td>
+								<td className='py-3 px-6 text-left'>
+									{new Date(quotation.created_at).toLocaleDateString()}
+								</td>
+								<td className='py-3 px-6 text-left'>
+									${quotation.total_price?.toFixed(2)}
+								</td>
+								<td className='py-3 px-6 text-left'>
+									{clients.find(c => c.client_id === quotation.client_id)?.name}
+								</td>
+								<td className='py-3 px-6 text-left'>
+									<span
+										className={`px-2 py-1 rounded-full text-xs ${
+											quotation.status === 'pending'
+												? 'bg-yellow-200 text-yellow-800'
+												: quotation.status === 'accepted'
+												? 'bg-green-200 text-green-800'
+												: 'bg-red-200 text-red-800'
+										}`}>
+										{quotation.status}
+									</span>
+								</td>
+								<td className='py-3 px-6 text-center'>
+									<div className='flex item-center justify-center'>
+										{quotation.status === 'pending' && (
+											<button
+												className='w-4 mr-2 transform hover:text-green-500 hover:scale-110'
+												onClick={e => {
+													e.stopPropagation()
+													handleAcceptQuotation(quotation)
+												}}>
+												<FaCheck />
+											</button>
+										)}
 										<button
-											className='w-4 mr-2 transform hover:text-green-500 hover:scale-110'
+											className='w-4 mr-2 transform hover:text-purple-500 hover:scale-110'
 											onClick={e => {
 												e.stopPropagation()
-												handleAcceptQuotation(quotation)
+												handleEditQuotation(quotation)
 											}}>
-											<FaCheck />
+											<FaEdit />
 										</button>
-									)}
-									<button
-										className='w-4 mr-2 transform hover:text-purple-500 hover:scale-110'
-										onClick={e => {
-											e.stopPropagation()
-											handleEditQuotation(quotation)
-										}}>
-										<FaEdit />
-									</button>
-									<button
-										className='w-4 mr-2 transform hover:text-red-500 hover:scale-110'
-										onClick={e => {
-											e.stopPropagation()
-											handleDeleteQuotation(quotation.id)
-										}}>
-										<FaTrash />
-									</button>
-								</div>
-							</td>
-						</tr>
-					))}
-				</tbody>
-			</table>
+										<button
+											className='w-4 mr-2 transform hover:text-red-500 hover:scale-110'
+											onClick={e => {
+												e.stopPropagation()
+												handleDeleteQuotation(quotation.id)
+											}}>
+											<FaTrash />
+										</button>
+									</div>
+								</td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+			)}
 		</div>
 	)
-
 	const renderPagination = () => {
 		const totalPages = Math.ceil(totalQuotations / itemsPerPage)
 		return (
@@ -575,7 +656,7 @@ const QuotationsPage: React.FC = () => {
 					<button
 						onClick={() => setCurrentPage(1)}
 						disabled={currentPage === 1}
-						className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray bg-white text-sm font-medium text-gray hover:bg-gray-50 ${
+						className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray bg-white text-sm font-medium text-gray hover:bg-neutral-50 ${
 							currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>First</span>⟪
@@ -583,7 +664,7 @@ const QuotationsPage: React.FC = () => {
 					<button
 						onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
 						disabled={currentPage === 1}
-						className={`relative inline-flex items-center px-2 py-2 border border-gray bg-white text-sm font-medium text-gray hover:bg-gray-50 ${
+						className={`relative inline-flex items-center px-2 py-2 border border-gray bg-white text-sm font-medium text-gray hover:bg-neutral-50 ${
 							currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>Previous</span>⟨
@@ -596,7 +677,7 @@ const QuotationsPage: React.FC = () => {
 							setCurrentPage(Math.min(totalPages, currentPage + 1))
 						}
 						disabled={currentPage === totalPages}
-						className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray bg-white text-sm font-medium text-gray hover:bg-gray-50 ${
+						className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray bg-white text-sm font-medium text-gray hover:bg-neutral-50 ${
 							currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>Next</span>⟩
@@ -766,7 +847,7 @@ const QuotationsPage: React.FC = () => {
 									{filteredProducts.map(product => (
 										<div
 											key={product.id}
-											className='flex justify-between items-center p-2 hover:bg-gray-100 cursor-pointer'
+											className='flex justify-between items-center p-2 hover:bg-neutral-100 cursor-pointer'
 											onClick={() => handleAddProduct(product)}>
 											<span>{product.name}</span>
 											<button
@@ -1117,7 +1198,7 @@ const QuotationsPage: React.FC = () => {
 							)}
 						</form>
 					</div>
-					<div className='bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse'>
+					<div className='bg-neutral-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse'>
 						<button
 							type='button'
 							className='w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue text-base font-medium text-white hover:bg-blue focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue sm:ml-3 sm:w-auto sm:text-sm'
@@ -1126,7 +1207,7 @@ const QuotationsPage: React.FC = () => {
 						</button>
 						<button
 							type='button'
-							className='mt-3 w-full inline-flex justify-center rounded-md border border-gray shadow-sm px-4 py-2 bg-white text-base font-medium text-gray hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
+							className='mt-3 w-full inline-flex justify-center rounded-md border border-gray shadow-sm px-4 py-2 bg-white text-base font-medium text-gray hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
 							onClick={() => handleCloseModal()}>
 							Cancel
 						</button>
@@ -1215,7 +1296,7 @@ const QuotationsPage: React.FC = () => {
 						<div className='items-center px-4 py-3'>
 							<button
 								className='px-4 py-2 bg-blue text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue focus:outline-none focus:ring-2 focus:ring-blue mb-2'
-								onClick={() => generatePDF('quotation', selectedQuotation)}>
+								onClick={() => handlePDFGeneration(selectedQuotation)}>
 								Download PDF
 							</button>
 							<button
@@ -1256,7 +1337,16 @@ const QuotationsPage: React.FC = () => {
 				}}>
 				<FaPlus className='inline-block mr-2' /> Create New Order
 			</button>
-			{renderQuotationModal()}
+			{showModal && (
+				<div className='fixed z-10 inset-0 overflow-y-auto'>
+					<LoadingOverlay
+						isLoading={
+							loadingStates.isOrderCreating || loadingStates.isOrderUpdating
+						}>
+						{renderQuotationModal()}
+					</LoadingOverlay>
+				</div>
+			)}
 			{renderQuotationDetails()}
 		</div>
 	)
