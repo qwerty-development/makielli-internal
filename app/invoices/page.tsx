@@ -17,11 +17,22 @@ import {
 	FaFile,
 	FaDownload,
 	FaInfoCircle,
-	FaSearch
+	FaSearch,
+	FaSpinner
 } from 'react-icons/fa'
 import { generatePDF } from '@/utils/pdfGenerator'
 import { debounce } from 'lodash'
 import { format } from 'date-fns'
+
+interface LoadingStates {
+	isMainLoading: boolean
+	isPDFGenerating: boolean
+	isEmailSending: boolean
+	isInvoiceCreating: boolean
+	isInvoiceUpdating: boolean
+	isInvoiceDeleting: boolean
+	isFileUploading: boolean
+}
 
 interface InvoiceProduct {
 	product_id: string
@@ -69,9 +80,16 @@ const InvoicesPage: React.FC = () => {
 	const [filterEntity, setFilterEntity] = useState<number | string | null>(null)
 	const [totalInvoices, setTotalInvoices] = useState(0)
 	const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
-	const [allProductVariants, setAllProductVariants] = useState<
-		ProductVariant[]
-	>([])
+	const [loadingStates, setLoadingStates] = useState<LoadingStates>({
+		isMainLoading: true,
+		isPDFGenerating: false,
+		isEmailSending: false,
+		isInvoiceCreating: false,
+		isInvoiceUpdating: false,
+		isInvoiceDeleting: false,
+		isFileUploading: false
+	})
+
 	const [editingProductIndex, setEditingProductIndex] = useState<number | null>(
 		null
 	)
@@ -121,6 +139,32 @@ const InvoicesPage: React.FC = () => {
 		setFilteredProducts(filtered)
 	}, [productSearch, products])
 
+	const handleError = (error: any, context: string) => {
+		console.error(`Error in ${context}:`, error)
+		const errorMessage = error?.message || `Failed to ${context.toLowerCase()}`
+		toast.error(errorMessage)
+	}
+
+	// Add loading state helper
+	const updateLoadingState = (key: keyof LoadingStates, value: boolean) => {
+		setLoadingStates(prev => ({ ...prev, [key]: value }))
+	}
+
+	const handlePDFGeneration = async (invoice: Invoice) => {
+		updateLoadingState('isPDFGenerating', true)
+		try {
+			await generatePDF('invoice', {
+				...invoice,
+				logoBase64: null
+			})
+			toast.success('PDF generated successfully')
+		} catch (error) {
+			handleError(error, 'generate PDF')
+		} finally {
+			updateLoadingState('isPDFGenerating', false)
+		}
+	}
+
 	const handleProductSearch = debounce((searchTerm: string) => {
 		setProductSearch(searchTerm)
 	}, 300)
@@ -139,32 +183,34 @@ const InvoicesPage: React.FC = () => {
 	}
 
 	const fetchInvoices = async () => {
+		updateLoadingState('isMainLoading', true)
 		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
-		let query = supabase.from(table).select('*', { count: 'exact' })
+		try {
+			let query = supabase.from(table).select('*', { count: 'exact' })
 
-		if (filterStartDate) {
-			query = query.gte('created_at', filterStartDate.toISOString())
-		}
-		if (filterEndDate) {
-			query = query.lte('created_at', filterEndDate.toISOString())
-		}
-		if (filterEntity) {
-			const idField = activeTab === 'client' ? 'client_id' : 'supplier_id'
-			query = query.eq(idField, filterEntity)
-		}
+			if (filterStartDate) {
+				query = query.gte('created_at', filterStartDate.toISOString())
+			}
+			if (filterEndDate) {
+				query = query.lte('created_at', filterEndDate.toISOString())
+			}
+			if (filterEntity) {
+				const idField = activeTab === 'client' ? 'client_id' : 'supplier_id'
+				query = query.eq(idField, filterEntity)
+			}
 
-		query = query.order(sortField, { ascending: sortOrder === 'asc' })
+			query = query.order(sortField, { ascending: sortOrder === 'asc' })
 
-		const { data, error, count } = await query.range(
-			(currentPage - 1) * itemsPerPage,
-			currentPage * itemsPerPage - 1
-		)
-
-		if (error) {
-			toast.error(`Error fetching invoices: ${error.message}`)
-		} else {
+			const { data, error, count } = await query.range(
+				(currentPage - 1) * itemsPerPage,
+				currentPage * itemsPerPage - 1
+			)
 			setInvoices(data || [])
 			setTotalInvoices(count || 0)
+		} catch (error) {
+			handleError(error, 'fetch invoices')
+		} finally {
+			updateLoadingState('isMainLoading', false)
 		}
 	}
 
@@ -196,8 +242,6 @@ const InvoicesPage: React.FC = () => {
 			toast.error(`Error fetching products: ${error.message}`)
 		} else {
 			setProducts(data || [])
-			const variants = data?.flatMap(product => product.variants) || []
-			setAllProductVariants(variants)
 		}
 	}
 
@@ -227,6 +271,12 @@ const InvoicesPage: React.FC = () => {
 	}
 
 	const handleCreateInvoice = async () => {
+		const isUpdate = Boolean(newInvoice.id)
+		updateLoadingState(
+			isUpdate ? 'isInvoiceUpdating' : 'isInvoiceCreating',
+			true
+		)
+
 		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
 		const isClientInvoice = activeTab === 'client'
 
@@ -309,13 +359,21 @@ const InvoicesPage: React.FC = () => {
 			)
 			await updateEntityBalance(finalTotalPrice, entityId)
 
-			toast.success('Invoice created successfully')
+			toast.success(`Invoice ${isUpdate ? 'updated' : 'created'} successfully`)
 			setShowModal(false)
 			resetInvoiceState()
-			fetchInvoices()
-		} catch (error: any) {
-			console.error('Invoice operation error:', error)
-			toast.error(error.message || 'Error processing invoice')
+			if (isUpdate) {
+				window.location.reload()
+			} else {
+				fetchInvoices()
+			}
+		} catch (error) {
+			handleError(error, isUpdate ? 'update invoice' : 'create invoice')
+		} finally {
+			updateLoadingState(
+				isUpdate ? 'isInvoiceUpdating' : 'isInvoiceCreating',
+				false
+			)
 		}
 	}
 
@@ -409,6 +467,8 @@ const InvoicesPage: React.FC = () => {
 			return
 		}
 
+		updateLoadingState('isInvoiceDeleting', true)
+
 		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
 		const isClientInvoice = activeTab === 'client'
 
@@ -465,13 +525,12 @@ const InvoicesPage: React.FC = () => {
 			await updateEntityBalance(balanceChange, entityId)
 
 			toast.success('Invoice deleted successfully')
-			resetInvoiceState() // Add this line
 			await fetchInvoices()
-		} catch (error: any) {
-			console.error('Delete error:', error)
-			toast.error(error.message || 'Error deleting invoice')
+		} catch (error) {
+			handleError(error, 'delete invoice')
+		} finally {
+			updateLoadingState('isInvoiceDeleting', false)
 		}
-		window.location.reload()
 	}
 
 	const handleSort = (field: keyof Invoice) => {
@@ -649,70 +708,75 @@ const InvoicesPage: React.FC = () => {
 	}
 
 	const handleSendEmail = async (invoice: Invoice) => {
-		const recipientEmail =
-			activeTab === 'client'
-				? clients.find(client => client.client_id === invoice.client_id)?.email
-				: suppliers.find(supplier => supplier.id === invoice.supplier_id)?.email
-
-		const recipientName =
-			activeTab === 'client'
-				? clients.find(client => client.client_id === invoice.client_id)?.name
-				: suppliers.find(supplier => supplier.id === invoice.supplier_id)?.name
-
-		if (!recipientEmail || !recipientName) {
-			toast.error('Recipient information not found')
-			return
-		}
-
-		const productsWithDetails = invoice.products.map(product => {
-			const parentProduct = products.find(p => p.id === product.product_id)
-			const variant = parentProduct?.variants.find(
-				v => v.id === product.product_variant_id
-			)
-
-			const sizeOptions = [
-				'OS',
-				'XS',
-				'S',
-				'M',
-				'L',
-				'XL',
-				'2XL',
-				'38',
-				'40',
-				'42',
-				'44',
-				'46'
-			]
-
-			const sizes = sizeOptions.reduce((acc: any, size: any) => {
-				acc[size] = 0
-				return acc
-			}, {})
-
-			if (variant) {
-				sizes[variant.size] = product.quantity
-			}
-
-			return {
-				product_variant_id: product.product_variant_id,
-				quantity: product.quantity,
-				note: product.note,
-				name: parentProduct?.name,
-				color: variant?.color,
-				sizes: sizes,
-				unitPrice:
-					activeTab === 'client' ? parentProduct?.price : parentProduct?.cost, // Corrected property name
-				image: parentProduct?.photo
-			}
-		})
-		const invoiceData = {
-			...invoice,
-			products: productsWithDetails,
-			[activeTab === 'client' ? 'client_name' : 'supplier_name']: recipientName
-		}
+		updateLoadingState('isEmailSending', true)
 
 		try {
+			const recipientEmail =
+				activeTab === 'client'
+					? clients.find(client => client.client_id === invoice.client_id)
+							?.email
+					: suppliers.find(supplier => supplier.id === invoice.supplier_id)
+							?.email
+
+			const recipientName =
+				activeTab === 'client'
+					? clients.find(client => client.client_id === invoice.client_id)?.name
+					: suppliers.find(supplier => supplier.id === invoice.supplier_id)
+							?.name
+
+			if (!recipientEmail || !recipientName) {
+				throw new Error('Recipient information not found')
+			}
+
+			const productsWithDetails = invoice.products.map(product => {
+				const parentProduct = products.find(p => p.id === product.product_id)
+				const variant = parentProduct?.variants.find(
+					v => v.id === product.product_variant_id
+				)
+
+				const sizeOptions = [
+					'OS',
+					'XS',
+					'S',
+					'M',
+					'L',
+					'XL',
+					'2XL',
+					'38',
+					'40',
+					'42',
+					'44',
+					'46'
+				]
+
+				const sizes = sizeOptions.reduce((acc: any, size: any) => {
+					acc[size] = 0
+					return acc
+				}, {})
+
+				if (variant) {
+					sizes[variant.size] = product.quantity
+				}
+
+				return {
+					product_variant_id: product.product_variant_id,
+					quantity: product.quantity,
+					note: product.note,
+					name: parentProduct?.name,
+					color: variant?.color,
+					sizes: sizes,
+					unitPrice:
+						activeTab === 'client' ? parentProduct?.price : parentProduct?.cost, // Corrected property name
+					image: parentProduct?.photo
+				}
+			})
+			const invoiceData = {
+				...invoice,
+				products: productsWithDetails,
+				[activeTab === 'client' ? 'client_name' : 'supplier_name']:
+					recipientName
+			}
+
 			const response = await fetch('/api/send-invoice-email', {
 				method: 'POST',
 				headers: {
@@ -727,13 +791,11 @@ const InvoicesPage: React.FC = () => {
 
 			if (response.ok) {
 				toast.success('Email sent successfully')
-			} else {
-				const error = await response.json()
-				throw new Error(error.message || 'Failed to send email')
 			}
-		} catch (error: any) {
-			console.error('Error sending email:', error)
-			toast.error(error.message || 'Failed to send email. Please try again.')
+		} catch (error) {
+			handleError(error, 'send email')
+		} finally {
+			updateLoadingState('isEmailSending', false)
 		}
 	}
 
@@ -743,7 +805,7 @@ const InvoicesPage: React.FC = () => {
 			return
 		}
 
-		setUploadingFile(true)
+		updateLoadingState('isFileUploading', true)
 
 		try {
 			const fileName = `${Date.now()}_${selectedFile.name}`
@@ -771,10 +833,9 @@ const InvoicesPage: React.FC = () => {
 			toast.success('File uploaded successfully')
 			setSelectedFile(null)
 		} catch (error) {
-			console.error('Error uploading file:', error)
-			toast.error('Error uploading file. Please try again.')
+			handleError(error, 'upload file')
 		} finally {
-			setUploadingFile(false)
+			updateLoadingState('isFileUploading', false)
 		}
 	}
 
@@ -875,108 +936,147 @@ const InvoicesPage: React.FC = () => {
 		setOriginalInvoiceData(null)
 	}
 
+	const LoadingOverlay = ({
+		children,
+		isLoading
+	}: {
+		children: React.ReactNode
+		isLoading: boolean
+	}) => (
+		<div className='relative'>
+			{children}
+			{isLoading && (
+				<div
+					className='fixed inset-0 z-50 overflow-y-auto'
+					style={{
+						backdropFilter: 'blur(5px)', // Add blur effect to the background
+						WebkitBackdropFilter: 'blur(5px)' // For Safari
+					}}>
+					<div
+						className='flex items-center justify-center min-h-screen'
+						onClick={e => e.stopPropagation()} // Prevent clicks on underlying elements
+					>
+						<div className='bg-gray bg-opacity-75 p-6 rounded-lg shadow-xl text-white'>
+							<FaSpinner className='animate-spin mx-auto text-6xl' />
+							<p className='mt-4 text-lg font-semibold'>Loading...</p>
+						</div>
+					</div>
+				</div>
+			)}
+		</div>
+	)
+
 	const renderInvoiceTable = () => (
 		<div className='overflow-x-auto bg-white rounded-lg shadow'>
-			<table className='w-full table-auto'>
-				<thead>
-					<tr className='bg-gray text-white uppercase text-sm leading-normal'>
-						<th className='py-3 px-6 text-left'>
-							{activeTab === 'client' ? 'Client' : 'Supplier'}
-						</th>
-						<th
-							className='py-3 px-6 text-left cursor-pointer'
-							onClick={() => handleSort('created_at')}>
-							Date {sortField === 'created_at' && <FaSort className='inline' />}
-						</th>
-						<th
-							className='py-3 px-6 text-left cursor-pointer'
-							onClick={() => handleSort('total_price')}>
-							Total Price{' '}
-							{sortField === 'total_price' && <FaSort className='inline' />}
-						</th>
-						<th className='py-3 px-6 text-left'>Order Number</th>
-						<th className='py-3 px-6 text-center'>Files</th>
-						<th className='py-3 px-6 text-center'>Actions</th>
-						<th className='py-3 px-6 text-center'>Type</th>
-					</tr>
-				</thead>
-				<tbody className='text-gray text-sm font-light'>
-					{invoices.map(invoice => (
-						<tr
-							key={invoice.id}
-							className={`border-b border-gray cursor-pointer ${
-								invoice.type === 'return' ? 'bg-red-50' : ''
-							}`}
-							onClick={() => handleInvoiceClick(invoice)}>
-							<td className='py-3 px-6 text-left whitespace-nowrap'>
-								{activeTab === 'client'
-									? clients.find(
-											client => client.client_id === invoice.client_id
-									  )?.name
-									: suppliers.find(
-											supplier => supplier.id === invoice.supplier_id
-									  )?.name || '-'}
-							</td>
-							<td className='py-3 px-6 text-left'>
-								{new Date(invoice.created_at).toLocaleDateString()}
-							</td>
-							<td
-								className={`py-3 px-6 text-left ${
-									invoice.type === 'return' ? 'text-red-600' : 'text-green-600'
-								}`}>
-								${Math.abs(invoice.total_price)?.toFixed(2)}
-								{invoice.type === 'return' && ' (Return)'}
-							</td>
-							<td className='py-3 px-6 text-left'>{invoice.order_number}</td>
-							<td className='py-3 px-6 text-center'>
-								{invoice.files.length > 0 ? (
-									<FaFile className='inline text-blue' />
-								) : (
-									'-'
-								)}
-							</td>
-							<td className='py-3 px-6 text-center'>
-								<div className='flex item-center justify-center'>
-									<button
-										className='mr-2 bg-blue text-white p-1 rounded-lg text-nowrap transform hover:scale-110'
-										onClick={e => {
-											e.stopPropagation()
-											handleSendEmail(invoice)
-										}}>
-										Send Email
-									</button>
-									<button
-										className='w-4 mr-2 transform text-blue hover:text-purple-500 hover:scale-110'
-										onClick={e => {
-											e.stopPropagation()
-											handleEditInvoice(invoice)
-										}}>
-										<FaEdit />
-									</button>
-									<button
-										className='w-4 mr-2 transform text-blue hover:text-red-500 hover:scale-110'
-										onClick={e => {
-											e.stopPropagation()
-											handleDeleteInvoice(invoice.id)
-										}}>
-										<FaTrash />
-									</button>
-								</div>
-							</td>
-							<td className='py-3 px-6 text-center'>
-								<span
-									className={`px-2 py-1 rounded-full text-xs font-medium ${
-										invoice.type === 'return'
-											? 'bg-red-100 text-red-800'
-											: 'bg-green-100 text-green-800'
-									}`}>
-									{invoice.type === 'return' ? 'Return' : 'Regular'}
-								</span>
-							</td>
+			{loadingStates.isMainLoading ? (
+				<div className='flex justify-center items-center p-8'>
+					<FaSpinner className='animate-spin text-4xl text-blue' />
+				</div>
+			) : (
+				<table className='w-full table-auto'>
+					<thead>
+						<tr className='bg-gray text-white uppercase text-sm leading-normal'>
+							<th className='py-3 px-6 text-left'>
+								{activeTab === 'client' ? 'Client' : 'Supplier'}
+							</th>
+							<th
+								className='py-3 px-6 text-left cursor-pointer'
+								onClick={() => handleSort('created_at')}>
+								Date{' '}
+								{sortField === 'created_at' && <FaSort className='inline' />}
+							</th>
+							<th
+								className='py-3 px-6 text-left cursor-pointer'
+								onClick={() => handleSort('total_price')}>
+								Total Price{' '}
+								{sortField === 'total_price' && <FaSort className='inline' />}
+							</th>
+							<th className='py-3 px-6 text-left'>Order Number</th>
+							<th className='py-3 px-6 text-center'>Files</th>
+							<th className='py-3 px-6 text-center'>Actions</th>
+							<th className='py-3 px-6 text-center'>Type</th>
 						</tr>
-					))}
-				</tbody>
-			</table>
+					</thead>
+					<tbody className='text-gray text-sm font-light'>
+						{invoices.map(invoice => (
+							<tr
+								key={invoice.id}
+								className={`border-b border-gray cursor-pointer ${
+									invoice.type === 'return' ? 'bg-red-50' : ''
+								}`}
+								onClick={() => handleInvoiceClick(invoice)}>
+								<td className='py-3 px-6 text-left whitespace-nowrap'>
+									{activeTab === 'client'
+										? clients.find(
+												client => client.client_id === invoice.client_id
+										  )?.name
+										: suppliers.find(
+												supplier => supplier.id === invoice.supplier_id
+										  )?.name || '-'}
+								</td>
+								<td className='py-3 px-6 text-left'>
+									{new Date(invoice.created_at).toLocaleDateString()}
+								</td>
+								<td
+									className={`py-3 px-6 text-left ${
+										invoice.type === 'return'
+											? 'text-red-600'
+											: 'text-green-600'
+									}`}>
+									${Math.abs(invoice.total_price)?.toFixed(2)}
+									{invoice.type === 'return' && ' (Return)'}
+								</td>
+								<td className='py-3 px-6 text-left'>{invoice.order_number}</td>
+								<td className='py-3 px-6 text-center'>
+									{invoice.files.length > 0 ? (
+										<FaFile className='inline text-blue' />
+									) : (
+										'-'
+									)}
+								</td>
+								<td className='py-3 px-6 text-center'>
+									<div className='flex item-center justify-center'>
+										<button
+											className='mr-2 bg-blue text-white p-1 rounded-lg text-nowrap transform hover:scale-110'
+											onClick={e => {
+												e.stopPropagation()
+												handleSendEmail(invoice)
+											}}>
+											Send Email
+										</button>
+										<button
+											className='w-4 mr-2 transform text-blue hover:text-purple-500 hover:scale-110'
+											onClick={e => {
+												e.stopPropagation()
+												handleEditInvoice(invoice)
+											}}>
+											<FaEdit />
+										</button>
+										<button
+											className='w-4 mr-2 transform text-blue hover:text-red-500 hover:scale-110'
+											onClick={e => {
+												e.stopPropagation()
+												handleDeleteInvoice(invoice.id)
+											}}>
+											<FaTrash />
+										</button>
+									</div>
+								</td>
+								<td className='py-3 px-6 text-center'>
+									<span
+										className={`px-2 py-1 rounded-full text-xs font-medium ${
+											invoice.type === 'return'
+												? 'bg-red-100 text-red-800'
+												: 'bg-green-100 text-green-800'
+										}`}>
+										{invoice.type === 'return' ? 'Return' : 'Regular'}
+									</span>
+								</td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+			)}
 		</div>
 	)
 
@@ -1683,12 +1783,7 @@ const InvoicesPage: React.FC = () => {
 						<div className='items-center px-4 py-3'>
 							<button
 								className='px-4 py-2 bg-blue text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue focus:outline-none focus:ring-2 focus:ring-blue mb-2'
-								onClick={() =>
-									generatePDF('invoice', {
-										...selectedInvoice,
-										logoBase64: null
-									})
-								}>
+								onClick={() => handlePDFGeneration(selectedInvoice)}>
 								Download PDF
 							</button>
 							<button
@@ -1751,8 +1846,41 @@ const InvoicesPage: React.FC = () => {
 				}}>
 				<FaPlus className='inline-block mr-2' /> Create New Invoice
 			</button>
-			{renderInvoiceModal()}
-			{renderInvoiceDetails()}
+			{showModal && (
+				<div className='fixed z-10 inset-0 overflow-y-auto'>
+					<div className='flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0'>
+						<div
+							className='fixed inset-0 transition-opacity'
+							aria-hidden='true'>
+							<div className='absolute inset-0 bg-gray opacity-75'></div>
+						</div>
+						<span
+							className='hidden sm:inline-block sm:align-middle sm:h-screen'
+							aria-hidden='true'>
+							&#8203;
+						</span>
+
+						<LoadingOverlay
+							isLoading={
+								loadingStates.isInvoiceCreating ||
+								loadingStates.isInvoiceUpdating
+							}>
+							{renderInvoiceModal()}
+						</LoadingOverlay>
+					</div>
+				</div>
+			)}
+
+			{selectedInvoice && (
+				<div className='fixed z-10 inset-0 overflow-y-auto'>
+					<LoadingOverlay
+						isLoading={
+							loadingStates.isPDFGenerating || loadingStates.isEmailSending
+						}>
+						{renderInvoiceDetails()}
+					</LoadingOverlay>
+				</div>
+			)}
 		</div>
 	)
 }
