@@ -224,7 +224,8 @@ export const generatePDF = async (
 			...data,
 			products: productsArray,
 			discounts: data.discounts || {},
-			type: data.type || 'regular'
+			type: data.type || 'regular',
+			payment_info: data.payment_info || 'frisson_llc' // Add default payment_info
 		}
 	}
 
@@ -251,7 +252,8 @@ export const generatePDF = async (
 					type: data.type || 'regular',
 					currency: data.currency || 'usd',
 					payment_term: data.payment_term,
-					delivery_date: data.delivery_date
+					delivery_date: data.delivery_date,
+					payment_info: data.payment_info || 'frisson_llc' // Add payment_info with default
 				},
 				entity: entityData,
 				company: companyData,

@@ -11,6 +11,52 @@ import { format } from 'date-fns'
 import { Font } from '@react-pdf/renderer'
 import { ToWords } from 'to-words'
 
+type PaymentInfoOption = 'frisson_llc' | 'frisson_sarl_chf' | 'frisson_sarl_usd'
+
+// Payment info configuration
+const PAYMENT_INFO_CONFIG = {
+	frisson_llc: {
+		details: {
+			bank: 'Interaudi Bank',
+			bankAddress:
+				'19 East 54th Street\nNew York, NY 10022\nUnited States of America',
+			aba: '026006237',
+			swift: 'AUSAUS33',
+			accountName: 'Frisson International LLC',
+			accountNumber: '684631',
+			routingNumber: '026006237'
+		}
+	},
+	frisson_sarl_chf: {
+		details: {
+			intermediaryBank: 'Deutsche Bank (Frankfurt)',
+			intermediarySwift: 'DEUTDEFF',
+			iban: 'CH24 0483 5092 7957 0300 0',
+			ibanDetails: '(Deutsche Bank at Credit Suisse)',
+			beneficiaryBank: 'Interaudi Bank (New York)',
+			beneficiaryAccount: '958400400CHF',
+			beneficiaryAccountDetails: '(Interaudi Bank at Deutsche Bank)',
+			beneficiary: 'Frisson Sarl',
+			accountNumber: '749361-401-003',
+			routingNumber: '026006237',
+			baseAccountNumber: '749361'
+		}
+	},
+	frisson_sarl_usd: {
+		details: {
+			bank: 'Interaudi Bank',
+			bankAddress:
+				'19 East 54th Street\nNew York, NY 10022\nUnited States of America',
+			aba: '026006237',
+			swift: 'AUSAUS33',
+			accountName: 'Frisson Sarl',
+			accountNumber: '749361-401-01',
+			routingNumber: '026006237',
+			baseAccountNumber: '749361'
+		}
+	}
+}
+
 const toWords = new ToWords({
 	localeCode: 'en-US',
 	converterOptions: {
@@ -198,8 +244,107 @@ const styles = StyleSheet.create({
 	paymentInfo: {
 		fontSize: 8,
 		marginTop: 10
+	},
+	paymentInfoSection: {
+		marginTop: 15,
+		borderTop: '1px solid #bfbfbf',
+		paddingTop: 10
+	},
+	paymentInfoTitle: {
+		fontSize: 10,
+		fontWeight: 'bold',
+		marginBottom: 5
+	},
+	paymentInfoRow: {
+		fontSize: 8,
+		marginBottom: 2
+	},
+	paymentInfoLabel: {
+		fontWeight: 'bold'
 	}
 })
+
+const PaymentInfoRenderer: React.FC<{
+	paymentInfo: PaymentInfoOption
+}> = ({ paymentInfo }) => {
+	const config: any = PAYMENT_INFO_CONFIG[paymentInfo]
+
+	if (paymentInfo === 'frisson_sarl_chf') {
+		return (
+			<View style={styles.paymentInfoSection}>
+				<Text style={styles.paymentInfoTitle}>Payment Information:</Text>
+				<Text style={styles.paymentInfoRow}>
+					<Text style={styles.paymentInfoLabel}>Intermediary Bank: </Text>
+					{config.details.intermediaryBank}
+				</Text>
+				<Text style={styles.paymentInfoRow}>
+					<Text style={styles.paymentInfoLabel}>Intermediary SWIFT: </Text>
+					{config.details.intermediarySwift}
+				</Text>
+				<Text style={styles.paymentInfoRow}>
+					<Text style={styles.paymentInfoLabel}>IBAN: </Text>
+					{config.details.iban} {config.details.ibanDetails}
+				</Text>
+				<Text style={styles.paymentInfoRow}>
+					<Text style={styles.paymentInfoLabel}>Beneficiary Bank: </Text>
+					{config.details.beneficiaryBank}
+				</Text>
+				<Text style={styles.paymentInfoRow}>
+					<Text style={styles.paymentInfoLabel}>Beneficiary Account: </Text>
+					{config.details.beneficiaryAccount}{' '}
+					{config.details.beneficiaryAccountDetails}
+				</Text>
+				<Text style={styles.paymentInfoRow}>
+					<Text style={styles.paymentInfoLabel}>Beneficiary: </Text>
+					{config.details.beneficiary}
+				</Text>
+				<Text style={styles.paymentInfoRow}>
+					<Text style={styles.paymentInfoLabel}>Account Number: </Text>
+					{config.details.accountNumber}
+				</Text>
+				<Text style={styles.paymentInfoRow}>
+					<Text style={styles.paymentInfoLabel}>Routing Number: </Text>
+					{config.details.routingNumber}
+				</Text>
+			</View>
+		)
+	}
+
+	// For frisson_llc and frisson_sarl_usd
+	return (
+		<View style={styles.paymentInfoSection}>
+			<Text style={styles.paymentInfoTitle}>Payment Information:</Text>
+			<Text style={styles.paymentInfoRow}>
+				<Text style={styles.paymentInfoLabel}>Bank: </Text>
+				{config.details.bank}
+			</Text>
+			<Text style={styles.paymentInfoRow}>
+				<Text style={styles.paymentInfoLabel}>Bank Address: </Text>
+				{config.details.bankAddress}
+			</Text>
+			<Text style={styles.paymentInfoRow}>
+				<Text style={styles.paymentInfoLabel}>ABA: </Text>
+				{config.details.aba}
+			</Text>
+			<Text style={styles.paymentInfoRow}>
+				<Text style={styles.paymentInfoLabel}>SWIFT: </Text>
+				{config.details.swift}
+			</Text>
+			<Text style={styles.paymentInfoRow}>
+				<Text style={styles.paymentInfoLabel}>Account Name: </Text>
+				{config.details.accountName}
+			</Text>
+			<Text style={styles.paymentInfoRow}>
+				<Text style={styles.paymentInfoLabel}>Account Number: </Text>
+				{config.details.accountNumber}
+			</Text>
+			<Text style={styles.paymentInfoRow}>
+				<Text style={styles.paymentInfoLabel}>Routing Number: </Text>
+				{config.details.routingNumber}
+			</Text>
+		</View>
+	)
+}
 
 const convertAmountToWords = (
 	amount: number,
@@ -502,19 +647,9 @@ const InvoicePDF: React.FC<{
 					{isReturn && ' (Credit)'}
 				</Text>
 
-				<View style={[styles.section, styles.paymentInfo]}>
-					<Text style={styles.label}>Payment Information:</Text>
-					<Text style={styles.value}>Bank: {company.bank_name}</Text>
-					<Text style={styles.value}>
-						Account Number: {company.bank_account_number}
-					</Text>
-					<Text style={styles.value}>
-						Routing Number: {company.bank_routing_number}
-					</Text>
-					<Text style={styles.value}>
-						Beneficiary Account: Frisson International LLC
-					</Text>
-				</View>
+				<PaymentInfoRenderer
+					paymentInfo={invoice.payment_info || 'frisson_llc'}
+				/>
 
 				{isReturn && (
 					<Text

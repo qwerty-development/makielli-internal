@@ -162,7 +162,8 @@ export async function POST(request) {
 				type: invoice.type || 'regular',
 				currency: invoice.currency || 'usd',
 				payment_term: invoice.payment_term,
-				delivery_date: invoice.delivery_date
+				delivery_date: invoice.delivery_date,
+				payment_info: data.payment_info || 'frisson_llc'
 			},
 			entity: entityData,
 			company: companyData,

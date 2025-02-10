@@ -62,6 +62,176 @@ interface Invoice {
 		| '60 days after shipping'
 		| '100% after delivery'
 	delivery_date: string
+	payment_info: PaymentInfoOption
+}
+type PaymentInfoOption = 'frisson_llc' | 'frisson_sarl_chf' | 'frisson_sarl_usd'
+
+const PAYMENT_INFO_CONFIG = {
+	frisson_llc: {
+		label: 'Frisson International LLC - USD',
+		details: {
+			bank: 'Interaudi Bank',
+			bankAddress:
+				'19 East 54th Street\nNew York, NY 10022\nUnited States of America',
+			aba: '026006237',
+			swift: 'AUSAUS33',
+			accountName: 'Frisson International LLC',
+			accountNumber: '684631',
+			routingNumber: '026006237'
+		}
+	},
+	frisson_sarl_chf: {
+		label: 'Frisson Sarl - CHF',
+		details: {
+			intermediaryBank: 'Deutsche Bank (Frankfurt)',
+			intermediarySwift: 'DEUTDEFF',
+			iban: 'CH24 0483 5092 7957 0300 0',
+			ibanDetails: '(Deutsche Bank at Credit Suisse)',
+			beneficiaryBank: 'Interaudi Bank (New York)',
+			beneficiaryAccount: '958400400CHF',
+			beneficiaryAccountDetails: '(Interaudi Bank at Deutsche Bank)',
+			beneficiary: 'Frisson Sarl',
+			accountNumber: '749361-401-003',
+			routingNumber: '026006237',
+			baseAccountNumber: '749361'
+		}
+	},
+	frisson_sarl_usd: {
+		label: 'Frisson Sarl - USD',
+		details: {
+			bank: 'Interaudi Bank',
+			bankAddress:
+				'19 East 54th Street\nNew York, NY 10022\nUnited States of America',
+			aba: '026006237',
+			swift: 'AUSAUS33',
+			accountName: 'Frisson Sarl',
+			accountNumber: '749361-401-01',
+			routingNumber: '026006237',
+			baseAccountNumber: '749361'
+		}
+	}
+}
+
+// 4. Helper function to get payment info details
+const getPaymentInfoDetails = (option: PaymentInfoOption) => {
+	return PAYMENT_INFO_CONFIG[option]
+}
+
+// 5. Component to render payment info selection
+const PaymentInfoSelector: React.FC<{
+	value: PaymentInfoOption
+	onChange: (value: PaymentInfoOption) => void
+}> = ({ value, onChange }) => {
+	return (
+		<div className='mb-4'>
+			<label className='block text-gray text-sm font-bold mb-2'>
+				Payment Information
+			</label>
+			<select
+				className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+				value={value}
+				onChange={e => onChange(e.target.value as PaymentInfoOption)}
+				required>
+				<option value=''>Select Payment Information</option>
+				{Object.entries(PAYMENT_INFO_CONFIG).map(([key, config]) => (
+					<option key={key} value={key}>
+						{config.label}
+					</option>
+				))}
+			</select>
+		</div>
+	)
+}
+
+const PaymentInfoDisplay: React.FC<{
+	option: PaymentInfoOption
+}> = ({ option }) => {
+	const config = PAYMENT_INFO_CONFIG[option]
+	const details: any = config.details
+
+	if (option === 'frisson_sarl_chf') {
+		return (
+			<div className='mt-4 text-sm'>
+				<p>
+					<strong>Intermediary Bank:</strong> {details.intermediaryBank}
+				</p>
+				<p>
+					<strong>Intermediary SWIFT:</strong> {details.intermediarySwift}
+				</p>
+				<p>
+					<strong>IBAN:</strong> {details.iban} {details.ibanDetails}
+				</p>
+				<p>
+					<strong>Beneficiary Bank:</strong> {details.beneficiaryBank}
+				</p>
+				<p>
+					<strong>Beneficiary Account:</strong> {details.beneficiaryAccount}{' '}
+					{details.beneficiaryAccountDetails}
+				</p>
+				<p>
+					<strong>Beneficiary:</strong> {details.beneficiary}
+				</p>
+				<p>
+					<strong>Account Number:</strong> {details.accountNumber}
+				</p>
+				<p>
+					<strong>Routing Number:</strong> {details.routingNumber}
+				</p>
+			</div>
+		)
+	}
+
+	return (
+		<div className='mt-4 text-sm'>
+			<p>
+				<strong>Bank:</strong> {details.bank}
+			</p>
+			<p>
+				<strong>Bank Address:</strong>{' '}
+				{details.bankAddress
+					.split('\n')
+					.map(
+						(
+							line:
+								| string
+								| number
+								| bigint
+								| boolean
+								| React.ReactElement<
+										any,
+										string | React.JSXElementConstructor<any>
+								  >
+								| Iterable<React.ReactNode>
+								| React.ReactPortal
+								| Promise<React.AwaitedReactNode>
+								| null
+								| undefined,
+							i: React.Key | null | undefined
+						) => (
+							<React.Fragment key={i}>
+								{line}
+								<br />
+							</React.Fragment>
+						)
+					)}
+			</p>
+			<p>
+				<strong>ABA:</strong> {details.aba}
+			</p>
+			<p>
+				<strong>SWIFT:</strong> {details.swift}
+			</p>
+			<p>
+				<strong>Account Name:</strong> {details.accountName}
+			</p>
+			<p>
+				<strong>Account Number:</strong> {details.accountNumber}
+			</p>
+			<p>
+				<strong>Routing Number:</strong> {details.routingNumber}
+			</p>
+		</div>
+	)
 }
 
 const InvoicesPage: React.FC = () => {
@@ -108,7 +278,8 @@ const InvoicesPage: React.FC = () => {
 		payment_term: '30% deposit 70% before shipping',
 		delivery_date: new Date(
 			new Date().setMonth(new Date().getMonth() + 1)
-		).toISOString()
+		).toISOString(),
+		payment_info: 'frisson_llc'
 	})
 	const [selectedFile, setSelectedFile] = useState<File | null>(null)
 	const [uploadingFile, setUploadingFile] = useState(false)
@@ -295,6 +466,14 @@ const InvoicesPage: React.FC = () => {
 				}))
 			}
 
+			// Validate payment_info field
+			if (!newInvoice.payment_info) {
+				setNewInvoice(prev => ({
+					...prev,
+					payment_info: 'frisson_llc' // Set default payment info if not specified
+				}))
+			}
+
 			const { subtotal, vatAmount, totalPrice } = calculateTotalPrice(
 				newInvoice.products || [],
 				newInvoice.discounts || {},
@@ -319,7 +498,8 @@ const InvoicesPage: React.FC = () => {
 				[isClientInvoice ? 'client_id' : 'supplier_id']: entityId,
 				currency: newInvoice.currency || 'usd',
 				payment_term: newInvoice.payment_term,
-				delivery_date: newInvoice.delivery_date
+				delivery_date: newInvoice.delivery_date,
+				payment_info: newInvoice.payment_info || 'frisson_llc' // Ensure payment_info is included
 			}
 
 			if (newInvoice.id && originalInvoiceData) {
@@ -580,7 +760,8 @@ const InvoicesPage: React.FC = () => {
 				...currentInvoice,
 				products: [...currentInvoice.products],
 				discounts: { ...(currentInvoice.discounts || {}) },
-				type: currentInvoice.type
+				type: currentInvoice.type,
+				payment_info: currentInvoice.payment_info || 'frisson_llc' // Include payment_info in original data
 			})
 
 			// Set all required fields explicitly, including the entity ID
@@ -598,7 +779,12 @@ const InvoicesPage: React.FC = () => {
 				vat_amount: currentInvoice.vat_amount || 0,
 				currency: currentInvoice.currency || 'usd',
 				payment_term: currentInvoice.payment_term || '',
-				delivery_date: currentInvoice.delivery_date || '',
+				delivery_date:
+					currentInvoice.delivery_date ||
+					new Date(
+						new Date().setMonth(new Date().getMonth() + 1)
+					).toISOString(),
+				payment_info: currentInvoice.payment_info || 'frisson_llc', // Include payment_info in updated invoice
 				client_id: isClientInvoice ? entityId : undefined,
 				supplier_id: !isClientInvoice ? entityId : undefined
 			}
@@ -941,7 +1127,8 @@ const InvoicesPage: React.FC = () => {
 				new Date().setMonth(new Date().getMonth() + 1)
 			).toISOString(),
 			client_id: undefined,
-			supplier_id: undefined
+			supplier_id: undefined,
+			payment_info: 'frisson_llc'
 		})
 		setSelectedProduct(null)
 		setSelectedVariants([])
@@ -1211,7 +1398,9 @@ const InvoicesPage: React.FC = () => {
 						<h3 className='text-lg leading-6 font-medium text-gray mb-4'>
 							{newInvoice.id ? 'Edit Invoice' : 'Create New Invoice'}
 						</h3>
-						<form>
+						<form
+							onSubmit={e => e.preventDefault()}
+							className='overflow-y-auto max-h-[70vh]'>
 							<div className='mb-4'>
 								{newInvoice.type === 'return' && (
 									<div className='mb-4 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700'>
@@ -1618,6 +1807,13 @@ const InvoicesPage: React.FC = () => {
 									/>
 								</div>
 							)}
+
+							<PaymentInfoSelector
+								value={newInvoice.payment_info || 'frisson_llc'}
+								onChange={value =>
+									setNewInvoice({ ...newInvoice, payment_info: value })
+								}
+							/>
 							<div className='mb-4'>
 								<label className='block text-gray text-sm font-bold mb-2'>
 									Files
@@ -1712,6 +1908,15 @@ const InvoicesPage: React.FC = () => {
 							<p className='text-sm text-neutral-500'>
 								Payment Terms: {selectedInvoice.payment_term}
 							</p>
+							{selectedInvoice && selectedInvoice.payment_info && (
+								<div className='mt-4'>
+									<h4 className='text-sm font-medium text-gray'>
+										Payment Information
+									</h4>
+									<PaymentInfoDisplay option={selectedInvoice.payment_info} />
+								</div>
+							)}
+
 							{selectedInvoice.delivery_date && (
 								<p className='text-sm text-neutral-500'>
 									Delivery Date:{' '}
