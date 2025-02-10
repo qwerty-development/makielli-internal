@@ -106,7 +106,9 @@ const InvoicesPage: React.FC = () => {
 		type: 'regular',
 		currency: 'usd',
 		payment_term: '30% deposit 70% before shipping',
-		delivery_date: new Date().toISOString()
+		delivery_date: new Date(
+			new Date().setMonth(new Date().getMonth() + 1)
+		).toISOString()
 	})
 	const [selectedFile, setSelectedFile] = useState<File | null>(null)
 	const [uploadingFile, setUploadingFile] = useState(false)
@@ -283,6 +285,15 @@ const InvoicesPage: React.FC = () => {
 		try {
 			// Validate entity ID first
 			const entityId: any = getEntityId(newInvoice)
+
+			if (!newInvoice.delivery_date) {
+				setNewInvoice(prev => ({
+					...prev,
+					delivery_date: new Date(
+						new Date().setMonth(new Date().getMonth() + 1)
+					).toISOString()
+				}))
+			}
 
 			const { subtotal, vatAmount, totalPrice } = calculateTotalPrice(
 				newInvoice.products || [],
@@ -926,7 +937,9 @@ const InvoicesPage: React.FC = () => {
 			type: 'regular',
 			currency: 'usd',
 			payment_term: '30% deposit 70% before shipping',
-			delivery_date: '',
+			delivery_date: new Date(
+				new Date().setMonth(new Date().getMonth() + 1)
+			).toISOString(),
 			client_id: undefined,
 			supplier_id: undefined
 		})
@@ -1224,7 +1237,9 @@ const InvoicesPage: React.FC = () => {
 									onChange={(date: Date | null) =>
 										setNewInvoice({
 											...newInvoice,
-											created_at: date ? date.toISOString() : ''
+											created_at: date
+												? date.toISOString()
+												: new Date().toISOString()
 										})
 									}
 									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
@@ -1540,11 +1555,10 @@ const InvoicesPage: React.FC = () => {
 										setNewInvoice({
 											...newInvoice,
 											delivery_date: date
-												? date.toLocaleString('en-US', {
-														timeZone:
-															Intl.DateTimeFormat().resolvedOptions().timeZone
-												  })
-												: ''
+												? date.toISOString()
+												: new Date(
+														new Date().setMonth(new Date().getMonth() + 1)
+												  ).toISOString()
 										})
 									}
 									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
