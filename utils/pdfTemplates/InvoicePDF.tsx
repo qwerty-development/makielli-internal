@@ -56,13 +56,13 @@ const styles = StyleSheet.create({
 		textAlign: 'right'
 	},
 	title: {
-		fontSize: 24,
+		fontSize: 18,
 		fontWeight: 'bold',
 		marginBottom: 20,
 		color: '#1E40AF'
 	},
 	returnTitle: {
-		fontSize: 24,
+		fontSize: 18,
 		fontWeight: 'bold',
 		marginBottom: 20,
 		color: '#DC2626'

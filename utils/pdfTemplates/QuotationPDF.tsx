@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
 		textAlign: 'right'
 	},
 	title: {
-		fontSize: 24,
+		fontSize: 18,
 		fontWeight: 'bold',
 		marginBottom: 20,
 		color: '#1E40AF'
@@ -267,7 +267,7 @@ const QuotationPDF: React.FC<{
 					</View>
 				</View>
 
-				<Text style={styles.title}>ORDER</Text>
+				<Text style={styles.title}>PURCHASE ORDER</Text>
 
 				<View style={styles.row}>
 					<View style={styles.column}>
