@@ -1,6 +1,12 @@
 'use client'
 
-import React, { useState, useEffect, ChangeEvent } from 'react'
+import React, {
+	useState,
+	useEffect,
+	ChangeEvent,
+	useRef,
+	useCallback
+} from 'react'
 import { supabase } from '../../utils/supabase'
 import { toast } from 'react-hot-toast'
 import DatePicker from 'react-datepicker'
@@ -112,37 +118,6 @@ const PAYMENT_INFO_CONFIG = {
 	}
 }
 
-// 4. Helper function to get payment info details
-const getPaymentInfoDetails = (option: PaymentInfoOption) => {
-	return PAYMENT_INFO_CONFIG[option]
-}
-
-// 5. Component to render payment info selection
-const PaymentInfoSelector: React.FC<{
-	value: PaymentInfoOption
-	onChange: (value: PaymentInfoOption) => void
-}> = ({ value, onChange }) => {
-	return (
-		<div className='mb-4'>
-			<label className='block text-gray text-sm font-bold mb-2'>
-				Payment Information
-			</label>
-			<select
-				className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
-				value={value}
-				onChange={e => onChange(e.target.value as PaymentInfoOption)}
-				required>
-				<option value=''>Select Payment Information</option>
-				{Object.entries(PAYMENT_INFO_CONFIG).map(([key, config]) => (
-					<option key={key} value={key}>
-						{config.label}
-					</option>
-				))}
-			</select>
-		</div>
-	)
-}
-
 const PaymentInfoDisplay: React.FC<{
 	option: PaymentInfoOption
 }> = ({ option }) => {
@@ -249,6 +224,8 @@ const InvoicesPage: React.FC = () => {
 	const [filterEndDate, setFilterEndDate] = useState<any>(null)
 	const [filterEntity, setFilterEntity] = useState<number | string | null>(null)
 	const [totalInvoices, setTotalInvoices] = useState(0)
+	const [formScrollPosition, setFormScrollPosition] = useState<number>(0)
+	const formRef = useRef<HTMLFormElement>(null)
 	const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
 	const [loadingStates, setLoadingStates] = useState<LoadingStates>({
 		isMainLoading: true,
@@ -290,6 +267,22 @@ const InvoicesPage: React.FC = () => {
 	const [originalInvoiceData, setOriginalInvoiceData] =
 		useState<Invoice | null>(null)
 
+	const saveScrollPosition = () => {
+		if (formRef.current) {
+			setFormScrollPosition(formRef.current.scrollTop)
+		}
+	}
+
+	const restoreScrollPosition = useCallback(() => {
+		if (formRef.current && formScrollPosition > 0) {
+			formRef.current.scrollTop = formScrollPosition
+		}
+	}, [formScrollPosition])
+
+	useEffect(() => {
+		restoreScrollPosition()
+	}, [restoreScrollPosition, newInvoice])
+
 	useEffect(() => {
 		fetchInvoices()
 		fetchClients()
@@ -304,6 +297,17 @@ const InvoicesPage: React.FC = () => {
 		filterEndDate,
 		filterEntity
 	])
+
+	useEffect(() => {
+		if (showModal) {
+			document.body.style.overflow = 'hidden'
+		} else {
+			document.body.style.overflow = 'unset'
+		}
+		return () => {
+			document.body.style.overflow = 'unset'
+		}
+	}, [showModal])
 
 	useEffect(() => {
 		const filtered = products.filter(product =>
@@ -1399,6 +1403,8 @@ const InvoicesPage: React.FC = () => {
 							{newInvoice.id ? 'Edit Invoice' : 'Create New Invoice'}
 						</h3>
 						<form
+							ref={formRef}
+							onScroll={saveScrollPosition}
 							onSubmit={e => e.preventDefault()}
 							className='overflow-y-auto max-h-[70vh]'>
 							<div className='mb-4'>
@@ -1808,12 +1814,30 @@ const InvoicesPage: React.FC = () => {
 								</div>
 							)}
 
-							<PaymentInfoSelector
-								value={newInvoice.payment_info || 'frisson_llc'}
-								onChange={value =>
-									setNewInvoice({ ...newInvoice, payment_info: value })
-								}
-							/>
+							<div className='mb-4'>
+								<label className='block text-gray text-sm font-bold mb-2'>
+									Payment Information
+								</label>
+								<select
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									value={newInvoice.payment_info || 'frisson_llc'}
+									onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+										e.preventDefault() // Prevent default behavior
+										e.stopPropagation() // Stop event propagation
+										setNewInvoice({
+											...newInvoice,
+											payment_info: e.target.value as PaymentInfoOption
+										})
+									}}
+									required>
+									<option value=''>Select Payment Information</option>
+									{Object.entries(PAYMENT_INFO_CONFIG).map(([key, config]) => (
+										<option key={key} value={key}>
+											{config.label}
+										</option>
+									))}
+								</select>
+							</div>
 							<div className='mb-4'>
 								<label className='block text-gray text-sm font-bold mb-2'>
 									Files
