@@ -378,12 +378,14 @@ const InvoicePDF: React.FC<{
 }> = ({ invoice, entity, company, isClientInvoice, logoBase64 }) => {
 	const sizeOptions = [
 		'OS',
+		'XXS',
 		'XS',
 		'S',
 		'M',
 		'L',
 		'XL',
 		'2XL',
+		'3XL',
 		'38',
 		'40',
 		'42',
@@ -496,7 +498,7 @@ const InvoicePDF: React.FC<{
 						<View style={[styles.tableColHeader, { width: '12%' }]}>
 							<Text style={styles.tableCellHeader}>STYLE</Text>
 						</View>
-						<View style={[styles.tableColHeader, { width: '12%' }]}>
+						<View style={[styles.tableColHeader, { width: '10%' }]}>
 							<Text style={styles.tableCellHeader}>DESCRIPTION</Text>
 						</View>
 						<View style={[styles.tableColHeader, { width: '8%' }]}>
@@ -514,7 +516,7 @@ const InvoicePDF: React.FC<{
 							<Text style={styles.tableCellHeader}>UNIT PRICE</Text>
 						</View>
 						{hasDiscounts && (
-							<View style={[styles.tableColHeader, { width: '7%' }]}>
+							<View style={[styles.tableColHeader, { width: '9%' }]}>
 								<Text style={styles.tableCellHeader}>DISCOUNT</Text>
 							</View>
 						)}
@@ -543,7 +545,7 @@ const InvoicePDF: React.FC<{
 								<View style={[styles.tableCol, { width: '12%' }]}>
 									<Text style={styles.tableCell}>{product.name || 'N/A'}</Text>
 								</View>
-								<View style={[styles.tableCol, { width: '12%' }]}>
+								<View style={[styles.tableCol, { width: '10%' }]}>
 									{product?.notes?.map((note: string, noteIndex: number) => (
 										<Text key={noteIndex} style={styles.notes}>
 											{note}
@@ -570,7 +572,7 @@ const InvoicePDF: React.FC<{
 									</Text>
 								</View>
 								{hasDiscounts && (
-									<View style={[styles.tableCol, { width: '7%' }]}>
+									<View style={[styles.tableCol, { width: '9%' }]}>
 										<Text style={styles.tableCell}>
 											{discount > 0
 												? `${currencySymbol}${discount.toFixed(2)}`

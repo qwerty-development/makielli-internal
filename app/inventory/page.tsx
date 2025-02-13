@@ -12,12 +12,14 @@ import { toast } from 'react-hot-toast'
 export default function ProductsPage() {
 	const sizeOptions = [
 		'OS',
+    'XXS',
 		'XS',
 		'S',
 		'M',
 		'L',
 		'XL',
 		'2XL',
+    '3XL',
 		'38',
 		'40',
 		'42',
