@@ -224,8 +224,9 @@ const InvoicesPage: React.FC = () => {
 	const [filterEndDate, setFilterEndDate] = useState<any>(null)
 	const [filterEntity, setFilterEntity] = useState<number | string | null>(null)
 	const [totalInvoices, setTotalInvoices] = useState(0)
-	const [formScrollPosition, setFormScrollPosition] = useState<number>(0)
+
 	const formRef = useRef<HTMLFormElement>(null)
+  const scrollPositionRef = useRef(0)
 	const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
 	const [loadingStates, setLoadingStates] = useState<LoadingStates>({
 		isMainLoading: true,
@@ -267,21 +268,21 @@ const InvoicesPage: React.FC = () => {
 	const [originalInvoiceData, setOriginalInvoiceData] =
 		useState<Invoice | null>(null)
 
-	const saveScrollPosition = () => {
-		if (formRef.current) {
-			setFormScrollPosition(formRef.current.scrollTop)
-		}
-	}
+const saveScrollPosition = () => {
+  if (formRef.current) {
+    scrollPositionRef.current = formRef.current.scrollTop
+  }
+}
 
-	const restoreScrollPosition = useCallback(() => {
-		if (formRef.current && formScrollPosition > 0) {
-			formRef.current.scrollTop = formScrollPosition
-		}
-	}, [formScrollPosition])
+const restoreScrollPosition = useCallback(() => {
+  if (formRef.current && scrollPositionRef.current > 0) {
+    formRef.current.scrollTop = scrollPositionRef.current
+  }
+}, [])
 
-	useEffect(() => {
-		restoreScrollPosition()
-	}, [restoreScrollPosition, newInvoice])
+useEffect(() => {
+  restoreScrollPosition()
+}, [restoreScrollPosition, newInvoice])
 
 	useEffect(() => {
 		fetchInvoices()
@@ -460,6 +461,11 @@ const InvoicesPage: React.FC = () => {
 		try {
 			// Validate entity ID first
 			const entityId: any = getEntityId(newInvoice)
+
+    if (newInvoice.products?.some(p => !p.product_variant_id)) {
+    toast.error("All products must have a valid variant selected.");
+    return;
+  }
 
 			if (!newInvoice.delivery_date) {
 				setNewInvoice(prev => ({
@@ -810,37 +816,52 @@ const InvoicesPage: React.FC = () => {
 		setFilterEntity(id)
 		setCurrentPage(1)
 	}
-	const handleAddProduct = (product: Product) => {
-		setSelectedProduct(product)
-		setSelectedVariants([
-			{
-				product_id: product.id,
-				product_variant_id: product.variants[0]?.id || '',
-				quantity: 1,
-				note: ''
-			}
-		])
-		// Initialize discount for this product if not already set
-		if (!newInvoice.discounts?.[product.id]) {
-			setNewInvoice(prev => ({
-				...prev,
-				discounts: { ...prev.discounts, [product.id]: 0 }
-			}))
-		}
-	}
+const handleAddProduct = (product: Product) => {
 
-	const handleAddVariant = () => {
-		if (selectedProduct) {
-			setSelectedVariants([
-				...selectedVariants,
-				{
-					product_id: selectedProduct.id,
-					product_variant_id: '',
-					quantity: 1,
-					note: ''
-				}
-			])
-		}
+  if (!product.variants || product.variants.length === 0) {
+    toast.error("This product has no available variants.");
+    return;
+  }
+  setSelectedProduct(product);
+  setSelectedVariants([
+    {
+      product_id: product.id,
+      product_variant_id: product.variants[0].id, // Use the first variant's ID directly.
+      quantity: 1,
+      note: ''
+    }
+  ]);
+  // Initialize discount for this product if not already set.
+  if (!newInvoice.discounts?.[product.id]) {
+    setNewInvoice(prev => ({
+      ...prev,
+      discounts: { ...prev.discounts, [product.id]: 0 }
+    }));
+  }
+};
+
+const handleAddVariant = () => {
+  if (selectedProduct) {
+    if (!selectedProduct.variants || selectedProduct.variants.length === 0) {
+      toast.error("This product has no available variants.");
+      return;
+    }
+    setSelectedVariants([
+      ...selectedVariants,
+      {
+        product_id: selectedProduct.id,
+        product_variant_id: selectedProduct.variants[0].id, // Default to the first variant.
+        quantity: 1,
+        note: ''
+      }
+    ]);
+  }
+};
+
+
+	const handleRemoveVariant = (index: number) => {
+		const updatedVariants = selectedVariants.filter((_, i) => i !== index)
+		setSelectedVariants(updatedVariants)
 	}
 
 	const handleVariantChange = (
@@ -880,10 +901,7 @@ const InvoicesPage: React.FC = () => {
 		}))
 	}
 
-	const handleRemoveVariant = (index: number) => {
-		const updatedVariants = selectedVariants.filter((_, i) => i !== index)
-		setSelectedVariants(updatedVariants)
-	}
+
 
 	const handleRemoveProduct = (index: number) => {
 		const updatedProducts = newInvoice.products?.filter((_, i) => i !== index)
@@ -1173,7 +1191,8 @@ const InvoicesPage: React.FC = () => {
 	)
 
 	const renderInvoiceTable = () => (
-		<div className='overflow-x-auto bg-white rounded-lg shadow'>
+
+		          <div className='overflow-x-auto bg-white rounded-lg shadow'>
 			{loadingStates.isMainLoading ? (
 				<div className='flex justify-center items-center p-8'>
 					<FaSpinner className='animate-spin text-4xl text-blue' />

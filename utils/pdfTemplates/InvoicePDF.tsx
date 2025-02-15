@@ -537,7 +537,7 @@ const InvoicePDF: React.FC<{
 						return (
 							<View key={index} style={styles.tableRow}>
 								<View style={[styles.tableCol, styles.imageContainer]}>
-									<Image
+								 <Image
 										src={product.image || '/placeholder-image.jpg'}
 										style={styles.productImage}
 									/>
