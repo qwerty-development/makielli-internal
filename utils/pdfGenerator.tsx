@@ -40,6 +40,9 @@ const fetchCompanyDetails = async (companyId: number) => {
 }
 
 const fetchProductDetails = async (productVariantId: string) => {
+ if (!productVariantId || productVariantId.trim() === "") {
+    throw new Error("Invalid productVariantId: it is empty or missing.");
+  }
 	const { data, error } = await supabase
 		.from('ProductVariants')
 		.select(
@@ -185,49 +188,55 @@ export const generatePDF = async (
 	let component: any
 	let fileName: string
 
-	if (type === 'invoice' || type === 'quotation') {
-		const productMap = new Map()
+if (type === 'invoice' || type === 'quotation') {
+  const productMap = new Map();
 
-		await Promise.all(
-			data.products.map(async (product: any) => {
-				const details = await fetchProductDetails(product.product_variant_id)
-				const key = `${details.name}-${details.color}`
+  // Filter out products with an empty product_variant_id
+  const validProducts = data.products.filter(
+    (product: any) => product.product_variant_id && product.product_variant_id.trim() !== ""
+  );
 
-				if (!productMap.has(key)) {
-					productMap.set(key, {
-						...details,
-						sizes: {},
-						totalQuantity: 0,
-						notes: new Set(),
-						// Ensure discount handling for quotations
-						discount: data.discounts?.[details.product_id] || 0
-					})
-				}
+  await Promise.all(
+    validProducts.map(async (product: any) => {
+      const details = await fetchProductDetails(product.product_variant_id);
+      const key = `${details.name}-${details.color}`;
 
-				const existingProduct = productMap.get(key)
-				existingProduct.sizes[details.size] =
-					(existingProduct.sizes[details.size] || 0) + product.quantity
-				existingProduct.totalQuantity += product.quantity
-				if (product.note) {
-					existingProduct.notes.add(product.note)
-				}
-				productMap.set(key, existingProduct)
-			})
-		)
+      if (!productMap.has(key)) {
+        productMap.set(key, {
+          ...details,
+          sizes: {},
+          totalQuantity: 0,
+          notes: new Set(),
+          // Ensure discount handling for quotations
+          discount: data.discounts?.[details.product_id] || 0
+        });
+      }
 
-		const productsArray = Array.from(productMap.values()).map(product => ({
-			...product,
-			notes: Array.from(product.notes)
-		}))
+      const existingProduct = productMap.get(key);
+      existingProduct.sizes[details.size] =
+        (existingProduct.sizes[details.size] || 0) + product.quantity;
+      existingProduct.totalQuantity += product.quantity;
+      if (product.note) {
+        existingProduct.notes.add(product.note);
+      }
+      productMap.set(key, existingProduct);
+    })
+  );
 
-		data = {
-			...data,
-			products: productsArray,
-			discounts: data.discounts || {},
-			type: data.type || 'regular',
-			payment_info: data.payment_info || 'frisson_llc' // Add default payment_info
-		}
-	}
+  const productsArray = Array.from(productMap.values()).map(product => ({
+    ...product,
+    notes: Array.from(product.notes)
+  }));
+
+  data = {
+    ...data,
+    products: productsArray,
+    discounts: data.discounts || {},
+    type: data.type || 'regular',
+    payment_info: data.payment_info || 'frisson_llc' // Add default payment_info
+  };
+}
+
 
 	switch (type) {
 		case 'invoice':
