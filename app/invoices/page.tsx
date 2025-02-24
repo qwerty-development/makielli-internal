@@ -1485,6 +1485,7 @@ const handleAddVariant = () => {
 									{activeTab === 'client' ? 'Client' : 'Supplier'}
 								</label>
 								<select
+                required
 									id='entity'
 									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 									value={
@@ -1496,6 +1497,7 @@ const handleAddVariant = () => {
 										const idField =
 											activeTab === 'client' ? 'client_id' : 'supplier_id'
 										setNewInvoice({ ...newInvoice, [idField]: e.target.value })
+
 									}}>
 									<option value=''>
 										Select {activeTab === 'client' ? 'Client' : 'Supplier'}
