@@ -6,47 +6,57 @@ import ClientFinancialReportPDF from './pdfTemplates/ClientFinancialReportPDF'
 import SupplierFinancialReportPDF from './pdfTemplates/SupplierFinancialReportPDF'
 import { supabase } from './supabase'
 
-const fetchClientDetails = async (clientId: number) => {
-	const { data, error } = await supabase
-		.from('Clients')
-		.select('*')
-		.eq('client_id', clientId)
-		.single()
+// Fetch client details. Throws a clear error if not found.
+const fetchClientDetails = async (clientId: any) => {
+  const { data, error } = await supabase
+    .from('Clients')
+    .select('*')
+    .eq('client_id', clientId)
+    .single()
 
-	if (error) throw error
-	return data
-}
-
-const fetchSupplierDetails = async (supplierId: string) => {
-	const { data, error } = await supabase
-		.from('Suppliers')
-		.select('*')
-		.eq('id', supplierId)
-		.single()
-
-	if (error) throw error
-	return data
-}
-
-const fetchCompanyDetails = async (companyId: number) => {
-	const { data, error } = await supabase
-		.from('companies')
-		.select('*')
-		.eq('id', companyId)
-		.single()
-
-	if (error) throw error
-	return data
-}
-
-const fetchProductDetails = async (productVariantId: string) => {
- if (!productVariantId || productVariantId.trim() === "") {
-    throw new Error("Invalid productVariantId: it is empty or missing.");
+  if (error) {
+    throw new Error(`Unable to fetch client details for client_id ${clientId}: ${error.message}`)
   }
-	const { data, error } = await supabase
-		.from('ProductVariants')
-		.select(
-			`
+  return data
+}
+
+// Fetch supplier details.
+const fetchSupplierDetails = async (supplierId: any) => {
+  const { data, error } = await supabase
+    .from('Suppliers')
+    .select('*')
+    .eq('id', supplierId)
+    .single()
+
+  if (error) {
+    throw new Error(`Unable to fetch supplier details for supplier_id ${supplierId}: ${error.message}`)
+  }
+  return data
+}
+
+// Fetch company details.
+const fetchCompanyDetails = async (companyId: any) => {
+  const { data, error } = await supabase
+    .from('companies')
+    .select('*')
+    .eq('id', companyId)
+    .single()
+
+  if (error) {
+    throw new Error(`Unable to fetch company details for company_id ${companyId}: ${error.message}`)
+  }
+  return data
+}
+
+// Fetch product details with safe check for productVariantId.
+const fetchProductDetails = async (productVariantId: string) => {
+  if (!productVariantId || productVariantId.trim() === "") {
+    throw new Error("Invalid productVariantId: it is empty or missing.")
+  }
+  const { data, error } = await supabase
+    .from('ProductVariants')
+    .select(
+      `
       id,
       size,
       color,
@@ -60,338 +70,348 @@ const fetchProductDetails = async (productVariantId: string) => {
         cost
       )
     `
-		)
-		.eq('id', productVariantId)
-		.single()
+    )
+    .eq('id', productVariantId)
+    .single()
 
-	if (error) throw error
+  if (error) {
+    throw new Error(`Unable to fetch product details for variant_id ${productVariantId}: ${error.message}`)
+  }
 
-	let productDetails: any = data.Products
-	if (!productDetails) {
-		const { data: productData, error: productError } = await supabase
-			.from('Products')
-			.select('id, name, photo, price, cost')
-			.eq('id', data.product_id)
-			.single()
+  let productDetails:any = data.Products
+  if (!productDetails) {
+    const { data: productData, error: productError } = await supabase
+      .from('Products')
+      .select('id, name, photo, price, cost')
+      .eq('id', data.product_id)
+      .single()
 
-		if (productError) throw productError
-		productDetails = productData
-	}
+    if (productError) {
+      throw new Error(`Unable to fetch product details for product_id ${data.product_id}: ${productError.message}`)
+    }
+    productDetails = productData
+  }
 
-	return {
-		id: data.id,
-		product_id: data.product_id,
-		name: productDetails.name,
-		image: productDetails.photo,
-		unitPrice: productDetails.price,
-		unitCost: productDetails.cost,
-		color: data.color,
-		size: data.size,
-		quantity: data.quantity
-	}
+  return {
+    id: data.id,
+    product_id: data.product_id,
+    name: productDetails.name,
+    image: productDetails.photo,
+    unitPrice: productDetails.price,
+    unitCost: productDetails.cost,
+    color: data.color,
+    size: data.size,
+    quantity: data.quantity
+  }
 }
 
-const fetchInvoiceDetails = async (
-	invoiceId: number,
-	isClientInvoice: boolean
-) => {
-	const table = isClientInvoice ? 'ClientInvoices' : 'SupplierInvoices'
-	const { data, error } = await supabase
-		.from(table)
-		.select('*')
-		.eq('id', invoiceId)
-		.single()
+// Fetch invoice details.
+const fetchInvoiceDetails = async (invoiceId: any, isClientInvoice: boolean) => {
+  const table = isClientInvoice ? 'ClientInvoices' : 'SupplierInvoices'
+  const { data, error } = await supabase
+    .from(table)
+    .select('*')
+    .eq('id', invoiceId)
+    .single()
 
-	if (error) throw error
-	return data
+  if (error) {
+    throw new Error(`Unable to fetch invoice details for invoice_id ${invoiceId}: ${error.message}`)
+  }
+  return data
 }
 
-const fetchClientFinancialData = async (clientId: number) => {
-	const { data: invoices, error: invoiceError } = await supabase
-		.from('ClientInvoices')
-		.select('*')
-		.eq('client_id', clientId)
+// Fetch client financial data.
+const fetchClientFinancialData = async (clientId: any) => {
+  const { data: invoices, error: invoiceError } = await supabase
+    .from('ClientInvoices')
+    .select('*')
+    .eq('client_id', clientId)
 
-	if (invoiceError) throw invoiceError
+  if (invoiceError) {
+    throw new Error(`Unable to fetch invoices for client_id ${clientId}: ${invoiceError.message}`)
+  }
 
-	const { data: receipts, error: receiptError } = await supabase
-		.from('ClientReceipts')
-		.select('*')
-		.eq('client_id', clientId)
+  const { data: receipts, error: receiptError } = await supabase
+    .from('ClientReceipts')
+    .select('*')
+    .eq('client_id', clientId)
 
-	if (receiptError) throw receiptError
+  if (receiptError) {
+    throw new Error(`Unable to fetch receipts for client_id ${clientId}: ${receiptError.message}`)
+  }
 
-	const financialData = [
-		...invoices.map(invoice => ({
-			date: invoice.created_at,
-			type: invoice.type || 'regular', // Include invoice type
-			id: invoice.id,
-			amount:
-				invoice.type === 'return' ? -invoice.total_price : invoice.total_price // Adjust sign for returns
-		})),
-		...receipts.map(receipt => ({
-			date: receipt.paid_at,
-			type: 'receipt',
-			id: receipt.id,
-			invoice_id: receipt.invoice_id,
-			amount: receipt.amount
-		}))
-	].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+  const financialData = [
+    ...invoices.map(invoice => ({
+      date: invoice.created_at,
+      type: invoice.type || 'regular',
+      id: invoice.id,
+      amount: invoice.type === 'return' ? -invoice.total_price : invoice.total_price
+    })),
+    ...receipts.map(receipt => ({
+      date: receipt.paid_at,
+      type: 'receipt',
+      id: receipt.id,
+      invoice_id: receipt.invoice_id,
+      amount: receipt.amount
+    }))
+  ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
-	return financialData
+  return financialData
 }
 
-const fetchSupplierFinancialData = async (supplierId: string) => {
-	const { data: invoices, error: invoiceError } = await supabase
-		.from('SupplierInvoices')
-		.select('*')
-		.eq('supplier_id', supplierId)
+// Fetch supplier financial data.
+const fetchSupplierFinancialData = async (supplierId: any) => {
+  const { data: invoices, error: invoiceError } = await supabase
+    .from('SupplierInvoices')
+    .select('*')
+    .eq('supplier_id', supplierId)
 
-	if (invoiceError) throw invoiceError
+  if (invoiceError) {
+    throw new Error(`Unable to fetch supplier invoices for supplier_id ${supplierId}: ${invoiceError.message}`)
+  }
 
-	const { data: receipts, error: receiptError } = await supabase
-		.from('SupplierReceipts')
-		.select('*')
-		.eq('supplier_id', supplierId)
+  const { data: receipts, error: receiptError } = await supabase
+    .from('SupplierReceipts')
+    .select('*')
+    .eq('supplier_id', supplierId)
 
-	if (receiptError) throw receiptError
+  if (receiptError) {
+    throw new Error(`Unable to fetch supplier receipts for supplier_id ${supplierId}: ${receiptError.message}`)
+  }
 
-	const financialData = [
-		...invoices.map(invoice => ({
-			date: invoice.created_at,
-			type: invoice.type || 'regular', // Include invoice type
-			id: invoice.id,
-			amount:
-				invoice.type === 'return' ? -invoice.total_price : invoice.total_price // Adjust sign for returns
-		})),
-		...receipts.map(receipt => ({
-			date: receipt.paid_at,
-			type: 'receipt',
-			id: receipt.id,
-			invoice_id: receipt.invoice_id,
-			amount: receipt.amount
-		}))
-	].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+  const financialData = [
+    ...invoices.map(invoice => ({
+      date: invoice.created_at,
+      type: invoice.type || 'regular',
+      id: invoice.id,
+      amount: invoice.type === 'return' ? -invoice.total_price : invoice.total_price
+    })),
+    ...receipts.map(receipt => ({
+      date: receipt.paid_at,
+      type: 'receipt',
+      id: receipt.id,
+      invoice_id: receipt.invoice_id,
+      amount: receipt.amount
+    }))
+  ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
-	return financialData
+  return financialData
 }
 
+// Generate the PDF document.
 export const generatePDF = async (
-	type:
-		| 'invoice'
-		| 'receipt'
-		| 'quotation'
-		| 'clientFinancialReport'
-		| 'supplierFinancialReport',
-	data: any
+  type: string,
+  data:any
 ) => {
-	let component: any
-	let fileName: string
+  let component:any
+  let fileName:any
 
-if (type === 'invoice' || type === 'quotation') {
-  const productMap = new Map();
+  // For invoice and quotation, prepare product mapping & defaults.
+  if (type === 'invoice' || type === 'quotation') {
+    const productMap = new Map()
 
-  // Filter out products with an empty product_variant_id
-  const validProducts = data.products.filter(
-    (product: any) => product.product_variant_id && product.product_variant_id.trim() !== ""
-  );
+    // Filter out products with an empty product_variant_id
+    const validProducts = data.products.filter(
+      (product: { product_variant_id: string }) =>
+        product.product_variant_id && product.product_variant_id.trim() !== ""
+    )
 
-  await Promise.all(
-    validProducts.map(async (product: any) => {
-      const details = await fetchProductDetails(product.product_variant_id);
-      const key = `${details.name}-${details.color}`;
+    await Promise.all(
+      validProducts.map(async (product: { product_variant_id: any; quantity: any; note: any }) => {
+        const details = await fetchProductDetails(product.product_variant_id)
+        const key = `${details.name}-${details.color}`
 
-      if (!productMap.has(key)) {
-        productMap.set(key, {
-          ...details,
-          sizes: {},
-          totalQuantity: 0,
-          notes: new Set(),
-          // Ensure discount handling for quotations
-          discount: data.discounts?.[details.product_id] || 0
-        });
+        if (!productMap.has(key)) {
+          productMap.set(key, {
+            ...details,
+            sizes: {},
+            totalQuantity: 0,
+            notes: new Set(),
+            discount: data.discounts?.[details.product_id] || 0
+          })
+        }
+
+        const existingProduct = productMap.get(key)
+        existingProduct.sizes[details.size] =
+          (existingProduct.sizes[details.size] || 0) + product.quantity
+        existingProduct.totalQuantity += product.quantity
+        if (product.note) {
+          existingProduct.notes.add(product.note)
+        }
+        productMap.set(key, existingProduct)
+      })
+    )
+
+    const productsArray = Array.from(productMap.values()).map((product) => ({
+      ...product,
+      notes: Array.from(product.notes)
+    }))
+
+    data = {
+      ...data,
+      products: productsArray,
+      discounts: data.discounts || {},
+      type: data.type || 'regular',
+      payment_info: data.payment_info || 'frisson_llc'
+    }
+  }
+
+  // Determine PDF type and fetch required data.
+  switch (type) {
+    case 'invoice': {
+      let entityData, companyData, isClientInvoice
+      if (data.client_id) {
+        isClientInvoice = true
+        entityData = await fetchClientDetails(data.client_id)
+        companyData = await fetchCompanyDetails(entityData.company_id)
+      } else if (data.supplier_id) {
+        isClientInvoice = false
+        entityData = await fetchSupplierDetails(data.supplier_id)
+        companyData = await fetchCompanyDetails(entityData.company_id)
+      } else {
+        throw new Error('Invalid invoice: missing client_id or supplier_id. Please provide a valid entity.')
       }
 
-      const existingProduct = productMap.get(key);
-      existingProduct.sizes[details.size] =
-        (existingProduct.sizes[details.size] || 0) + product.quantity;
-      existingProduct.totalQuantity += product.quantity;
-      if (product.note) {
-        existingProduct.notes.add(product.note);
+      component = InvoicePDF({
+        invoice: {
+          ...data,
+          total_price: Math.abs(data.total_price),
+          vat_amount: Math.abs(data.vat_amount || 0),
+          type: data.type || 'regular',
+          currency: data.currency || 'usd',
+          payment_term: data.payment_term || 'N/A',
+          delivery_date: data.delivery_date || '',
+          payment_info: data.payment_info || 'frisson_llc'
+        },
+        entity: entityData,
+        company: companyData,
+        isClientInvoice
+      })
+
+      const filePrefix = data.type === 'return' ? 'return_invoice' : 'invoice'
+      fileName = `${filePrefix}_${data.id || 'unknown'}.pdf`
+      break
+    }
+
+    case 'receipt': {
+      let entityData2, companyData2, invoiceData, isClientReceipt
+      if (data.client_id) {
+        isClientReceipt = true
+        entityData2 = await fetchClientDetails(data.client_id)
+        companyData2 = await fetchCompanyDetails(entityData2.company_id)
+        invoiceData = await fetchInvoiceDetails(data.invoice_id, true)
+      } else if (data.supplier_id) {
+        isClientReceipt = false
+        entityData2 = await fetchSupplierDetails(data.supplier_id)
+        companyData2 = await fetchCompanyDetails(entityData2.company_id)
+        invoiceData = await fetchInvoiceDetails(data.invoice_id, false)
+      } else {
+        throw new Error('Invalid receipt: missing client_id or supplier_id. Please provide a valid entity.')
       }
-      productMap.set(key, existingProduct);
-    })
-  );
 
-  const productsArray = Array.from(productMap.values()).map(product => ({
-    ...product,
-    notes: Array.from(product.notes)
-  }));
+      component = ReceiptPDF({
+        receipt: data,
+        entity: entityData2,
+        company: companyData2,
+        invoice: invoiceData,
+        isClient: isClientReceipt
+      })
+      fileName = `receipt_${data.id || 'unknown'}.pdf`
+      break
+    }
 
-  data = {
-    ...data,
-    products: productsArray,
-    discounts: data.discounts || {},
-    type: data.type || 'regular',
-    payment_info: data.payment_info || 'frisson_llc' // Add default payment_info
-  };
-}
+    case 'quotation': {
+      if (!data.client_id) {
+        throw new Error('Invalid quotation: missing client_id. Please provide a valid client.')
+      }
+      // Fetch base data for quotation.
+      const quotationClientData = await fetchClientDetails(data.client_id)
+      const quotationCompanyData = await fetchCompanyDetails(
+        quotationClientData.company_id
+      )
 
+      // Prepare quotation data with defaults.
+      const preparedQuotationData = {
+        ...data,
+        currency: data.currency || 'usd',
+        payment_term: data.payment_term || 'N/A',
+        delivery_date: data.delivery_date || '',
+        order_number: data.order_number || '0',
+        discounts: data.discounts || {},
+        products: data.products.map((product: { sizes: any; notes: any; note: any }) => ({
+          ...product,
+          totalQuantity: Object.values(product.sizes || {}).reduce(
+            (sum:any, quantity:any) => sum + Number(quantity || 0),
+            0
+          ),
+          notes: Array.isArray(product.notes)
+            ? product.notes
+            : [product.note].filter(Boolean)
+        }))
+      }
 
-	switch (type) {
-		case 'invoice':
-			let entityData, companyData, isClientInvoice
-			if (data.client_id) {
-				isClientInvoice = true
-				entityData = await fetchClientDetails(data.client_id)
-				companyData = await fetchCompanyDetails(entityData.company_id)
-			} else if (data.supplier_id) {
-				isClientInvoice = false
-				entityData = await fetchSupplierDetails(data.supplier_id)
-				companyData = await fetchCompanyDetails(entityData.company_id)
-			} else {
-				throw new Error('Invalid invoice: missing client_id or supplier_id')
-			}
+      component = QuotationPDF({
+        quotation: preparedQuotationData,
+        client: quotationClientData,
+        company: quotationCompanyData,
+        logoBase64: data.logoBase64 || ''
+      })
 
-			component = InvoicePDF({
-				invoice: {
-					...data,
-					total_price: Math.abs(data.total_price),
-					vat_amount: Math.abs(data.vat_amount || 0),
-					type: data.type || 'regular',
-					currency: data.currency || 'usd',
-					payment_term: data.payment_term,
-					delivery_date: data.delivery_date,
-					payment_info: data.payment_info || 'frisson_llc' // Add payment_info with default
-				},
-				entity: entityData,
-				company: companyData,
-				isClientInvoice
-			})
+      fileName = `quotation_${data.id || 'unknown'}.pdf`
+      break
+    }
 
-			const filePrefix = data.type === 'return' ? 'return_invoice' : 'invoice'
-			fileName = `${filePrefix}_${data.id}.pdf`
-			break
+    case 'clientFinancialReport': {
+      if (!data.clientId) {
+        throw new Error('Invalid client financial report: missing clientId.')
+      }
+      const clientReportData = await fetchClientDetails(data.clientId)
+      const clientCompanyData = await fetchCompanyDetails(clientReportData.company_id)
+      const clientFinancialData = await fetchClientFinancialData(data.clientId)
 
-		case 'receipt':
-			let entityData2, companyData2, invoiceData, isClientReceipt
-			if (data.client_id) {
-				isClientReceipt = true
-				entityData2 = await fetchClientDetails(data.client_id)
-				companyData2 = await fetchCompanyDetails(entityData2.company_id)
-				invoiceData = await fetchInvoiceDetails(data.invoice_id, true)
-			} else if (data.supplier_id) {
-				isClientReceipt = false
-				entityData2 = await fetchSupplierDetails(data.supplier_id)
-				companyData2 = await fetchCompanyDetails(entityData2.company_id)
-				invoiceData = await fetchInvoiceDetails(data.invoice_id, false)
-			} else {
-				throw new Error('Invalid receipt: missing client_id or supplier_id')
-			}
+      component = ClientFinancialReportPDF({
+        clientName: clientReportData.name,
+        clientDetails: clientReportData,
+        companyDetails: clientCompanyData,
+        financialData: clientFinancialData
+      })
+      fileName = `financial_report_${clientReportData.name.replace(/\s+/g, '_') || 'client'}.pdf`
+      break
+    }
 
-			component = ReceiptPDF({
-				receipt: data,
-				entity: entityData2,
-				company: companyData2,
-				invoice: invoiceData,
-				isClient: isClientReceipt
-			})
-			fileName = `receipt_${data.id}.pdf`
-			break
+    case 'supplierFinancialReport': {
+      if (!data.supplierId) {
+        throw new Error('Invalid supplier financial report: missing supplierId.')
+      }
+      const supplierData = await fetchSupplierDetails(data.supplierId)
+      const supplierCompanyData = await fetchCompanyDetails(supplierData.company_id)
+      const supplierFinancialData = await fetchSupplierFinancialData(data.supplierId)
 
-		case 'quotation':
-			// 1. Fetch base data
-			const quotationClientData = await fetchClientDetails(data.client_id)
-			const quotationCompanyData = await fetchCompanyDetails(
-				quotationClientData.company_id
-			)
+      component = SupplierFinancialReportPDF({
+        supplierName: supplierData.name,
+        supplierDetails: supplierData,
+        companyDetails: supplierCompanyData,
+        financialData: supplierFinancialData
+      })
+      fileName = `financial_report_${supplierData.name.replace(/\s+/g, '_') || 'supplier'}.pdf`
+      break
+    }
 
-			// 2. Transform and prepare data with new fields
-			const preparedQuotationData = {
-				...data,
-				// Ensure all new fields are included
-				currency: data.currency || 'usd',
-				payment_term: data.payment_term || '',
-				delivery_date: data.delivery_date || '',
-				order_number: data.order_number || '0',
-				discounts: data.discounts || {},
+    default:
+      throw new Error(`Invalid PDF type: ${type}. Please choose a valid PDF type.`)
+  }
 
-				// Transform products with additional calculations
-				products: data.products.map((product: any) => ({
-					...product,
-					totalQuantity: Object.values(product.sizes as number[]).reduce(
-						(sum: number, quantity: number) => sum + quantity,
-						0
-					),
-					// Handle notes array consistently
-					notes: Array.isArray(product.notes)
-						? product.notes
-						: [product.note].filter(Boolean)
-				}))
-			}
-
-			// 3. Generate component with prepared data
-			component = QuotationPDF({
-				quotation: preparedQuotationData,
-				client: quotationClientData,
-				company: quotationCompanyData,
-				logoBase64: data.logoBase64 // Optional: If you're using a logo
-			})
-
-			// 4. Set filename
-			fileName = `quotation_${data.id}.pdf`
-			break
-
-		case 'clientFinancialReport':
-			const clientReportData = await fetchClientDetails(data.clientId)
-			const clientCompanyData = await fetchCompanyDetails(
-				clientReportData.company_id
-			)
-			const clientFinancialData = await fetchClientFinancialData(data.clientId)
-
-			component = ClientFinancialReportPDF({
-				clientName: clientReportData.name,
-				clientDetails: clientReportData,
-				companyDetails: clientCompanyData,
-				financialData: clientFinancialData
-			})
-			fileName = `financial_report_${clientReportData.name.replace(
-				/\s+/g,
-				'_'
-			)}.pdf`
-			break
-
-		case 'supplierFinancialReport':
-			const supplierData = await fetchSupplierDetails(data.supplierId)
-			const supplierCompanyData = await fetchCompanyDetails(
-				supplierData.company_id
-			)
-			const supplierFinancialData = await fetchSupplierFinancialData(
-				data.supplierId
-			)
-
-			component = SupplierFinancialReportPDF({
-				supplierName: supplierData.name,
-				supplierDetails: supplierData,
-				companyDetails: supplierCompanyData,
-				financialData: supplierFinancialData
-			})
-			fileName = `financial_report_${supplierData.name.replace(
-				/\s+/g,
-				'_'
-			)}.pdf`
-			break
-
-		default:
-			throw new Error(`Invalid PDF type: ${type}`)
-	}
-
-	const blob = await pdf(component).toBlob()
-	const url = URL.createObjectURL(blob)
-	const link = document.createElement('a')
-	link.href = url
-	link.download = fileName
-	document.body.appendChild(link)
-	link.click()
-	document.body.removeChild(link)
+  // Generate the PDF blob and trigger download.
+  try {
+    const blob = await pdf(component).toBlob()
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  } catch (err:any) {
+    throw new Error(`PDF generation failed: ${err.message}`)
+  }
 }
