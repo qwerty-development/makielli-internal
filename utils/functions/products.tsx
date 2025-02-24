@@ -44,77 +44,97 @@ export const productFunctions = {
 	},
 
 	// Add cost when updating a product
-	async updateProduct(
-		id: string,
-		updates: Partial<Omit<Product, 'variants'>>,
-		variants: Partial<ProductVariant>[]
-	): Promise<Product> {
-		const { data: updatedProduct, error: productError } = await supabase
-			.from('Products')
-			.update(updates)
-			.eq('id', id)
-			.select()
-			.single()
+async updateProduct(
+  id: string,
+  updates: Partial<Omit<Product, 'variants'>>,
+  variants: Partial<ProductVariant>[]
+): Promise<Product> {
+  const { data: updatedProduct, error: productError } = await supabase
+    .from('Products')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
 
-		if (productError) throw productError
+  if (productError) throw productError
 
-		// Fetch existing variants
-		const { data: existingVariants, error: fetchError } = await supabase
-			.from('ProductVariants')
-			.select('*')
-			.eq('product_id', id)
+  // Fetch existing variants for the product
+  const { data: existingVariants, error: fetchError } = await supabase
+    .from('ProductVariants')
+    .select('*')
+    .eq('product_id', id)
 
-		if (fetchError) throw fetchError
+  if (fetchError) throw fetchError
 
-		// Update existing variants and add new ones
-		for (const variant of variants) {
-			if (variant.id) {
-				// Update existing variant
-				const { error } = await supabase
-					.from('ProductVariants')
-					.update({
-						size: variant.size,
-						color: variant.color,
-						quantity: variant.quantity
-					})
-					.eq('id', variant.id)
-				if (error) throw error
-			} else {
-				// Add new variant
-				const { error } = await supabase.from('ProductVariants').insert({
-					size: variant.size,
-					color: variant.color,
-					quantity: variant.quantity,
-					product_id: id
-				})
-				if (error) throw error
-			}
-		}
+  // Process each provided variant (for update or insert)
+  for (const variant of variants) {
+    if (variant.id) {
+      // Update existing variant by id
+      const { error } = await supabase
+        .from('ProductVariants')
+        .update({
+          size: variant.size,
+          color: variant.color,
+          quantity: variant.quantity
+        })
+        .eq('id', variant.id)
+      if (error) throw error
+    } else {
+      // Check if a variant with same product_id, size, and color already exists
+      const { data: existingVariant, error: checkError } = await supabase
+        .from('ProductVariants')
+        .select('*')
+        .eq('product_id', id)
+        .eq('size', variant.size)
+        .eq('color', variant.color)
+        .maybeSingle()
+      if (checkError) throw checkError
 
-		// Remove variants that are no longer present
-		const variantIdsToKeep = variants.filter(v => v.id).map(v => v.id)
-		const variantIdsToRemove = existingVariants
-			.filter(v => !variantIdsToKeep.includes(v.id))
-			.map(v => v.id)
+      if (existingVariant) {
+        // Update that variant with the new quantity instead of inserting a duplicate
+        const { error } = await supabase
+          .from('ProductVariants')
+          .update({ quantity: variant.quantity })
+          .eq('id', existingVariant.id)
+        if (error) throw error
+      } else {
+        // Insert as new variant if not found
+        const { error } = await supabase.from('ProductVariants').insert({
+          size: variant.size,
+          color: variant.color,
+          quantity: variant.quantity,
+          product_id: id
+        })
+        if (error) throw error
+      }
+    }
+  }
 
-		if (variantIdsToRemove.length > 0) {
-			const { error } = await supabase
-				.from('ProductVariants')
-				.delete()
-				.in('id', variantIdsToRemove)
-			if (error) throw error
-		}
+  // Remove variants that are no longer present
+  const variantIdsToKeep = variants.filter(v => v.id).map(v => v.id)
+  const variantIdsToRemove = existingVariants
+    .filter(v => !variantIdsToKeep.includes(v.id))
+    .map(v => v.id)
 
-		// Fetch updated variants
-		const { data: updatedVariants, error: variantError } = await supabase
-			.from('ProductVariants')
-			.select('*')
-			.eq('product_id', id)
+  if (variantIdsToRemove.length > 0) {
+    const { error } = await supabase
+      .from('ProductVariants')
+      .delete()
+      .in('id', variantIdsToRemove)
+    if (error) throw error
+  }
 
-		if (variantError) throw variantError
+  // Fetch updated variants
+  const { data: updatedVariants, error: variantError } = await supabase
+    .from('ProductVariants')
+    .select('*')
+    .eq('product_id', id)
 
-		return { ...updatedProduct, variants: updatedVariants }
-	},
+  if (variantError) throw variantError
+
+  return { ...updatedProduct, variants: updatedVariants }
+},
+
 
 	// Fetch 'cost' along with products
 	async getAllProducts(): Promise<Product[]> {
