@@ -786,20 +786,20 @@ const QuotationsPage: React.FC = () => {
 									htmlFor='date'>
 									Date
 								</label>
-								<DatePicker
-									selected={
-										newQuotation.created_at
-											? new Date(newQuotation.created_at)
-											: null
-									}
-									onChange={(date: Date | null) =>
-										setNewQuotation({
-											...newQuotation,
-											created_at: date ? date.toISOString() : ''
-										})
-									}
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
-								/>
+						<DatePicker
+  selected={
+    newQuotation.created_at
+      ? new Date(newQuotation.created_at)
+      : new Date()
+  }
+  onChange={(date: Date | null) =>
+    setNewQuotation({
+      ...newQuotation,
+      created_at: date ? date.toISOString() : ''
+    })
+  }
+  className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+/>
 							</div>
 							<div className='mb-4'>
 								<label
@@ -809,6 +809,7 @@ const QuotationsPage: React.FC = () => {
 								</label>
 								<select
 									id='client'
+                  required
 									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 									value={newQuotation.client_id}
 									onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
@@ -1053,19 +1054,18 @@ const QuotationsPage: React.FC = () => {
 									Currency
 								</label>
 								<select
-									id='currency'
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
-									value={newQuotation.currency || 'usd'}
-									onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-										setNewQuotation({
-											...newQuotation,
-											currency: e.target.value as 'usd' | 'euro'
-										})
-									}
-									required>
-									<option value='usd'>USD ($)</option>
-									<option value='euro'>EUR (€)</option>
-								</select>
+  required
+  value={newQuotation.currency || 'usd'}
+  onChange={(e:any) =>
+    setNewQuotation({
+      ...newQuotation,
+      currency: e.target.value || "usd"
+    })
+  }
+>
+  <option value='usd'>USD ($)</option>
+  <option value='euro'>EUR (€)</option>
+</select>
 							</div>
 
 							<div className='mb-4'>
@@ -1075,16 +1075,15 @@ const QuotationsPage: React.FC = () => {
 									Payment Terms
 								</label>
 								<select
-									id='payment_term'
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
-									value={newQuotation.payment_term || ''}
-									onChange={(e: any) =>
-										setNewQuotation({
-											...newQuotation,
-											payment_term: e.target.value
-										})
-									}
-									required>
+  required
+  value={newQuotation.payment_term || '30% deposit 70% before shipping'}
+  onChange={(e:any) =>
+    setNewQuotation({
+      ...newQuotation,
+      payment_term: e.target.value || '30% deposit 70% before shipping'
+    })
+  }
+>
 									<option value=''>Select Payment Term</option>
 									<option value='100% after delivery'>
 										100% after delivery
@@ -1108,17 +1107,17 @@ const QuotationsPage: React.FC = () => {
 									Delivery Date
 								</label>
 								<DatePicker
-									selected={
-										newQuotation.delivery_date
-											? new Date(newQuotation.delivery_date)
-											: null
-									}
-									onChange={(date: Date | null) =>
-										setNewQuotation({
-											...newQuotation,
-											delivery_date: date ? date.toISOString() : ''
-										})
-									}
+									 selected={
+    newQuotation.delivery_date
+      ? new Date(newQuotation.delivery_date)
+      : new Date()
+  }
+  onChange={(date: Date | null) =>
+    setNewQuotation({
+      ...newQuotation,
+      delivery_date: date ? date.toISOString() : new Date().toISOString()
+    })
+  }
 									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 									minDate={new Date()}
 									placeholderText='Select delivery date'
