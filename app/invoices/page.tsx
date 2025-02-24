@@ -118,9 +118,7 @@ const PAYMENT_INFO_CONFIG = {
 	}
 }
 
-const PaymentInfoDisplay: React.FC<{
-	option: PaymentInfoOption
-}> = ({ option }) => {
+const PaymentInfoDisplay: React.FC<{ option: PaymentInfoOption }> = ({ option }) => {
 	const config = PAYMENT_INFO_CONFIG[option]
 	const details: any = config.details
 
@@ -128,29 +126,29 @@ const PaymentInfoDisplay: React.FC<{
 		return (
 			<div className='mt-4 text-sm'>
 				<p>
-					<strong>Intermediary Bank:</strong> {details.intermediaryBank}
+					<strong>Intermediary Bank:</strong> {details.intermediaryBank || 'N/A'}
 				</p>
 				<p>
-					<strong>Intermediary SWIFT:</strong> {details.intermediarySwift}
+					<strong>Intermediary SWIFT:</strong> {details.intermediarySwift || 'N/A'}
 				</p>
 				<p>
-					<strong>IBAN:</strong> {details.iban} {details.ibanDetails}
+					<strong>IBAN:</strong> {details.iban || 'N/A'} {details.ibanDetails || ''}
 				</p>
 				<p>
-					<strong>Beneficiary Bank:</strong> {details.beneficiaryBank}
+					<strong>Beneficiary Bank:</strong> {details.beneficiaryBank || 'N/A'}
 				</p>
 				<p>
-					<strong>Beneficiary Account:</strong> {details.beneficiaryAccount}{' '}
-					{details.beneficiaryAccountDetails}
+					<strong>Beneficiary Account:</strong> {details.beneficiaryAccount || 'N/A'}{' '}
+					{details.beneficiaryAccountDetails || ''}
 				</p>
 				<p>
-					<strong>Beneficiary:</strong> {details.beneficiary}
+					<strong>Beneficiary:</strong> {details.beneficiary || 'N/A'}
 				</p>
 				<p>
-					<strong>Account Number:</strong> {details.accountNumber}
+					<strong>Account Number:</strong> {details.accountNumber || 'N/A'}
 				</p>
 				<p>
-					<strong>Routing Number:</strong> {details.routingNumber}
+					<strong>Routing Number:</strong> {details.routingNumber || 'N/A'}
 				</p>
 			</div>
 		)
@@ -159,51 +157,33 @@ const PaymentInfoDisplay: React.FC<{
 	return (
 		<div className='mt-4 text-sm'>
 			<p>
-				<strong>Bank:</strong> {details.bank}
+				<strong>Bank:</strong> {details.bank || 'N/A'}
 			</p>
 			<p>
 				<strong>Bank Address:</strong>{' '}
 				{details.bankAddress
-					.split('\n')
-					.map(
-						(
-							line:
-								| string
-								| number
-								| bigint
-								| boolean
-								| React.ReactElement<
-										any,
-										string | React.JSXElementConstructor<any>
-								  >
-								| Iterable<React.ReactNode>
-								| React.ReactPortal
-								| Promise<React.AwaitedReactNode>
-								| null
-								| undefined,
-							i: React.Key | null | undefined
-						) => (
+					? details.bankAddress.split('\n').map((line: string | number | bigint | boolean | React.ReactElement<any, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | Promise<React.AwaitedReactNode> | null | undefined, i: React.Key | null | undefined) => (
 							<React.Fragment key={i}>
 								{line}
 								<br />
 							</React.Fragment>
-						)
-					)}
+					  ))
+					: 'N/A'}
 			</p>
 			<p>
-				<strong>ABA:</strong> {details.aba}
+				<strong>ABA:</strong> {details.aba || 'N/A'}
 			</p>
 			<p>
-				<strong>SWIFT:</strong> {details.swift}
+				<strong>SWIFT:</strong> {details.swift || 'N/A'}
 			</p>
 			<p>
-				<strong>Account Name:</strong> {details.accountName}
+				<strong>Account Name:</strong> {details.accountName || 'N/A'}
 			</p>
 			<p>
-				<strong>Account Number:</strong> {details.accountNumber}
+				<strong>Account Number:</strong> {details.accountNumber || 'N/A'}
 			</p>
 			<p>
-				<strong>Routing Number:</strong> {details.routingNumber}
+				<strong>Routing Number:</strong> {details.routingNumber || 'N/A'}
 			</p>
 		</div>
 	)
@@ -226,7 +206,7 @@ const InvoicesPage: React.FC = () => {
 	const [totalInvoices, setTotalInvoices] = useState(0)
 
 	const formRef = useRef<HTMLFormElement>(null)
-  const scrollPositionRef = useRef(0)
+	const scrollPositionRef = useRef(0)
 	const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
 	const [loadingStates, setLoadingStates] = useState<LoadingStates>({
 		isMainLoading: true,
@@ -238,9 +218,7 @@ const InvoicesPage: React.FC = () => {
 		isFileUploading: false
 	})
 
-	const [editingProductIndex, setEditingProductIndex] = useState<number | null>(
-		null
-	)
+	const [editingProductIndex, setEditingProductIndex] = useState<number | null>(null)
 	const [newInvoice, setNewInvoice] = useState<Partial<Invoice>>({
 		created_at: new Date().toISOString(),
 		total_price: 0,
@@ -254,9 +232,7 @@ const InvoicesPage: React.FC = () => {
 		type: 'regular',
 		currency: 'usd',
 		payment_term: '30% deposit 70% before shipping',
-		delivery_date: new Date(
-			new Date().setMonth(new Date().getMonth() + 1)
-		).toISOString(),
+		delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(),
 		payment_info: 'frisson_llc'
 	})
 	const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -265,24 +241,23 @@ const InvoicesPage: React.FC = () => {
 	const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
 	const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
 	const [selectedVariants, setSelectedVariants] = useState<InvoiceProduct[]>([])
-	const [originalInvoiceData, setOriginalInvoiceData] =
-		useState<Invoice | null>(null)
+	const [originalInvoiceData, setOriginalInvoiceData] = useState<Invoice | null>(null)
 
-const saveScrollPosition = () => {
-  if (formRef.current) {
-    scrollPositionRef.current = formRef.current.scrollTop
-  }
-}
+	const saveScrollPosition = () => {
+		if (formRef.current) {
+			scrollPositionRef.current = formRef.current.scrollTop
+		}
+	}
 
-const restoreScrollPosition = useCallback(() => {
-  if (formRef.current && scrollPositionRef.current > 0) {
-    formRef.current.scrollTop = scrollPositionRef.current
-  }
-}, [])
+	const restoreScrollPosition = useCallback(() => {
+		if (formRef.current && scrollPositionRef.current > 0) {
+			formRef.current.scrollTop = scrollPositionRef.current
+		}
+	}, [])
 
-useEffect(() => {
-  restoreScrollPosition()
-}, [restoreScrollPosition, newInvoice])
+	useEffect(() => {
+		restoreScrollPosition()
+	}, [restoreScrollPosition, newInvoice])
 
 	useEffect(() => {
 		fetchInvoices()
@@ -323,7 +298,7 @@ useEffect(() => {
 		toast.error(errorMessage)
 	}
 
-	// Add loading state helper
+	// Loading state helper
 	const updateLoadingState = (key: keyof LoadingStates, value: boolean) => {
 		setLoadingStates(prev => ({ ...prev, [key]: value }))
 	}
@@ -459,20 +434,20 @@ useEffect(() => {
 		const isClientInvoice = activeTab === 'client'
 
 		try {
-			// Validate entity ID first
+			// Validate entity ID
 			const entityId: any = getEntityId(newInvoice)
 
-    if (newInvoice.products?.some(p => !p.product_variant_id)) {
-    toast.error("All products must have a valid variant selected.");
-    return;
-  }
+			// Ensure all products have valid variant IDs
+			if (newInvoice.products?.some(p => !p.product_variant_id)) {
+				toast.error("All products must have a valid variant selected.")
+				return
+			}
 
+			// If delivery_date is missing, default to one month from now
 			if (!newInvoice.delivery_date) {
 				setNewInvoice(prev => ({
 					...prev,
-					delivery_date: new Date(
-						new Date().setMonth(new Date().getMonth() + 1)
-					).toISOString()
+					delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString()
 				}))
 			}
 
@@ -480,7 +455,7 @@ useEffect(() => {
 			if (!newInvoice.payment_info) {
 				setNewInvoice(prev => ({
 					...prev,
-					payment_info: 'frisson_llc' // Set default payment info if not specified
+					payment_info: 'frisson_llc'
 				}))
 			}
 
@@ -509,7 +484,7 @@ useEffect(() => {
 				currency: newInvoice.currency || 'usd',
 				payment_term: newInvoice.payment_term,
 				delivery_date: newInvoice.delivery_date,
-				payment_info: newInvoice.payment_info || 'frisson_llc' // Ensure payment_info is included
+				payment_info: newInvoice.payment_info || 'frisson_llc'
 			}
 
 			if (newInvoice.id && originalInvoiceData) {
@@ -535,7 +510,7 @@ useEffect(() => {
 					false
 				)
 
-				const oldAmount = originalInvoiceData.total_price
+				const oldAmount = originalInvoiceData.total_price || 0
 				const balanceChange = finalTotalPrice - oldAmount
 				await updateEntityBalance(balanceChange, entityId)
 
@@ -586,28 +561,22 @@ useEffect(() => {
 	) => {
 		for (const product of products) {
 			try {
-				// Calculate quantity change direction
 				let quantityChange = isClientInvoice
 					? -product.quantity
 					: product.quantity
 
-				// Adjust for returns
 				if (isReturn) {
 					quantityChange = -quantityChange
 				}
 
-				// Adjust for reversals (when undoing previous changes)
 				if (isReversal) {
 					quantityChange = -quantityChange
 				}
 
-				const { error } = await supabase.rpc(
-					'update_product_variant_quantity',
-					{
-						variant_id: product.product_variant_id,
-						quantity_change: quantityChange
-					}
-				)
+				const { error } = await supabase.rpc('update_product_variant_quantity', {
+					variant_id: product.product_variant_id,
+					quantity_change: quantityChange
+				})
 
 				if (error) throw error
 			} catch (error: any) {
@@ -625,15 +594,12 @@ useEffect(() => {
 		try {
 			const table = activeTab === 'client' ? 'Clients' : 'Suppliers'
 			const field = activeTab === 'client' ? 'client_id' : 'id'
-
-			// Use forcedEntityId if provided, otherwise get from newInvoice
 			const id = forcedEntityId || getEntityId(newInvoice)
 
 			if (!id) {
 				throw new Error('No valid entity ID found')
 			}
 
-			// Fetch current balance
 			const { data, error } = await supabase
 				.from(table)
 				.select('balance')
@@ -647,7 +613,6 @@ useEffect(() => {
 			const currentBalance = data?.balance || 0
 			const newBalance = currentBalance + amount
 
-			// Update balance
 			const { error: updateError } = await supabase
 				.from(table)
 				.update({ balance: newBalance })
@@ -659,7 +624,7 @@ useEffect(() => {
 		} catch (error: any) {
 			console.error('Balance update error:', error)
 			toast.error(error.message || 'Error updating balance')
-			throw error // Re-throw to handle in calling function
+			throw error
 		}
 	}
 
@@ -674,7 +639,6 @@ useEffect(() => {
 		const isClientInvoice = activeTab === 'client'
 
 		try {
-			// Fetch invoice data
 			const { data: invoiceData, error: fetchError } = await supabase
 				.from(table)
 				.select('*')
@@ -684,25 +648,21 @@ useEffect(() => {
 			if (fetchError)
 				throw new Error(`Error fetching invoice: ${fetchError.message}`)
 
-			// Validate entity ID
 			const entityId = isClientInvoice
 				? invoiceData.client_id
 				: invoiceData.supplier_id
 			if (!entityId) {
-				throw new Error(
-					`${isClientInvoice ? 'Client' : 'Supplier'} ID not found in invoice`
-				)
+				throw new Error(`${isClientInvoice ? 'Client' : 'Supplier'} ID not found in invoice`)
 			}
 
-			// Delete files
 			await Promise.all(
-				invoiceData.files.map((fileUrl: string) => handleFileDelete(fileUrl))
+				(invoiceData.files || []).map((fileUrl: string) => handleFileDelete(fileUrl))
 			)
 
 			const isReturn = invoiceData.type === 'return'
 			const quantityMultiplier = isReturn ? -1 : 1
 			await Promise.all(
-				invoiceData.products.map(
+				(invoiceData.products || []).map(
 					(product: { product_variant_id: any; quantity: number }) =>
 						supabase.rpc('update_product_variant_quantity', {
 							variant_id: product.product_variant_id,
@@ -711,7 +671,6 @@ useEffect(() => {
 				)
 			)
 
-			// Delete invoice
 			const { error: deleteError } = await supabase
 				.from(table)
 				.delete()
@@ -719,10 +678,7 @@ useEffect(() => {
 
 			if (deleteError) throw deleteError
 
-			const balanceChange = isReturn
-				? -invoiceData.total_price
-				: -invoiceData.total_price
-
+			const balanceChange = -invoiceData.total_price
 			await updateEntityBalance(balanceChange, entityId)
 
 			toast.success('Invoice deleted successfully')
@@ -749,13 +705,10 @@ useEffect(() => {
 			const entityId = isClientInvoice ? invoice.client_id : invoice.supplier_id
 
 			if (!entityId) {
-				throw new Error(
-					`${isClientInvoice ? 'Client' : 'Supplier'} ID not found in invoice`
-				)
+				throw new Error(`${isClientInvoice ? 'Client' : 'Supplier'} ID not found in invoice`)
 			}
 
-			const table =
-				activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
+			const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
 			const { data: currentInvoice, error: fetchError } = await supabase
 				.from(table)
 				.select('*')
@@ -765,19 +718,17 @@ useEffect(() => {
 			if (fetchError)
 				throw new Error(`Error fetching invoice: ${fetchError.message}`)
 
-			// Store original invoice data for comparison
 			setOriginalInvoiceData({
 				...currentInvoice,
-				products: [...currentInvoice.products],
+				products: [...(currentInvoice.products || [])],
 				discounts: { ...(currentInvoice.discounts || {}) },
 				type: currentInvoice.type,
-				payment_info: currentInvoice.payment_info || 'frisson_llc' // Include payment_info in original data
+				payment_info: currentInvoice.payment_info || 'frisson_llc'
 			})
 
-			// Set all required fields explicitly, including the entity ID
 			const updatedInvoice = {
 				...currentInvoice,
-				products: [...currentInvoice.products],
+				products: [...(currentInvoice.products || [])],
 				discounts: { ...(currentInvoice.discounts || {}) },
 				type: currentInvoice.type || 'regular',
 				created_at: currentInvoice.created_at,
@@ -791,10 +742,8 @@ useEffect(() => {
 				payment_term: currentInvoice.payment_term || '',
 				delivery_date:
 					currentInvoice.delivery_date ||
-					new Date(
-						new Date().setMonth(new Date().getMonth() + 1)
-					).toISOString(),
-				payment_info: currentInvoice.payment_info || 'frisson_llc', // Include payment_info in updated invoice
+					new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(),
+				payment_info: currentInvoice.payment_info || 'frisson_llc',
 				client_id: isClientInvoice ? entityId : undefined,
 				supplier_id: !isClientInvoice ? entityId : undefined
 			}
@@ -816,48 +765,46 @@ useEffect(() => {
 		setFilterEntity(id)
 		setCurrentPage(1)
 	}
-const handleAddProduct = (product: Product) => {
 
-  if (!product.variants || product.variants.length === 0) {
-    toast.error("This product has no available variants.");
-    return;
-  }
-  setSelectedProduct(product);
-  setSelectedVariants([
-    {
-      product_id: product.id,
-      product_variant_id: product.variants[0].id, // Use the first variant's ID directly.
-      quantity: 1,
-      note: ''
-    }
-  ]);
-  // Initialize discount for this product if not already set.
-  if (!newInvoice.discounts?.[product.id]) {
-    setNewInvoice(prev => ({
-      ...prev,
-      discounts: { ...prev.discounts, [product.id]: 0 }
-    }));
-  }
-};
+	const handleAddProduct = (product: Product) => {
+		if (!product.variants || product.variants.length === 0) {
+			toast.error("This product has no available variants.")
+			return
+		}
+		setSelectedProduct(product)
+		setSelectedVariants([
+			{
+				product_id: product.id,
+				product_variant_id: product.variants[0].id,
+				quantity: 1,
+				note: ''
+			}
+		])
+		if (!newInvoice.discounts?.[product.id]) {
+			setNewInvoice(prev => ({
+				...prev,
+				discounts: { ...prev.discounts, [product.id]: 0 }
+			}))
+		}
+	}
 
-const handleAddVariant = () => {
-  if (selectedProduct) {
-    if (!selectedProduct.variants || selectedProduct.variants.length === 0) {
-      toast.error("This product has no available variants.");
-      return;
-    }
-    setSelectedVariants([
-      ...selectedVariants,
-      {
-        product_id: selectedProduct.id,
-        product_variant_id: selectedProduct.variants[0].id, // Default to the first variant.
-        quantity: 1,
-        note: ''
-      }
-    ]);
-  }
-};
-
+	const handleAddVariant = () => {
+		if (selectedProduct) {
+			if (!selectedProduct.variants || selectedProduct.variants.length === 0) {
+				toast.error("This product has no available variants.")
+				return
+			}
+			setSelectedVariants([
+				...selectedVariants,
+				{
+					product_id: selectedProduct.id,
+					product_variant_id: selectedProduct.variants[0].id,
+					quantity: 1,
+					note: ''
+				}
+			])
+		}
+	}
 
 	const handleRemoveVariant = (index: number) => {
 		const updatedVariants = selectedVariants.filter((_, i) => i !== index)
@@ -886,7 +833,6 @@ const handleAddVariant = () => {
 			discounts: { ...prev.discounts, [productId]: discount }
 		}))
 
-		// Recalculate total price
 		const isClientInvoice = activeTab === 'client'
 		const { totalPrice, vatAmount } = calculateTotalPrice(
 			newInvoice.products || [],
@@ -901,14 +847,12 @@ const handleAddVariant = () => {
 		}))
 	}
 
-
-
 	const handleRemoveProduct = (index: number) => {
 		const updatedProducts = newInvoice.products?.filter((_, i) => i !== index)
 		const isClientInvoice = activeTab === 'client'
 		const { totalPrice, vatAmount } = calculateTotalPrice(
 			updatedProducts || [],
-			newInvoice.discounts || {}, // Add this line
+			newInvoice.discounts || {},
 			isClientInvoice,
 			newInvoice.include_vat || false
 		)
@@ -932,77 +876,66 @@ const handleAddVariant = () => {
 		try {
 			const recipientEmail =
 				activeTab === 'client'
-					? clients.find(client => client.client_id === invoice.client_id)
-							?.email
-					: suppliers.find(supplier => supplier.id === invoice.supplier_id)
-							?.email
+					? clients.find(client => client.client_id === invoice.client_id)?.email
+					: suppliers.find(supplier => supplier.id === invoice.supplier_id)?.email
 
 			const recipientName =
 				activeTab === 'client'
 					? clients.find(client => client.client_id === invoice.client_id)?.name
-					: suppliers.find(supplier => supplier.id === invoice.supplier_id)
-							?.name
+					: suppliers.find(supplier => supplier.id === invoice.supplier_id)?.name
 
 			if (!recipientEmail || !recipientName) {
 				throw new Error('Recipient information not found')
 			}
 
-			const productsWithDetails = invoice.products.map(product => {
+			const productsWithDetails = invoice.products?.map(product => {
 				const parentProduct = products.find(p => p.id === product.product_id)
 				const variant = parentProduct?.variants.find(
 					v => v.id === product.product_variant_id
 				)
-
 				const sizeOptions = [
 					'OS',
-          'XXS',
+					'XXS',
 					'XS',
 					'S',
 					'M',
 					'L',
 					'XL',
 					'2XL',
-          '3XL',
+					'3XL',
 					'38',
 					'40',
 					'42',
 					'44',
 					'46'
 				]
-
 				const sizes = sizeOptions.reduce((acc: any, size: any) => {
 					acc[size] = 0
 					return acc
 				}, {})
-
 				if (variant) {
 					sizes[variant.size] = product.quantity
 				}
-
 				return {
 					product_variant_id: product.product_variant_id,
 					quantity: product.quantity,
 					note: product.note,
-					name: parentProduct?.name,
-					color: variant?.color,
+					name: parentProduct?.name || 'N/A',
+					color: variant?.color || 'N/A',
 					sizes: sizes,
-					unitPrice:
-						activeTab === 'client' ? parentProduct?.price : parentProduct?.cost, // Corrected property name
-					image: parentProduct?.photo
+					unitPrice: activeTab === 'client' ? parentProduct?.price : parentProduct?.cost,
+					image: parentProduct?.photo || ''
 				}
-			})
+			}) || []
 			const invoiceData = {
 				...invoice,
 				products: productsWithDetails,
-				[activeTab === 'client' ? 'client_name' : 'supplier_name']:
-					recipientName
+				[activeTab === 'client' ? 'client_name' : 'supplier_name']: recipientName
 			}
 
 			const response = await fetch('/api/send-invoice-email', {
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
+				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					invoice: invoiceData,
 					recipientEmail,
@@ -1034,9 +967,7 @@ const handleAddVariant = () => {
 				.from('Files')
 				.upload(fileName, selectedFile)
 
-			if (error) {
-				throw error
-			}
+			if (error) throw error
 
 			const { data: publicURLData } = supabase.storage
 				.from('Files')
@@ -1046,10 +977,7 @@ const handleAddVariant = () => {
 				throw new Error('Error getting public URL: No data returned')
 			}
 
-			const updatedFiles = [
-				...(newInvoice.files || []),
-				publicURLData.publicUrl
-			]
+			const updatedFiles = [...(newInvoice.files || []), publicURLData.publicUrl]
 			setNewInvoice({ ...newInvoice, files: updatedFiles })
 			toast.success('File uploaded successfully')
 			setSelectedFile(null)
@@ -1073,9 +1001,7 @@ const handleAddVariant = () => {
 				.from('Files')
 				.remove([fileName])
 
-			if (deleteError) {
-				throw deleteError
-			}
+			if (deleteError) throw deleteError
 
 			const updatedFiles = newInvoice.files?.filter(file => file !== fileUrl)
 			setNewInvoice({ ...newInvoice, files: updatedFiles })
@@ -1104,10 +1030,8 @@ const handleAddVariant = () => {
 			let updatedProducts = [...(newInvoice.products || [])]
 
 			if (editingProductIndex !== null) {
-				// Update existing product
 				updatedProducts[editingProductIndex] = selectedVariants[0]
 			} else {
-				// Add new products
 				updatedProducts = [...updatedProducts, ...selectedVariants]
 			}
 
@@ -1126,7 +1050,6 @@ const handleAddVariant = () => {
 				vat_amount: vatAmount
 			})
 
-			// Reset selection states
 			setSelectedProduct(null)
 			setSelectedVariants([])
 			setEditingProductIndex(null)
@@ -1147,9 +1070,7 @@ const handleAddVariant = () => {
 			type: 'regular',
 			currency: 'usd',
 			payment_term: '30% deposit 70% before shipping',
-			delivery_date: new Date(
-				new Date().setMonth(new Date().getMonth() + 1)
-			).toISOString(),
+			delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(),
 			client_id: undefined,
 			supplier_id: undefined,
 			payment_info: 'frisson_llc'
@@ -1173,13 +1094,12 @@ const handleAddVariant = () => {
 				<div
 					className='fixed inset-0 z-50 overflow-y-auto'
 					style={{
-						backdropFilter: 'blur(5px)', // Add blur effect to the background
-						WebkitBackdropFilter: 'blur(5px)' // For Safari
+						backdropFilter: 'blur(5px)',
+						WebkitBackdropFilter: 'blur(5px)'
 					}}>
 					<div
 						className='flex items-center justify-center min-h-screen'
-						onClick={e => e.stopPropagation()} // Prevent clicks on underlying elements
-					>
+						onClick={e => e.stopPropagation()}>
 						<div className='bg-gray bg-opacity-75 p-6 rounded-lg shadow-xl text-white'>
 							<FaSpinner className='animate-spin mx-auto text-6xl' />
 							<p className='mt-4 text-lg font-semibold'>Loading...</p>
@@ -1191,8 +1111,7 @@ const handleAddVariant = () => {
 	)
 
 	const renderInvoiceTable = () => (
-
-		          <div className='overflow-x-auto bg-white rounded-lg shadow'>
+		<div className='overflow-x-auto bg-white rounded-lg shadow'>
 			{loadingStates.isMainLoading ? (
 				<div className='flex justify-center items-center p-8'>
 					<FaSpinner className='animate-spin text-4xl text-blue' />
@@ -1207,14 +1126,12 @@ const handleAddVariant = () => {
 							<th
 								className='py-3 px-6 text-left cursor-pointer'
 								onClick={() => handleSort('created_at')}>
-								Date{' '}
-								{sortField === 'created_at' && <FaSort className='inline' />}
+								Date {sortField === 'created_at' && <FaSort className='inline' />}
 							</th>
 							<th
 								className='py-3 px-6 text-left cursor-pointer'
 								onClick={() => handleSort('total_price')}>
-								Total Price{' '}
-								{sortField === 'total_price' && <FaSort className='inline' />}
+								Total Price {sortField === 'total_price' && <FaSort className='inline' />}
 							</th>
 							<th className='py-3 px-6 text-left'>Order Number</th>
 							<th className='py-3 px-6 text-center'>Files</th>
@@ -1232,15 +1149,13 @@ const handleAddVariant = () => {
 								onClick={() => handleInvoiceClick(invoice)}>
 								<td className='py-3 px-6 text-left whitespace-nowrap'>
 									{activeTab === 'client'
-										? clients.find(
-												client => client.client_id === invoice.client_id
-										  )?.name
-										: suppliers.find(
-												supplier => supplier.id === invoice.supplier_id
-										  )?.name || '-'}
+										? clients.find(client => client.client_id === invoice.client_id)
+												?.name
+										: suppliers.find(supplier => supplier.id === invoice.supplier_id)
+												?.name || '-'}
 								</td>
 								<td className='py-3 px-6 text-left'>
-									{new Date(invoice.created_at).toLocaleDateString()}
+									{new Date(invoice.created_at).toLocaleDateString() || 'N/A'}
 								</td>
 								<td
 									className={`py-3 px-6 text-left ${
@@ -1248,12 +1163,12 @@ const handleAddVariant = () => {
 											? 'text-red-600'
 											: 'text-green-600'
 									}`}>
-									${Math.abs(invoice.total_price)?.toFixed(2)}
+									${(invoice.total_price || 0).toFixed(2)}
 									{invoice.type === 'return' && ' (Return)'}
 								</td>
-								<td className='py-3 px-6 text-left'>{invoice.order_number}</td>
+								<td className='py-3 px-6 text-left'>{invoice.order_number || '-'}</td>
 								<td className='py-3 px-6 text-center'>
-									{invoice.files.length > 0 ? (
+									{invoice.files && invoice.files.length > 0 ? (
 										<FaFile className='inline text-blue' />
 									) : (
 										'-'
@@ -1356,7 +1271,7 @@ const handleAddVariant = () => {
 					startDate={filterStartDate}
 					endDate={filterEndDate}
 					placeholderText='Start Date'
-					className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:placeholder-gray focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
+					className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
 				/>
 				<div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
 					<FaFilter className='h-5 w-5 text-gray' />
@@ -1371,7 +1286,7 @@ const handleAddVariant = () => {
 					endDate={filterEndDate}
 					minDate={filterStartDate}
 					placeholderText='End Date'
-					className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:placeholder-gray focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
+					className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
 				/>
 				<div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
 					<FaFilter className='h-5 w-5 text-gray' />
@@ -1384,14 +1299,10 @@ const handleAddVariant = () => {
 					)
 				}
 				className='block w-full pl-3 pr-10 py-2 text-base border-gray focus:outline-none focus:ring-blue focus:border-blue sm:text-sm rounded-md'>
-				<option value=''>
-					All {activeTab === 'client' ? 'Clients' : 'Suppliers'}
-				</option>
+				<option value=''>All {activeTab === 'client' ? 'Clients' : 'Suppliers'}</option>
 				{activeTab === 'client'
 					? clients.map(client => (
-							<option
-								key={client.client_id}
-								value={client.client_id.toString()}>
+							<option key={client.client_id} value={client.client_id.toString()}>
 								{client.name}
 							</option>
 					  ))
@@ -1406,9 +1317,7 @@ const handleAddVariant = () => {
 
 	const renderInvoiceModal = () => (
 		<div
-			className={`fixed z-10 inset-0 overflow-y-auto ${
-				showModal ? '' : 'hidden'
-			}`}>
+			className={`fixed z-10 inset-0 overflow-y-auto ${showModal ? '' : 'hidden'}`}>
 			<div className='flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0'>
 				<div className='fixed inset-0 transition-opacity' aria-hidden='true'>
 					<div className='absolute inset-0 bg-gray opacity-75'></div>
@@ -1433,29 +1342,19 @@ const handleAddVariant = () => {
 									<div className='mb-4 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700'>
 										<p className='font-medium'>Return Invoice Notice</p>
 										<p className='text-sm'>
-											This is a return invoice. The total amount will be
-											deducted from the client balance and products will be
-											added back to inventory.
+											This is a return invoice. The total amount will be deducted from the client balance and products will be added back to inventory.
 										</p>
 									</div>
 								)}
-								<label
-									className='block text-gray text-sm font-bold mb-2'
-									htmlFor='date'>
+								<label className='block text-gray text-sm font-bold mb-2' htmlFor='date'>
 									Date
 								</label>
 								<DatePicker
-									selected={
-										newInvoice.created_at
-											? new Date(newInvoice.created_at)
-											: null
-									}
+									selected={newInvoice.created_at ? new Date(newInvoice.created_at) : null}
 									onChange={(date: Date | null) =>
 										setNewInvoice({
 											...newInvoice,
-											created_at: date
-												? date.toISOString()
-												: new Date().toISOString()
+											created_at: date ? date.toISOString() : new Date().toISOString()
 										})
 									}
 									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
@@ -1479,13 +1378,11 @@ const handleAddVariant = () => {
 								</select>
 							</div>
 							<div className='mb-4'>
-								<label
-									className='block text-gray text-sm font-bold mb-2'
-									htmlFor='entity'>
+								<label className='block text-gray text-sm font-bold mb-2' htmlFor='entity'>
 									{activeTab === 'client' ? 'Client' : 'Supplier'}
 								</label>
 								<select
-                required
+									required
 									id='entity'
 									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 									value={
@@ -1494,14 +1391,10 @@ const handleAddVariant = () => {
 											: newInvoice.supplier_id
 									}
 									onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-										const idField =
-											activeTab === 'client' ? 'client_id' : 'supplier_id'
+										const idField = activeTab === 'client' ? 'client_id' : 'supplier_id'
 										setNewInvoice({ ...newInvoice, [idField]: e.target.value })
-
 									}}>
-									<option value=''>
-										Select {activeTab === 'client' ? 'Client' : 'Supplier'}
-									</option>
+									<option value=''>Select {activeTab === 'client' ? 'Client' : 'Supplier'}</option>
 									{activeTab === 'client'
 										? clients.map(client => (
 												<option key={client.client_id} value={client.client_id}>
@@ -1516,9 +1409,7 @@ const handleAddVariant = () => {
 								</select>
 							</div>
 							<div className='mb-4'>
-								<label className='block text-gray text-sm font-bold mb-2'>
-									Products
-								</label>
+								<label className='block text-gray text-sm font-bold mb-2'>Products</label>
 								<div className='flex mb-2'>
 									<input
 										type='text'
@@ -1552,9 +1443,7 @@ const handleAddVariant = () => {
 								{selectedProduct && (
 									<div className='mb-4 p-2 border rounded'>
 										<h4 className='font-bold mb-2'>{selectedProduct.name}</h4>
-										<label
-											className='block text-gray text-sm font-semibold mb-2'
-											htmlFor='discount'>
+										<label className='block text-gray text-sm font-semibold mb-2' htmlFor='discount'>
 											Discount per item
 										</label>
 										<input
@@ -1637,7 +1526,7 @@ const handleAddVariant = () => {
 									<div key={index} className='mb-2 p-2 border rounded'>
 										<div className='flex justify-between items-center mb-2'>
 											<span className='font-bold'>
-												{products.find(p => p.id === product.product_id)?.name}
+												{products.find(p => p.id === product.product_id)?.name || 'N/A'}
 											</span>
 											<div className='space-x-2'>
 												<button
@@ -1656,36 +1545,27 @@ const handleAddVariant = () => {
 										</div>
 										<p>
 											Variant:{' '}
-											{
-												products
-													.find(p => p.id === product.product_id)
-													?.variants.find(
-														v => v.id === product.product_variant_id
-													)?.size
-											}{' '}
+											{products.find(p => p.id === product.product_id)
+												?.variants.find(v => v.id === product.product_variant_id)
+												?.size || 'N/A'}{' '}
 											-{' '}
-											{
-												products
-													.find(p => p.id === product.product_id)
-													?.variants.find(
-														v => v.id === product.product_variant_id
-													)?.color
-											}
+											{products.find(p => p.id === product.product_id)
+												?.variants.find(v => v.id === product.product_variant_id)
+												?.color || 'N/A'}
 										</p>
-										<p>Quantity: {product.quantity}</p>
+										<p>Quantity: {product.quantity || 0}</p>
 										<p>
 											Discount per item: $
-											{newInvoice.discounts?.[product.product_id]?.toFixed(2) ||
-												'0.00'}
+											{newInvoice.discounts?.[product.product_id]
+												? newInvoice.discounts[product.product_id].toFixed(2)
+												: '0.00'}
 										</p>
-										<p>Note: {product.note}</p>
+										<p>Note: {product.note || '-'}</p>
 									</div>
 								))}
 							</div>
 							<div className='mb-4'>
-								<label
-									className='block text-gray text-sm font-bold mb-2'
-									htmlFor='order_number'>
+								<label className='block text-gray text-sm font-bold mb-2' htmlFor='order_number'>
 									Order Number
 								</label>
 								<input
@@ -1703,9 +1583,7 @@ const handleAddVariant = () => {
 								/>
 							</div>
 							<div className='mb-4'>
-								<label
-									className='block text-gray text-sm font-bold mb-2'
-									htmlFor='currency'>
+								<label className='block text-gray text-sm font-bold mb-2' htmlFor='currency'>
 									Currency
 								</label>
 								<select
@@ -1723,11 +1601,8 @@ const handleAddVariant = () => {
 									<option value='euro'>EUR (€)</option>
 								</select>
 							</div>
-
 							<div className='mb-4'>
-								<label
-									className='block text-gray text-sm font-bold mb-2'
-									htmlFor='payment_term'>
+								<label className='block text-gray text-sm font-bold mb-2' htmlFor='payment_term'>
 									Payment Terms
 								</label>
 								<select
@@ -1742,41 +1617,24 @@ const handleAddVariant = () => {
 									}
 									required>
 									<option value=''>Select Payment Term</option>
-									<option value='100% after delivery'>
-										100% after delivery
-									</option>
-									<option value='30% deposit 70% before shipping'>
-										30% deposit 70% before shipping
-									</option>
-									<option value='30 days after shipping'>
-										30 days after shipping
-									</option>
-									<option value='60 days after shipping'>
-										60 days after shipping
-									</option>
+									<option value='100% after delivery'>100% after delivery</option>
+									<option value='30% deposit 70% before shipping'>30% deposit 70% before shipping</option>
+									<option value='30 days after shipping'>30 days after shipping</option>
+									<option value='60 days after shipping'>60 days after shipping</option>
 								</select>
 							</div>
-
 							<div className='mb-4'>
-								<label
-									className='block text-gray text-sm font-bold mb-2'
-									htmlFor='delivery_date'>
+								<label className='block text-gray text-sm font-bold mb-2' htmlFor='delivery_date'>
 									Delivery Date
 								</label>
 								<DatePicker
-									selected={
-										newInvoice.delivery_date
-											? new Date(newInvoice.delivery_date)
-											: null
-									}
+									selected={newInvoice.delivery_date ? new Date(newInvoice.delivery_date) : null}
 									onChange={(date: Date | null) =>
 										setNewInvoice({
 											...newInvoice,
 											delivery_date: date
 												? date.toISOString()
-												: new Date(
-														new Date().setMonth(new Date().getMonth() + 1)
-												  ).toISOString()
+												: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString()
 										})
 									}
 									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
@@ -1794,7 +1652,7 @@ const handleAddVariant = () => {
 											const includeVAT = e.target.checked
 											const { totalPrice, vatAmount } = calculateTotalPrice(
 												newInvoice.products || [],
-												newInvoice.discounts || {}, // Add this line
+												newInvoice.discounts || {},
 												activeTab === 'client',
 												includeVAT
 											)
@@ -1807,9 +1665,7 @@ const handleAddVariant = () => {
 										}}
 										className='form-checkbox h-5 w-5 text-blue'
 									/>
-									<span className='ml-2 text-gray text-sm'>
-										Include 11% VAT
-									</span>
+									<span className='ml-2 text-gray text-sm'>Include 11% VAT</span>
 								</label>
 							</div>
 							<div className='mb-4'>
@@ -1819,7 +1675,7 @@ const handleAddVariant = () => {
 								<input
 									type='number'
 									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
-									value={newInvoice.total_price}
+									value={newInvoice.total_price || 0}
 									readOnly
 								/>
 							</div>
@@ -1831,12 +1687,11 @@ const handleAddVariant = () => {
 									<input
 										type='number'
 										className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
-										value={newInvoice.vat_amount}
+										value={newInvoice.vat_amount || 0}
 										readOnly
 									/>
 								</div>
 							)}
-
 							<div className='mb-4'>
 								<label className='block text-gray text-sm font-bold mb-2'>
 									Payment Information
@@ -1845,8 +1700,8 @@ const handleAddVariant = () => {
 									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 									value={newInvoice.payment_info || 'frisson_llc'}
 									onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-										e.preventDefault() // Prevent default behavior
-										e.stopPropagation() // Stop event propagation
+										e.preventDefault()
+										e.stopPropagation()
 										setNewInvoice({
 											...newInvoice,
 											payment_info: e.target.value as PaymentInfoOption
@@ -1862,9 +1717,7 @@ const handleAddVariant = () => {
 								</select>
 							</div>
 							<div className='mb-4'>
-								<label className='block text-gray text-sm font-bold mb-2'>
-									Files
-								</label>
+								<label className='block text-gray text-sm font-bold mb-2'>Files</label>
 								<input
 									type='file'
 									onChange={handleFileChange}
@@ -1886,7 +1739,7 @@ const handleAddVariant = () => {
 											target='_blank'
 											rel='noopener noreferrer'
 											className='text-blue hover:underline mr-2'>
-											{file.split('/').pop()}
+											{file.split('/').pop() || 'File'}
 										</a>
 										<button
 											type='button'
@@ -1931,60 +1784,48 @@ const handleAddVariant = () => {
 			<div className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'>
 				<div className='relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white'>
 					<div className='mt-3 text-center'>
-						<h3 className='text-lg leading-6 font-medium text-gray'>
-							Invoice Details
-						</h3>
+						<h3 className='text-lg leading-6 font-medium text-gray'>Invoice Details</h3>
 						<div className='mt-2 px-7 py-3'>
-							<p className='text-sm text-gray'>ID: {selectedInvoice.id}</p>
+							<p className='text-sm text-gray'>ID: {selectedInvoice.id || '-'}</p>
 							<p className='text-sm text-gray'>
-								Total Price: ${selectedInvoice.total_price?.toFixed(2)}
+								Total Price: ${ (selectedInvoice.total_price || 0).toFixed(2) }
 							</p>
 							{selectedInvoice.include_vat && (
 								<p className='text-sm text-gray'>
-									VAT (11%): ${selectedInvoice.vat_amount?.toFixed(2)}
+									VAT (11%): ${ (selectedInvoice.vat_amount || 0).toFixed(2) }
 								</p>
 							)}
 							<p className='text-sm text-gray'>
-								Order Number: {selectedInvoice.order_number}
-							</p>
-
-							<p className='text-sm text-neutral-500'>
-								Currency:{' '}
-								{selectedInvoice.currency === 'euro' ? '€ (EUR)' : '$ (USD)'}
+								Order Number: {selectedInvoice.order_number || '-'}
 							</p>
 							<p className='text-sm text-neutral-500'>
-								Payment Terms: {selectedInvoice.payment_term}
+								Currency: {selectedInvoice.currency === 'euro' ? '€ (EUR)' : '$ (USD)'}
 							</p>
-							{selectedInvoice && selectedInvoice.payment_info && (
+							<p className='text-sm text-neutral-500'>
+								Payment Terms: {selectedInvoice.payment_term || '-'}
+							</p>
+							{selectedInvoice.payment_info && (
 								<div className='mt-4'>
-									<h4 className='text-sm font-medium text-gray'>
-										Payment Information
-									</h4>
+									<h4 className='text-sm font-medium text-gray'>Payment Information</h4>
 									<PaymentInfoDisplay option={selectedInvoice.payment_info} />
 								</div>
 							)}
-
 							{selectedInvoice.delivery_date && (
 								<p className='text-sm text-neutral-500'>
-									Delivery Date:{' '}
-									{format(new Date(selectedInvoice.delivery_date), 'PP')}
+									Delivery Date: {format(new Date(selectedInvoice.delivery_date), 'PP')}
 								</p>
 							)}
 							<h4 className='text-sm font-medium text-gray mt-4'>Products:</h4>
 							<ul className='list-disc list-inside'>
-								{selectedInvoice.products.map((product, index) => {
-									const parentProduct = products.find(
-										p => p.id === product.product_id
-									)
+								{(selectedInvoice.products || []).map((product, index) => {
+									const parentProduct = products.find(p => p.id === product.product_id)
 									const variant = parentProduct?.variants.find(
 										v => v.id === product.product_variant_id
 									)
-									const unitPrice =
-										activeTab === 'client'
-											? parentProduct?.price
-											: parentProduct?.cost
-									const discount =
-										selectedInvoice.discounts?.[product.product_id] || 0
+									const unitPrice = activeTab === 'client'
+										? parentProduct?.price || 0
+										: parentProduct?.cost || 0
+									const discount = selectedInvoice.discounts?.[product.product_id] || 0
 									const discountedPrice = (unitPrice || 0) - discount
 									const lineTotal = discountedPrice * product.quantity
 									const lineTotalDiscount = discount * product.quantity
@@ -1994,53 +1835,33 @@ const handleAddVariant = () => {
 
 									return (
 										<li key={index} className='text-sm text-gray'>
-											{parentProduct?.name} - {variant?.size} - {variant?.color}{' '}
-											- Quantity: {product.quantity} - Unit{' '}
-											{activeTab === 'client' ? 'Price' : 'Cost'}: $
-											{unitPrice?.toFixed(2)} - Discount per item: $
-											{discount.toFixed(2)}- Discounted Price: $
-											{discountedPrice.toFixed(2)}- Line Total: $
-											{lineTotal.toFixed(2)}- Line Discount: $
-											{lineTotalDiscount.toFixed(2)}
+											{parentProduct?.name || 'N/A'} - {variant?.size || 'N/A'} - {variant?.color || 'N/A'} - Quantity: {product.quantity || 0} - Unit {activeTab === 'client' ? 'Price' : 'Cost'}: ${ (unitPrice || 0).toFixed(2) } - Discount per item: ${ discount.toFixed(2) } - Discounted Price: ${ discountedPrice.toFixed(2) } - Line Total: ${ lineTotal.toFixed(2) } - Line Discount: ${ lineTotalDiscount.toFixed(2) }
 											{product.note && (
-												<div className='ml-4 text-xs italic'>
-													Note: {product.note}
-												</div>
+												<div className='ml-4 text-xs italic'>Note: {product.note}</div>
 											)}
 										</li>
 									)
 								})}
 							</ul>
 							<div className='mt-4'>
-								<p className='text-sm text-gray'>
-									Subtotal: ${subtotal.toFixed(2)}
-								</p>
-								<p className='text-sm text-gray'>
-									Total Discount: ${totalDiscount.toFixed(2)}
-								</p>
-								<p className='text-sm text-gray'>
-									Total Before VAT: ${(subtotal - totalDiscount).toFixed(2)}
-								</p>
+								<p className='text-sm text-gray'>Subtotal: ${ subtotal.toFixed(2) }</p>
+								<p className='text-sm text-gray'>Total Discount: ${ totalDiscount.toFixed(2) }</p>
+								<p className='text-sm text-gray'>Total Before VAT: ${ (subtotal - totalDiscount).toFixed(2) }</p>
 								{selectedInvoice.include_vat && (
-									<p className='text-sm text-gray'>
-										VAT (11%): ${selectedInvoice.vat_amount?.toFixed(2)}
-									</p>
+									<p className='text-sm text-gray'>VAT (11%): ${ (selectedInvoice.vat_amount || 0).toFixed(2) }</p>
 								)}
-								<p className='text-sm font-bold text-gray'>
-									Final Total: ${selectedInvoice.total_price?.toFixed(2)}
-								</p>
+								<p className='text-sm font-bold text-gray'>Final Total: ${ (selectedInvoice.total_price || 0).toFixed(2) }</p>
 							</div>
-
 							<h4 className='text-sm font-medium text-gray mt-4'>Files:</h4>
 							<ul className='list-disc list-inside'>
-								{selectedInvoice.files.map((file, index) => (
+								{(selectedInvoice.files || []).map((file, index) => (
 									<li key={index} className='text-sm text-gray'>
 										<a
 											href={file}
 											target='_blank'
 											rel='noopener noreferrer'
 											className='text-blue hover:underline'>
-											{file.split('/').pop()}
+											{file.split('/').pop() || 'File'}
 										</a>
 									</li>
 								))}
@@ -2049,7 +1870,7 @@ const handleAddVariant = () => {
 						<div className='items-center px-4 py-3'>
 							<button
 								className='px-4 py-2 bg-blue text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue focus:outline-none focus:ring-2 focus:ring-blue mb-2'
-								onClick={() => handlePDFGeneration(selectedInvoice)}>
+								onClick={() => handlePDFGeneration(selectedInvoice!)}>
 								Download PDF
 							</button>
 							<button
@@ -2071,18 +1892,14 @@ const handleAddVariant = () => {
 				<div className='flex border-b'>
 					<button
 						className={`flex-1 py-4 px-6 text-center ${
-							activeTab === 'client'
-								? 'bg-blue text-white'
-								: 'bg-gray text-white'
+							activeTab === 'client' ? 'bg-blue text-white' : 'bg-gray text-white'
 						}`}
 						onClick={() => setActiveTab('client')}>
 						Client Invoices
 					</button>
 					<button
 						className={`flex-1 py-4 px-6 text-center ${
-							activeTab === 'supplier'
-								? 'bg-blue text-white'
-								: 'bg-gray text-white'
+							activeTab === 'supplier' ? 'bg-blue text-white' : 'bg-gray text-white'
 						}`}
 						onClick={() => setActiveTab('supplier')}>
 						Supplier Invoices
@@ -2106,7 +1923,14 @@ const handleAddVariant = () => {
 						include_vat: false,
 						vat_amount: 0,
 						order_number: '',
-						discounts: {}
+						discounts: {},
+						type: 'regular',
+						currency: 'usd',
+						payment_term: '30% deposit 70% before shipping',
+						delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(),
+						client_id: undefined,
+						supplier_id: undefined,
+						payment_info: 'frisson_llc'
 					})
 					setShowModal(true)
 				}}>
@@ -2115,17 +1939,12 @@ const handleAddVariant = () => {
 			{showModal && (
 				<div className='fixed z-10 inset-0 overflow-y-auto'>
 					<div className='flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0'>
-						<div
-							className='fixed inset-0 transition-opacity'
-							aria-hidden='true'>
+						<div className='fixed inset-0 transition-opacity' aria-hidden='true'>
 							<div className='absolute inset-0 bg-gray opacity-75'></div>
 						</div>
-						<span
-							className='hidden sm:inline-block sm:align-middle sm:h-screen'
-							aria-hidden='true'>
+						<span className='hidden sm:inline-block sm:align-middle sm:h-screen' aria-hidden='true'>
 							&#8203;
 						</span>
-
 						<LoadingOverlay
 							isLoading={
 								loadingStates.isInvoiceCreating ||
@@ -2136,7 +1955,6 @@ const handleAddVariant = () => {
 					</div>
 				</div>
 			)}
-
 			{selectedInvoice && (
 				<div className='fixed z-10 inset-0 overflow-y-auto'>
 					<LoadingOverlay
