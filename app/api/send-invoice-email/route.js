@@ -146,21 +146,31 @@ export async function POST(request) {
     // Ensure invoice.products is an array
     const invoiceProducts = Array.isArray(invoice.products) ? invoice.products : []
 
-    // Fetch product details for each product; throw error if any product is missing required fields.
-    const productsWithDetails = await Promise.all(
-      invoiceProducts.map(async (product) => {
-        if (!product.product_variant_id) {
-          throw new Error('Invalid invoice: A product is missing its product_variant_id.')
-        }
-        const details = await fetchProductDetails(product.product_variant_id)
-        return {
-          ...details,
-          // Use numeric conversion for quantity; default to 0 if missing.
-          quantity: Number(product.quantity || 0),
-          note: product.note || ''
-        }
-      })
-    )
+
+const productsWithDetails = await Promise.all(
+  invoiceProducts.map(async (product) => {
+    if (!product.product_variant_id) {
+      throw new Error('Invalid invoice: A product is missing its product_variant_id.')
+    }
+    const details = await fetchProductDetails(product.product_variant_id)
+    return {
+      ...details,
+
+      quantity: Number(product.quantity || 0),
+      note: product.note || ''
+    }
+  })
+)
+
+
+productsWithDetails.sort((a, b) => {
+  // First sort by product name
+  const nameComparison = a.name.localeCompare(b.name);
+  if (nameComparison !== 0) return nameComparison;
+
+  // If names are equal, sort by color
+  return a.color.localeCompare(b.color);
+});
 
     // Calculate subtotal, total discount, VAT and totalAmount with proper handling for returns.
     const subtotal = productsWithDetails.reduce((total, product) => {
@@ -180,34 +190,33 @@ export async function POST(request) {
     const totalAmount = totalBeforeVAT + vatAmount
     const currencySymbol = invoice.currency === 'euro' ? '€' : '$'
 
-    // Generate PDF with safe defaults
-    const pdfComponent = InvoicePDF({
-      invoice: {
-        ...invoice,
-        // Ensure products is mapped safely – use invoiceProducts and calculate totalQuantity from sizes
-        products: invoiceProducts.map(product => ({
-          ...product,
-          totalQuantity: Array.isArray(product.sizes)
-            ? product.sizes.reduce((sum, qty) => sum + Number(qty || 0), 0)
-            : 0
-        })),
-        subtotal: Math.abs(subtotal),
-        totalDiscount: Math.abs(totalDiscount),
-        totalBeforeVAT: Math.abs(totalBeforeVAT),
-        vatAmount: Math.abs(vatAmount),
-        totalAmount: Math.abs(totalAmount),
-        type: invoice.type || 'regular',
-        currency: invoice.currency || 'usd',
-        payment_term: invoice.payment_term || 'N/A',
-        delivery_date: invoice.delivery_date || '',
-        // Fix: use invoice.payment_info (fallback if missing)
-        payment_info: invoice.payment_info || 'frisson_llc'
-      },
-      entity: entityData,
-      company: companyData,
-      isClientInvoice: activeTab === 'client',
-      logoBase64
-    })
+
+const pdfComponent = InvoicePDF({
+  invoice: {
+    ...invoice,
+
+    products: productsWithDetails.map(product => ({
+      ...product,
+      totalQuantity: product.quantity,
+      sizes: { [product.size]: product.quantity },
+      notes: product.note ? [product.note] : []
+    })),
+    subtotal: Math.abs(subtotal),
+    totalDiscount: Math.abs(totalDiscount),
+    totalBeforeVAT: Math.abs(totalBeforeVAT),
+    vatAmount: Math.abs(vatAmount),
+    totalAmount: Math.abs(totalAmount),
+    type: invoice.type || 'regular',
+    currency: invoice.currency || 'usd',
+    payment_term: invoice.payment_term || 'N/A',
+    delivery_date: invoice.delivery_date || '',
+    payment_info: invoice.payment_info || 'frisson_llc'
+  },
+  entity: entityData,
+  company: companyData,
+  isClientInvoice: activeTab === 'client',
+  logoBase64
+})
 
     const pdfBuffer = await pdf(pdfComponent).toBuffer()
 

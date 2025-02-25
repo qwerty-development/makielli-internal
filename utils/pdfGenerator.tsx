@@ -242,21 +242,30 @@ export const generatePDF = async (
       })
     )
 
-    const productsArray = Array.from(productMap.values()).map((product) => ({
-      ...product,
-      notes: Array.from(product.notes)
-    }))
 
-    data = {
-      ...data,
-      products: productsArray,
-      discounts: data.discounts || {},
-      type: data.type || 'regular',
-      payment_info: data.payment_info || 'frisson_llc'
-    }
+const productsArray = Array.from(productMap.values()).map((product) => ({
+  ...product,
+  notes: Array.from(product.notes)
+}));
+
+// Add sorting to ensure consistent order
+productsArray.sort((a, b) => {
+  // First sort by product name
+  const nameComparison = a.name.localeCompare(b.name);
+  if (nameComparison !== 0) return nameComparison;
+
+  // If names are equal, sort by color
+  return a.color.localeCompare(b.color);
+});
+
+data = {
+  ...data,
+  products: productsArray,
+  discounts: data.discounts || {},
+  type: data.type || 'regular',
+  payment_info: data.payment_info || 'frisson_llc'
+}
   }
-
-  // Determine PDF type and fetch required data.
   switch (type) {
     case 'invoice': {
       let entityData, companyData, isClientInvoice
