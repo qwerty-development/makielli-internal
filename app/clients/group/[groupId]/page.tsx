@@ -4,12 +4,13 @@ import React, { useState, useEffect } from 'react';
 import { clientFunctions, Client, ClientGroup } from '../../../../utils/functions/clients';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 
 export default function GroupDetailsPage({ params }: { params: { groupId: string } }) {
   const [group, setGroup] = useState<ClientGroup | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
   const [isEditing, setIsEditing] = useState(false);
   const [editedGroupName, setEditedGroupName] = useState('');
   const router = useRouter();
@@ -28,10 +29,10 @@ export default function GroupDetailsPage({ params }: { params: { groupId: string
       setGroup(groupData);
       setClients(clientsData);
       setEditedGroupName(groupData?.name || '');
-      setError(null);
-    } catch (error) {
+
+    } catch (error:any) {
       console.error('Error fetching group and clients:', error);
-      setError('Failed to fetch group and clients. Please try again later.');
+     toast.error('Error fetching group '+error.message)
     } finally {
       setIsLoading(false);
     }
@@ -53,10 +54,10 @@ export default function GroupDetailsPage({ params }: { params: { groupId: string
       await clientFunctions.updateClientGroup(group.group_id, { name: editedGroupName });
       setGroup({ ...group, name: editedGroupName });
       setIsEditing(false);
-      setError(null);
-    } catch (error) {
+
+    } catch (error:any) {
       console.error('Error updating group:', error);
-      setError('Failed to update group. Please try again.');
+      toast.error('Failed to update group. Please try again.'+error.message);
     }
   };
 
@@ -67,9 +68,9 @@ export default function GroupDetailsPage({ params }: { params: { groupId: string
       try {
         await clientFunctions.deleteClientGroup(group.group_id);
         router.push('/clients'); // Redirect to clients page after deletion
-      } catch (error) {
+      } catch (error:any) {
         console.error('Error deleting group:', error);
-        setError('Failed to delete group. Please try again.');
+        toast.error('Failed to delete group. Please try again.'+error.message);
       }
     }
   };
@@ -78,9 +79,7 @@ export default function GroupDetailsPage({ params }: { params: { groupId: string
     return <div className="text-center py-10">Loading...</div>;
   }
 
-  if (error) {
-    return <div className="text-center py-10 text-red-500">Error: {error}</div>;
-  }
+
 
   return (
     <div className="p-8">

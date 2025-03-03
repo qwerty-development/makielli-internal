@@ -14,7 +14,7 @@ export default function AllClientsPage() {
 	const [companies, setCompanies] = useState<Company[]>([])
 	const [filteredClients, setFilteredClients] = useState<Client[]>([])
 	const [isLoading, setIsLoading] = useState(true)
-	const [error, setError] = useState<string | null>(null)
+
 	const [searchTerm, setSearchTerm] = useState('')
 	const [selectedCompany, setSelectedCompany] = useState<number | ''>('') // State to filter by company
 
@@ -40,11 +40,10 @@ export default function AllClientsPage() {
 			const clientsData = await clientFunctions.getAllClients()
 			setClients(clientsData)
 			setFilteredClients(clientsData)
-			setError(null)
-		} catch (error) {
+
+		} catch (error:any) {
 			console.error('Error fetching clients:', error)
-			setError('Failed to fetch clients. Please try again later.')
-			toast.error('Failed to fetch clients. Please try again later.')
+			toast.error('Failed to fetch clients. Please try again later.'+ error.message)
 		} finally {
 			setIsLoading(false)
 		}
@@ -54,9 +53,9 @@ export default function AllClientsPage() {
 		try {
 			const companiesData = await clientFunctions.getAllCompanies()
 			setCompanies(companiesData)
-		} catch (error) {
+		} catch (error:any) {
 			console.error('Error fetching companies:', error)
-			toast.error('Failed to fetch companies. Please try again later.')
+			toast.error('Failed to fetch companies. Please try again later.'+ error.message)
 		}
 	}
 
@@ -69,9 +68,6 @@ export default function AllClientsPage() {
 		return <div className='text-center py-10 text-white'>Loading...</div>
 	}
 
-	if (error) {
-		return <div className='text-center py-10 text-red-500'>Error: {error}</div>
-	}
 
 	return (
 		<div className='p-8'>

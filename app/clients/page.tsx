@@ -14,7 +14,7 @@ export default function ClientsPage() {
   const [groups, setGroups] = useState<ClientGroup[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+
   const [showClientForm, setShowClientForm] = useState(false)
   const [showGroupForm, setShowGroupForm] = useState(false)
   const [groupSearch, setGroupSearch] = useState('')
@@ -43,10 +43,10 @@ export default function ClientsPage() {
       setIsLoading(true)
       const groupsData = await clientFunctions.getAllClientGroups()
       setGroups(groupsData)
-      setError(null)
+
     } catch (error: any) {
       console.error('Error fetching groups:', error)
-      setError('Failed to fetch client groups. Please try again later.')
+      toast.error('Failed to fetch groups. Please try again later.'+error.message)
     } finally {
       setIsLoading(false)
     }
@@ -107,9 +107,7 @@ export default function ClientsPage() {
     return <div className='text-center py-10'>Loading...</div>
   }
 
-  if (error) {
-    return <div className='text-center py-10 text-red-500'>Error: {error}</div>
-  }
+
 
   return (
     <div className='p-8'>

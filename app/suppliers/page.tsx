@@ -15,7 +15,7 @@ export default function SuppliersPage() {
 	const [filteredSuppliers, setFilteredSuppliers] = useState<Supplier[]>([])
 	const [companies, setCompanies] = useState<Company[]>([])
 	const [isLoading, setIsLoading] = useState(true)
-	const [error, setError] = useState<string | null>(null)
+
 	const [searchQuery, setSearchQuery] = useState('')
 	const [showModal, setShowModal] = useState(false)
 	const [newSupplier, setNewSupplier] = useState<Omit<Supplier, 'id'>>({
@@ -48,10 +48,10 @@ export default function SuppliersPage() {
 			const suppliersData = await supplierFunctions.getAllSuppliers()
 			setSuppliers(suppliersData)
 			setFilteredSuppliers(suppliersData)
-			setError(null)
-		} catch (error) {
+
+		} catch (error:any) {
 			console.error('Error fetching suppliers:', error)
-			setError('Failed to fetch suppliers. Please try again later.')
+      toast.error('Failed to fetch suppliers. Please try again later.'+error.message)
 		} finally {
 			setIsLoading(false)
 		}
@@ -92,9 +92,7 @@ export default function SuppliersPage() {
 		return <div className='text-center py-10'>Loading...</div>
 	}
 
-	if (error) {
-		return <div className='text-center py-10 text-red-500'>Error: {error}</div>
-	}
+
 
 	return (
 		<div className='p-8'>

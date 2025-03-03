@@ -43,7 +43,7 @@ export default function ClientDetailsPage({
 	const [client, setClient] = useState<Client | null>(null)
 	const [companies, setCompanies] = useState<Company[]>([])
 	const [isLoading, setIsLoading] = useState(true)
-	const [error, setError] = useState<string | null>(null)
+
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedClient, setEditedClient] = useState<Client | null>(null)
 	const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -73,10 +73,10 @@ export default function ClientDetailsPage({
 			)
 			setClient(clientData)
 			setEditedClient(clientData)
-			setError(null)
-		} catch (error) {
+
+		} catch (error:any) {
 			console.error('Error fetching client details:', error)
-			setError('Failed to fetch client details. Please try again later.')
+		toast.error('Failed to fetch client details. Please try again later.'+ error.message)
 		} finally {
 			setIsLoading(false)
 		}
@@ -102,9 +102,9 @@ export default function ClientDetailsPage({
 
 			if (error) throw error
 			setInvoices(data || [])
-		} catch (error) {
+		} catch (error:any) {
 			console.error('Error fetching invoices:', error)
-			setError('Failed to fetch invoices')
+		 toast.error('Failed to fetch invoices. Please try again later.'+ error.message)
 		}
 	}
 
@@ -118,9 +118,9 @@ export default function ClientDetailsPage({
 
 			if (error) throw error
 			setReceipts(data || [])
-		} catch (error) {
+		} catch (error:any) {
 			console.error('Error fetching receipts:', error)
-			setError('Failed to fetch receipts')
+			toast.error('Failed to fetch receipts. Please try again later.'+ error.message)
 		}
 	}
 
@@ -140,12 +140,12 @@ export default function ClientDetailsPage({
 			await clientFunctions.updateClient(editedClient.client_id, editedClient)
 			setClient(editedClient)
 			setIsEditing(false)
-			setError(null)
+
 			toast.success('Client updated successfully')
-		} catch (error) {
+		} catch (error:any) {
 			console.error('Error updating client:', error)
-			setError('Failed to update client. Please try again.')
-			toast.error('Failed to update client')
+
+			toast.error('Failed to update client'+ error?.message )
 		}
 	}
 
@@ -157,10 +157,10 @@ export default function ClientDetailsPage({
 				await clientFunctions.deleteClient(client.client_id)
 				toast.success('Client deleted successfully')
 				window.location.href = '/clients'
-			} catch (error) {
+			} catch (error:any) {
 				console.error('Error deleting client:', error)
-				setError('Failed to delete client. Please try again.')
-				toast.error('Failed to delete client')
+
+				toast.error('Failed to delete client'+error.message)
 			}
 		}
 	}
@@ -208,9 +208,7 @@ export default function ClientDetailsPage({
 		return <div className='text-center py-10'>Loading...</div>
 	}
 
-	if (error) {
-		return <div className='text-center py-10 text-black'>Error: {error}</div>
-	}
+
 
 	return (
 		<div className='p-8 bg-white text-black'>

@@ -35,7 +35,6 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [showProductForm, setShowProductForm] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
@@ -70,10 +69,10 @@ export default function ProductsPage() {
       const productsData = await productFunctions.getAllProducts()
       setProducts(productsData || [])
       setFilteredProducts(productsData || [])
-      setError(null)
-    } catch (err) {
+
+    } catch (err:any) {
       console.error('Error fetching products:', err)
-      setError('Failed to fetch products. Please try again later.')
+      toast.error('Failed to fetch products. Please try again later.'+err.message)
     } finally {
       setIsLoading(false)
     }
@@ -150,10 +149,10 @@ export default function ProductsPage() {
       setSelectedFile(null)
       fetchProducts()
       toast.success('Product created successfully')
-    } catch (err) {
+    } catch (err:any) {
       console.error('Error creating product:', err)
-      setError('Failed to create product. Please try again.')
-      toast.error('Failed to create product')
+
+      toast.error('Failed to create product'+err.message)
     }
           setNewProduct({ name: '', photo: '', price: 0, cost: 0, type: 'Stock' })
       setVariantGroups([])
@@ -180,10 +179,10 @@ export default function ProductsPage() {
       setSelectedFile(null)
       fetchProducts()
       toast.success('Product updated successfully')
-    } catch (err) {
+    } catch (err:any) {
       console.error('Error updating product:', err)
-      setError('Failed to update product. Please try again.')
-      toast.error('Failed to update product')
+
+      toast.error('Failed to update product'+err.message)
     }
     setEditingProduct(null)
     setSelectedFile(null)
@@ -199,10 +198,10 @@ export default function ProductsPage() {
         await productFunctions.deleteProduct(id)
         fetchProducts()
         toast.success('Product deleted successfully')
-      } catch (err) {
+      } catch (err:any) {
         console.error('Error deleting product:', err)
-        setError('Failed to delete product. Please try again.')
-        toast.error('Failed to delete product')
+
+        toast.error('Failed to delete product'+err.message)
       }
     }
   }
@@ -273,9 +272,7 @@ export default function ProductsPage() {
     return <div className='text-center py-10'>Loading...</div>
   }
 
-  if (error) {
-    return <div className='text-center py-10 text-red-500'>Error: {error}</div>
-  }
+
 
   return (
     <div className='p-8 text-gray'>
