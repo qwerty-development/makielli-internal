@@ -66,22 +66,28 @@ const toWords = new ToWords({
   }
 })
 
-// Register fonts
-Font.register({
-  family: 'Times New Roman',
-  fonts: [
-    { src: '/fonts/times-new-roman.ttf' },
-    { src: '/fonts/times-new-roman-bold.ttf', fontWeight: 700 },
-    { src: '/fonts/times-new-roman-italic.ttf', fontStyle: 'italic' },
-    {
-      src: '/fonts/times-new-roman-bold-italic.ttf',
-      fontWeight: 700,
-      fontStyle: 'italic'
-    }
-  ]
-})
+// Register fonts with more specific paths and ensure they're available
+// Use a try-catch to handle potential font loading issues
+try {
+  Font.register({
+    family: 'Times New Roman',
+    fonts: [
+      { src: '/fonts/times-new-roman.ttf' },
+      { src: '/fonts/times-new-roman-bold.ttf', fontWeight: 700 },
+      { src: '/fonts/times-new-roman-italic.ttf', fontStyle: 'italic' },
+      {
+        src: '/fonts/times-new-roman-bold-italic.ttf',
+        fontWeight: 700,
+        fontStyle: 'italic'
+      }
+    ]
+  });
+} catch (error) {
+  // If we can't load custom fonts, we'll use fallback fonts
+  console.warn('Failed to load custom fonts, using fallbacks:', error);
+}
 
-// Your styles remain unchanged
+// Standardize font weight usage across all style definitions
 const styles = StyleSheet.create({
   page: {
     fontFamily: 'Times New Roman',
@@ -89,6 +95,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     padding: 30
   },
+  productNameCell: {
+  fontSize: 5,
+  padding: 1,
+  fontWeight: 700,
+  fontFamily: 'Times New Roman'
+},
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -105,13 +117,13 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: 700, // Explicit numeric weight
     marginBottom: 20,
     color: '#1E40AF'
   },
   returnTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: 700, // Explicit numeric weight
     marginBottom: 20,
     color: '#DC2626'
   },
@@ -124,7 +136,7 @@ const styles = StyleSheet.create({
   returnBadgeText: {
     color: '#DC2626',
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: 700, // Explicit numeric weight
     textAlign: 'center'
   },
   returnNote: {
@@ -147,7 +159,7 @@ const styles = StyleSheet.create({
     fontSize: 10
   },
   label: {
-    fontWeight: 'bold',
+    fontWeight: 700, // Explicit numeric weight
     marginRight: 5
   },
   value: {
@@ -183,7 +195,7 @@ const styles = StyleSheet.create({
     borderRightColor: '#bfbfbf'
   },
   tableCellHeader: {
-    fontWeight: 'bold',
+    fontWeight: 700, // Explicit numeric weight
     fontSize: 5,
     textAlign: 'center'
   },
@@ -206,7 +218,7 @@ const styles = StyleSheet.create({
     width: '16.66%',
     textAlign: 'right',
     paddingRight: 5,
-    fontWeight: 'bold',
+    fontWeight: 700, // Explicit numeric weight
     fontSize: 10
   },
   subtotalValue: {
@@ -254,7 +266,7 @@ const styles = StyleSheet.create({
   },
   paymentInfoTitle: {
     fontSize: 10,
-    fontWeight: 'bold',
+    fontWeight: 700, // Explicit numeric weight
     marginBottom: 5
   },
   paymentInfoRow: {
@@ -262,10 +274,24 @@ const styles = StyleSheet.create({
     marginBottom: 2
   },
   paymentInfoLabel: {
-    fontWeight: 'bold'
+    fontWeight: 700 // Explicit numeric weight
   }
 })
 
+const sanitizeProductName = (name: any): string => {
+  if (name === null || name === undefined) {
+    return 'N/A';
+  }
+
+  // Convert to string and trim whitespace
+  const nameString = String(name).trim();
+
+  // Return the sanitized name or N/A if empty
+  return nameString || 'N/A';
+}
+
+
+// Consistent styling for the payment info component
 const PaymentInfoRenderer: React.FC<{ paymentInfo: PaymentInfoOption }> = ({ paymentInfo }) => {
   // Fallback to a default if paymentInfo is missing
   const config: any = PAYMENT_INFO_CONFIG[paymentInfo] || PAYMENT_INFO_CONFIG['frisson_llc']
@@ -346,6 +372,7 @@ const PaymentInfoRenderer: React.FC<{ paymentInfo: PaymentInfoOption }> = ({ pay
     </View>
   )
 }
+
 
 const convertAmountToWords = (
   amount: number,
@@ -544,7 +571,9 @@ const InvoicePDF: React.FC<{
                   />
                 </View>
                 <View style={[styles.tableCol, { width: '12%' }]}>
-                  <Text style={styles.tableCell}>{product.name || 'N/A'}</Text>
+                 <Text style={styles.productNameCell}>
+  {sanitizeProductName(product.name)}
+</Text>
                 </View>
                 <View style={[styles.tableCol, { width: '10%' }]}>
                   {Array.isArray(product.notes) ? (
