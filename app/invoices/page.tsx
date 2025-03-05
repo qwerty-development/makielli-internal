@@ -777,7 +777,7 @@ const InvoicesPage: React.FC = () => {
 				product_id: product.id,
 				product_variant_id: product.variants[0].id,
 				quantity: 1,
-				note: ''
+		 note: product.description || ''
 			}
 		])
 		if (!newInvoice.discounts?.[product.id]) {
@@ -800,7 +800,7 @@ const InvoicesPage: React.FC = () => {
 					product_id: selectedProduct.id,
 					product_variant_id: selectedProduct.variants[0].id,
 					quantity: 1,
-					note: ''
+					note: selectedProduct.description || ''
 				}
 			])
 		}
@@ -1015,18 +1015,20 @@ const InvoicesPage: React.FC = () => {
 		}
 	}
 
-	const handleEditExistingProduct = (index: number) => {
-		if (!newInvoice.products) return
 
-		const productToEdit = newInvoice.products[index]
-		const parentProduct = products.find(p => p.id === productToEdit.product_id)
+const handleEditExistingProduct = (index: number) => {
+  if (!newInvoice.products) return
 
-		if (parentProduct) {
-			setSelectedProduct(parentProduct)
-			setSelectedVariants([productToEdit])
-			setEditingProductIndex(index)
-		}
-	}
+  const productToEdit = newInvoice.products[index]
+  const parentProduct = products.find(p => p.id === productToEdit.product_id)
+
+  if (parentProduct) {
+    setSelectedProduct(parentProduct)
+    // Keep the existing note when editing
+    setSelectedVariants([productToEdit])
+    setEditingProductIndex(index)
+  }
+}
 
 	const handleAddSelectedProductToInvoice = () => {
 		if (selectedProduct && selectedVariants.length > 0) {

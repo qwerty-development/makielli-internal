@@ -372,7 +372,7 @@ const QuotationsPage: React.FC = () => {
         product_id: product.id,
         product_variant_id: product.variants[0]?.id || '',
         quantity: 1,
-        note: ''
+        note: product.description || ''
       }
     ])
   }
@@ -385,7 +385,7 @@ const QuotationsPage: React.FC = () => {
           product_id: selectedProduct.id,
           product_variant_id: '', // Default to empty string; user must select
           quantity: 1,
-          note: ''
+          note: selectedProduct.description || ''
         }
       ])
     }
