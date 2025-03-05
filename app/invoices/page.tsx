@@ -368,7 +368,7 @@ const InvoicesPage: React.FC = () => {
 	}
 
 	const fetchClients = async () => {
-		const { data, error } = await supabase.from('Clients').select('*')
+		const { data, error } = await supabase.from('Clients').select('*').order('name', { ascending: true })
 		if (error) {
 			toast.error(`Error fetching clients: ${error.message}`)
 		} else {
@@ -893,22 +893,25 @@ const InvoicesPage: React.FC = () => {
 				const variant = parentProduct?.variants.find(
 					v => v.id === product.product_variant_id
 				)
-				const sizeOptions = [
-					'OS',
-					'XXS',
-					'XS',
-					'S',
-					'M',
-					'L',
-					'XL',
-					'2XL',
-					'3XL',
-					'38',
-					'40',
-					'42',
-					'44',
-					'46'
-				]
+		const sizeOptions = [
+  'OS',
+  'XXS',
+  'XS',
+  'S',
+  'S/M',
+  'M',
+  'M/L',
+  'L',
+  'XL',
+  '2XL',
+  '3XL',
+  '36',
+  '38',
+  '40',
+  '42',
+  '44',
+  '46'
+]
 				const sizes = sizeOptions.reduce((acc: any, size: any) => {
 					acc[size] = 0
 					return acc

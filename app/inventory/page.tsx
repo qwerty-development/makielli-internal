@@ -14,22 +14,25 @@ interface VariantGroup {
 }
 
 export default function ProductsPage() {
-  const sizeOptions = [
-    'OS',
-    'XXS',
-    'XS',
-    'S',
-    'M',
-    'L',
-    'XL',
-    '2XL',
-    '3XL',
-    '38',
-    '40',
-    '42',
-    '44',
-    '46'
-  ]
+const sizeOptions = [
+  'OS',
+  'XXS',
+  'XS',
+  'S',
+  'S/M',
+  'M',
+  'M/L',
+  'L',
+  'XL',
+  '2XL',
+  '3XL',
+  '36',
+  '38',
+  '40',
+  '42',
+  '44',
+  '46'
+]
 
   // State variables
   const [products, setProducts] = useState<Product[]>([])

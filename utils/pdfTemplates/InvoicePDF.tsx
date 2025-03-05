@@ -96,11 +96,11 @@ const styles = StyleSheet.create({
     padding: 30
   },
   productNameCell: {
-  fontSize: 5,
-  padding: 1,
-  fontWeight: 700,
-  fontFamily: 'Times New Roman'
-},
+    fontSize: 5,
+    padding: 1,
+    fontWeight: 700,
+    fontFamily: 'Times New Roman'
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
     marginVertical: 2
   },
   imageContainer: {
-    width: '8%',
+    width: '7%', // Changed from 8%
     height: 54,
     justifyContent: 'center',
     alignItems: 'center'
@@ -401,11 +401,14 @@ const sizeOptions = [
   'XXS',
   'XS',
   'S',
+  'S/M',
   'M',
+  'M/L',
   'L',
   'XL',
   '2XL',
   '3XL',
+  '36',
   '38',
   '40',
   '42',
@@ -521,20 +524,20 @@ const InvoicePDF: React.FC<{
 
         <View style={styles.table}>
           <View style={styles.tableRow}>
-            <View style={[styles.tableColHeader, { width: '8%' }]}>
+            <View style={[styles.tableColHeader, { width: '7%' }]}>
               <Text style={styles.tableCellHeader}>IMAGE</Text>
             </View>
-            <View style={[styles.tableColHeader, { width: '12%' }]}>
+            <View style={[styles.tableColHeader, { width: '11%' }]}>
               <Text style={styles.tableCellHeader}>STYLE</Text>
             </View>
-            <View style={[styles.tableColHeader, { width: '10%' }]}>
+            <View style={[styles.tableColHeader, { width: '9%' }]}>
               <Text style={styles.tableCellHeader}>DESCRIPTION</Text>
             </View>
-            <View style={[styles.tableColHeader, { width: '8%' }]}>
+            <View style={[styles.tableColHeader, { width: '7%' }]}>
               <Text style={styles.tableCellHeader}>COLOR</Text>
             </View>
             {sizeOptions.map((size) => (
-              <View key={size} style={[styles.tableColHeader, { width: '4%' }]}>
+              <View key={size} style={[styles.tableColHeader, { width: '3.25%' }]}>
                 <Text style={styles.tableCellHeader}>{size}</Text>
               </View>
             ))}
@@ -570,12 +573,12 @@ const InvoicePDF: React.FC<{
                     style={styles.productImage}
                   />
                 </View>
-                <View style={[styles.tableCol, { width: '12%' }]}>
-                 <Text style={styles.productNameCell}>
-  {sanitizeProductName(product.name)}
-</Text>
+                <View style={[styles.tableCol, { width: '11%' }]}>
+                  <Text style={styles.productNameCell}>
+                    {sanitizeProductName(product.name)}
+                  </Text>
                 </View>
-                <View style={[styles.tableCol, { width: '10%' }]}>
+                <View style={[styles.tableCol, { width: '9%' }]}>
                   {Array.isArray(product.notes) ? (
                     product.notes.map((note: string, noteIndex: number) => (
                       <Text key={noteIndex} style={styles.notes}>
@@ -586,11 +589,11 @@ const InvoicePDF: React.FC<{
                     <Text style={styles.notes}>{product.notes || 'N/A'}</Text>
                   )}
                 </View>
-                <View style={[styles.tableCol, { width: '8%' }]}>
+                <View style={[styles.tableCol, { width: '7%' }]}>
                   <Text style={styles.tableCell}>{product.color || 'N/A'}</Text>
                 </View>
                 {sizeOptions.map((size) => (
-                  <View key={size} style={[styles.tableCol, { width: '4%' }]}>
+                  <View key={size} style={[styles.tableCol, { width: '3.25%' }]}>
                     <Text style={styles.tableCell}>
                       {product.sizes && product.sizes[size] ? product.sizes[size] : '-'}
                     </Text>
