@@ -43,6 +43,7 @@ const sizeOptions = [
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [newProduct, setNewProduct] = useState<Omit<Product, 'id' | 'variants'>>({
     name: '',
+    description: '',
     photo: '',
     price: 0,
     cost: 0,
@@ -60,7 +61,8 @@ const sizeOptions = [
   // Filter products based on search term
   useEffect(() => {
     const filtered = products.filter(product =>
-      product.name.toLowerCase().includes(searchTerm.toLowerCase())
+      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (product.description && product.description.toLowerCase().includes(searchTerm.toLowerCase()))
     )
     setFilteredProducts(filtered)
   }, [searchTerm, products])
@@ -147,7 +149,7 @@ const sizeOptions = [
       const newVariants:any = flattenVariantGroups()
       await productFunctions.addProduct(productWithPhoto, newVariants)
       setShowProductForm(false)
-      setNewProduct({ name: '', photo: '', price: 0, cost: 0, type: 'Stock' })
+      setNewProduct({ name: '', description: '', photo: '', price: 0, cost: 0, type: 'Stock' })
       setVariantGroups([])
       setSelectedFile(null)
       fetchProducts()
@@ -157,9 +159,9 @@ const sizeOptions = [
 
       toast.error('Failed to create product'+err.message)
     }
-          setNewProduct({ name: '', photo: '', price: 0, cost: 0, type: 'Stock' })
-      setVariantGroups([])
-      setSelectedFile(null)
+    setNewProduct({ name: '', description: '', photo: '', price: 0, cost: 0, type: 'Stock' })
+    setVariantGroups([])
+    setSelectedFile(null)
   }
 
   // Update product handler (for editing)
@@ -307,6 +309,13 @@ const sizeOptions = [
             className='w-full p-2 mb-2 border rounded'
             required
           />
+          <textarea
+            placeholder='Description'
+            value={newProduct.description}
+            onChange={e => setNewProduct({ ...newProduct, description: e.target.value })}
+            className='w-full p-2 mb-2 border rounded'
+            rows={3}
+          />
           <input
             type='file'
             onChange={handleFileChange}
@@ -424,6 +433,9 @@ const sizeOptions = [
               />
             )}
             <h2 className='text-3xl text-white font-semibold mb-2'>{product.name}</h2>
+            {product.description && (
+              <p className='text-white text-sm mb-4 italic'>{product.description}</p>
+            )}
             <p className='text-white text-2xl mb-4'>Type: {product.type}</p>
             <p className='text-white text-2xl mb-4'>
               ${product.price ? product.price.toFixed(2) : '0.00'}
@@ -476,6 +488,13 @@ const sizeOptions = [
                 onChange={e => setEditingProduct({ ...editingProduct, name: e.target.value })}
                 className='w-full p-2 mb-2 border rounded'
                 required
+              />
+              <textarea
+                placeholder='Description'
+                value={editingProduct.description || ''}
+                onChange={e => setEditingProduct({ ...editingProduct, description: e.target.value })}
+                className='w-full p-2 mb-2 border rounded'
+                rows={3}
               />
               <select
                 value={editingProduct.type}
