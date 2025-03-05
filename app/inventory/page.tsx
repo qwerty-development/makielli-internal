@@ -6,33 +6,33 @@ import { productFunctions, Product, ProductVariant } from '../../utils/functions
 import { toast } from 'react-hot-toast'
 import { set } from 'lodash'
 
-// Define a group for variants by size.
-interface VariantGroup {
-  size: string
-  // Now we include the optional id so that existing variants are preserved.
-  variants: { id?: string; color: string; quantity: number }[]
+// Redefine the variant group interface to focus on color first
+interface ColorVariantGroup {
+  color: string
+  // For each color, we track quantities for different sizes with optional variant id
+  sizeQuantities: { size: string; quantity: number; id?: string }[]
 }
 
 export default function ProductsPage() {
-const sizeOptions = [
-  'OS',
-  'XXS',
-  'XS',
-  'S',
-  'S/M',
-  'M',
-  'M/L',
-  'L',
-  'XL',
-  '2XL',
-  '3XL',
-  '36',
-  '38',
-  '40',
-  '42',
-  '44',
-  '46'
-]
+  const sizeOptions = [
+    'OS',
+    'XXS',
+    'XS',
+    'S',
+    'S/M',
+    'M',
+    'M/L',
+    'L',
+    'XL',
+    '2XL',
+    '3XL',
+    '36',
+    '38',
+    '40',
+    '42',
+    '44',
+    '46'
+  ]
 
   // State variables
   const [products, setProducts] = useState<Product[]>([])
@@ -49,8 +49,8 @@ const sizeOptions = [
     cost: 0,
     type: 'Stock'
   })
-  // Instead of listing individual variants, we now group them by size.
-  const [variantGroups, setVariantGroups] = useState<VariantGroup[]>([])
+  // Using color-first approach for variant groups
+  const [colorVariantGroups, setColorVariantGroups] = useState<ColorVariantGroup[]>([])
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
   // Fetch products when component mounts
@@ -124,15 +124,14 @@ const sizeOptions = [
     }
   }
 
-  // Flatten variant groups into a flat array.
-  // IMPORTANT: We now include the variant id if present.
-  const flattenVariantGroups = (): Partial<ProductVariant>[] => {
-    return variantGroups.flatMap(group =>
-      group.variants.map(variant => ({
-        ...(variant.id ? { id: variant.id } : {}),
-        size: group.size,
-        color: variant.color,
-        quantity: variant.quantity
+  // Flatten color variant groups into format expected by database
+  const flattenColorVariantGroups = (): Partial<ProductVariant>[] => {
+    return colorVariantGroups.flatMap(colorGroup =>
+      colorGroup.sizeQuantities.map(sizeQty => ({
+        ...(sizeQty.id ? { id: sizeQty.id } : {}),
+        color: colorGroup.color,
+        size: sizeQty.size,
+        quantity: sizeQty.quantity
       }))
     )
   }
@@ -146,21 +145,20 @@ const sizeOptions = [
         photoUrl = await handleFileUpload()
       }
       const productWithPhoto = { ...newProduct, photo: photoUrl }
-      const newVariants:any = flattenVariantGroups()
+      const newVariants:any = flattenColorVariantGroups()
       await productFunctions.addProduct(productWithPhoto, newVariants)
       setShowProductForm(false)
       setNewProduct({ name: '', description: '', photo: '', price: 0, cost: 0, type: 'Stock' })
-      setVariantGroups([])
+      setColorVariantGroups([])
       setSelectedFile(null)
       fetchProducts()
       toast.success('Product created successfully')
     } catch (err:any) {
       console.error('Error creating product:', err)
-
-      toast.error('Failed to create product'+err.message)
+      toast.error('Failed to create product: '+err.message)
     }
     setNewProduct({ name: '', description: '', photo: '', price: 0, cost: 0, type: 'Stock' })
-    setVariantGroups([])
+    setColorVariantGroups([])
     setSelectedFile(null)
   }
 
@@ -178,7 +176,7 @@ const sizeOptions = [
       }
       const { id, variants, ...productData } = editingProduct
       const updatedProduct = { ...productData, photo: photoUrl }
-      const updatedVariants = flattenVariantGroups()
+      const updatedVariants = flattenColorVariantGroups()
       await productFunctions.updateProduct(id, updatedProduct, updatedVariants)
       setEditingProduct(null)
       setSelectedFile(null)
@@ -186,12 +184,11 @@ const sizeOptions = [
       toast.success('Product updated successfully')
     } catch (err:any) {
       console.error('Error updating product:', err)
-
-      toast.error('Failed to update product'+err.message)
+      toast.error('Failed to update product: '+err.message)
     }
     setEditingProduct(null)
     setSelectedFile(null)
-    setVariantGroups([])
+    setColorVariantGroups([])
   }
 
   const handleDeleteProduct = async (id: string, photoUrl: string) => {
@@ -205,79 +202,97 @@ const sizeOptions = [
         toast.success('Product deleted successfully')
       } catch (err:any) {
         console.error('Error deleting product:', err)
-
-        toast.error('Failed to delete product'+err.message)
+        toast.error('Failed to delete product: '+err.message)
       }
     }
   }
 
-  // --- Variant Group Handlers ---
+  // --- Color Variant Group Handlers ---
 
-  const addVariantGroup = () => {
-    // Create a new variant group with default size "M" and empty variant list.
-    setVariantGroups([...variantGroups, { size: 'M', variants: [] }])
+  const addColorVariantGroup = () => {
+    // Create a new color group with empty size quantities
+    setColorVariantGroups([...colorVariantGroups, { color: '', sizeQuantities: [] }])
   }
 
-  const removeVariantGroup = (groupIndex: number) => {
-    setVariantGroups(variantGroups.filter((_, i) => i !== groupIndex))
+  const removeColorVariantGroup = (groupIndex: number) => {
+    setColorVariantGroups(colorVariantGroups.filter((_, i) => i !== groupIndex))
   }
 
-  const updateVariantGroupSize = (groupIndex: number, size: string) => {
-    const updatedGroups = [...variantGroups]
-    updatedGroups[groupIndex].size = size
-    setVariantGroups(updatedGroups)
+  const updateColorVariantGroupColor = (groupIndex: number, color: string) => {
+    const updatedGroups = [...colorVariantGroups]
+    updatedGroups[groupIndex].color = color
+    setColorVariantGroups(updatedGroups)
   }
 
-  const addColorVariantToGroup = (groupIndex: number) => {
-    const updatedGroups = [...variantGroups]
-    updatedGroups[groupIndex].variants.push({ color: '', quantity: 0 })
-    setVariantGroups(updatedGroups)
+  const addSizeToColorVariant = (groupIndex: number, size: string = sizeOptions[0]) => {
+    const updatedGroups = [...colorVariantGroups]
+    // Check if this size already exists for this color
+    const sizeExists = updatedGroups[groupIndex].sizeQuantities.some(sq => sq.size === size)
+    if (!sizeExists) {
+      updatedGroups[groupIndex].sizeQuantities.push({ size, quantity: 0 })
+      setColorVariantGroups(updatedGroups)
+    } else {
+      toast.error(`Size ${size} already exists for this color`)
+    }
   }
 
-  const updateColorVariant = (
+  const updateSizeQuantity = (
     groupIndex: number,
-    variantIndex: number,
-    field: 'color' | 'quantity',
+    sizeIndex: number,
+    field: 'size' | 'quantity',
     value: string | number
   ) => {
-    const updatedGroups = [...variantGroups]
-    updatedGroups[groupIndex].variants[variantIndex] = {
-      ...updatedGroups[groupIndex].variants[variantIndex],
+    const updatedGroups = [...colorVariantGroups]
+
+    if (field === 'size') {
+      // Check if the new size already exists in this color group
+      const sizeExists = updatedGroups[groupIndex].sizeQuantities.some(
+        (sq, idx) => idx !== sizeIndex && sq.size === value
+      )
+
+      if (sizeExists) {
+        toast.error(`Size ${value} already exists for this color`)
+        return
+      }
+    }
+
+    updatedGroups[groupIndex].sizeQuantities[sizeIndex] = {
+      ...updatedGroups[groupIndex].sizeQuantities[sizeIndex],
       [field]: value
     }
-    setVariantGroups(updatedGroups)
+    setColorVariantGroups(updatedGroups)
   }
 
-  const removeColorVariantFromGroup = (groupIndex: number, variantIndex: number) => {
-    const updatedGroups = [...variantGroups]
-    updatedGroups[groupIndex].variants = updatedGroups[groupIndex].variants.filter((_, i) => i !== variantIndex)
-    setVariantGroups(updatedGroups)
+  const removeSizeFromColorVariant = (groupIndex: number, sizeIndex: number) => {
+    const updatedGroups = [...colorVariantGroups]
+    updatedGroups[groupIndex].sizeQuantities = updatedGroups[groupIndex].sizeQuantities.filter(
+      (_, i) => i !== sizeIndex
+    )
+    setColorVariantGroups(updatedGroups)
   }
 
-  // When editing a product, we group its variants by size and preserve the variant id.
-  const groupVariantsBySize = (variants: ProductVariant[]): VariantGroup[] => {
-    const groups: { [size: string]: { id?: string; color: string; quantity: number }[] } = {}
+  // Convert from database variant format to color-first format
+  const groupVariantsByColor = (variants: ProductVariant[]): ColorVariantGroup[] => {
+    const groups: { [color: string]: { size: string; quantity: number; id?: string }[] } = {}
+
     variants.forEach(variant => {
-      if (!groups[variant.size]) {
-        groups[variant.size] = []
+      if (!groups[variant.color]) {
+        groups[variant.color] = []
       }
-      groups[variant.size].push({ id: variant.id, color: variant.color, quantity: variant.quantity })
+      groups[variant.color].push({ id: variant.id, size: variant.size, quantity: variant.quantity })
     })
-    return Object.keys(groups).map(size => ({
-      size,
-      variants: groups[size]
+
+    return Object.keys(groups).map(color => ({
+      color,
+      sizeQuantities: groups[color]
     }))
   }
-
-
 
   // --- Rendering ---
 
   if (isLoading) {
     return <div className='text-center py-10'>Loading...</div>
   }
-
-
 
   return (
     <div className='p-8 text-gray'>
@@ -350,70 +365,77 @@ const sizeOptions = [
             className='w-full p-2 mb-2 border rounded'
             required
           />
-          <h3 className='text-lg text-white font-semibold mt-4 mb-2'>Variant Groups</h3>
-          {variantGroups.map((group, groupIndex) => (
-            <div key={groupIndex} className='mb-4 p-2 border rounded'>
+          <h3 className='text-lg text-white font-semibold mt-4 mb-2'>Color Variants</h3>
+          {colorVariantGroups.map((colorGroup, colorIndex) => (
+            <div key={colorIndex} className='mb-4 p-4 border border-white rounded'>
               <div className='flex items-center justify-between mb-2'>
-                <label className='text-white font-bold'>Size:</label>
-                <select
-                  value={group.size}
-                  onChange={e => updateVariantGroupSize(groupIndex, e.target.value)}
-                  className='p-2 border rounded ml-2'>
-                  {sizeOptions.map(size => (
-                    <option key={size} value={size}>
-                      {size}
-                    </option>
-                  ))}
-                </select>
+                <label className='text-white font-bold'>Color:</label>
+                <input
+                  type='text'
+                  placeholder='Color name'
+                  value={colorGroup.color}
+                  onChange={e => updateColorVariantGroupColor(colorIndex, e.target.value)}
+                  className='p-2 border rounded ml-2 flex-grow'
+                  required
+                />
                 <button
                   type='button'
-                  onClick={() => removeVariantGroup(groupIndex)}
+                  onClick={() => removeColorVariantGroup(colorIndex)}
                   className='bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded ml-4'>
-                  Remove Group
+                  Remove Color
                 </button>
               </div>
-              <div>
-                {group.variants.map((variant, variantIndex) => (
-                  <div key={variantIndex} className='flex space-x-2 mb-2'>
-                    <input
-                      type='text'
-                      placeholder='Color'
-                      value={variant.color}
-                      onChange={e => updateColorVariant(groupIndex, variantIndex, 'color', e.target.value)}
-                      className='flex-1 p-2 border rounded'
+
+              <div className='mt-3 mb-3'>
+                <h4 className='text-white font-semibold mb-2'>Sizes for {colorGroup.color || 'this color'}</h4>
+                {colorGroup.sizeQuantities.map((sizeQty, sizeIndex) => (
+                  <div key={sizeIndex} className='flex space-x-2 mb-2'>
+                    <select
+                      value={sizeQty.size}
+                      onChange={e => updateSizeQuantity(colorIndex, sizeIndex, 'size', e.target.value)}
+                      className='p-2 border rounded w-1/3'
                       required
-                    />
+                    >
+                      {sizeOptions.map(size => (
+                        <option key={size} value={size}>
+                          {size}
+                        </option>
+                      ))}
+                    </select>
                     <input
                       type='number'
                       placeholder='Quantity'
-                      value={variant.quantity}
-                      onChange={e => updateColorVariant(groupIndex, variantIndex, 'quantity', parseInt(e.target.value) || 0)}
+                      value={sizeQty.quantity}
+                      onChange={e => updateSizeQuantity(colorIndex, sizeIndex, 'quantity', parseInt(e.target.value) || 0)}
                       className='flex-1 p-2 border rounded'
                       required
                     />
                     <button
                       type='button'
-                      onClick={() => removeColorVariantFromGroup(groupIndex, variantIndex)}
+                      onClick={() => removeSizeFromColorVariant(colorIndex, sizeIndex)}
                       className='bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded'>
                       Remove
                     </button>
                   </div>
                 ))}
+
                 <button
                   type='button'
-                  onClick={() => addColorVariantToGroup(groupIndex)}
-                  className='bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-2 rounded'>
-                  Add Color
+                  onClick={() => addSizeToColorVariant(colorIndex)}
+                  className='bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-2 rounded mt-2'>
+                  Add Size
                 </button>
               </div>
             </div>
           ))}
+
           <button
             type='button'
-            onClick={addVariantGroup}
-            className='bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full mt-2 mb-2'>
-            Add Variant Group
+            onClick={addColorVariantGroup}
+            className='bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full mt-2 mb-4'>
+            Add Color Variant
           </button>
+
           <button
             type='submit'
             className='bg-blue hover:bg-black text-white font-bold py-2 px-4 rounded mt-4 block w-full'>
@@ -447,7 +469,7 @@ const sizeOptions = [
             <ul className='mb-4'>
               {(product.variants || []).map((variant, index) => (
                 <li key={index} className='text-sm text-white'>
-                  {variant.size} - {variant.color}: {variant.quantity} in stock
+                  {variant.color} - {variant.size}: {variant.quantity} in stock
                 </li>
               ))}
             </ul>
@@ -455,10 +477,10 @@ const sizeOptions = [
               <button
                 onClick={() => {
                   setEditingProduct(product)
-                  // When editing, group existing variants by size and preserve their IDs.
+                  // When editing, group existing variants by color and preserve their IDs
                   if (product.variants) {
-                    const grouped = groupVariantsBySize(product.variants)
-                    setVariantGroups(grouped)
+                    const grouped = groupVariantsByColor(product.variants)
+                    setColorVariantGroups(grouped)
                   }
                 }}
                 className='bg-blue hover:bg-black text-white font-bold py-2 px-4 rounded'>
@@ -541,68 +563,74 @@ const sizeOptions = [
               <h4 className='font-semibold text-white mt-4 mb-2'>Variants</h4>
               {editingProduct.variants && (
                 <div className='mb-4'>
-                  {variantGroups.map((group, groupIndex) => (
-                    <div key={groupIndex} className='mb-4 p-2 border rounded'>
+                  {colorVariantGroups.map((colorGroup, colorIndex) => (
+                    <div key={colorIndex} className='mb-4 p-4 border border-white rounded'>
                       <div className='flex items-center justify-between mb-2'>
-                        <label className='text-white font-bold'>Size:</label>
-                        <select
-                          value={group.size}
-                          onChange={e => updateVariantGroupSize(groupIndex, e.target.value)}
-                          className='p-2 border rounded ml-2'>
-                          {sizeOptions.map(size => (
-                            <option key={size} value={size}>
-                              {size}
-                            </option>
-                          ))}
-                        </select>
+                        <label className='text-white font-bold'>Color:</label>
+                        <input
+                          type='text'
+                          placeholder='Color name'
+                          value={colorGroup.color}
+                          onChange={e => updateColorVariantGroupColor(colorIndex, e.target.value)}
+                          className='p-2 border rounded ml-2 flex-grow'
+                          required
+                        />
                         <button
                           type='button'
-                          onClick={() => removeVariantGroup(groupIndex)}
+                          onClick={() => removeColorVariantGroup(colorIndex)}
                           className='bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded ml-4'>
-                          Remove Group
+                          Remove Color
                         </button>
                       </div>
-                      <div>
-                        {group.variants.map((variant, variantIndex) => (
-                          <div key={variantIndex} className='flex space-x-2 mb-2'>
-                            <input
-                              type='text'
-                              placeholder='Color'
-                              value={variant.color}
-                              onChange={e => updateColorVariant(groupIndex, variantIndex, 'color', e.target.value)}
-                              className='flex-1 p-2 border rounded'
+
+                      <div className='mt-3 mb-3'>
+                        <h4 className='text-white font-semibold mb-2'>Sizes for {colorGroup.color || 'this color'}</h4>
+                        {colorGroup.sizeQuantities.map((sizeQty, sizeIndex) => (
+                          <div key={sizeIndex} className='flex space-x-2 mb-2'>
+                            <select
+                              value={sizeQty.size}
+                              onChange={e => updateSizeQuantity(colorIndex, sizeIndex, 'size', e.target.value)}
+                              className='p-2 border rounded w-1/3'
                               required
-                            />
+                            >
+                              {sizeOptions.map(size => (
+                                <option key={size} value={size}>
+                                  {size}
+                                </option>
+                              ))}
+                            </select>
                             <input
                               type='number'
                               placeholder='Quantity'
-                              value={variant.quantity}
-                              onChange={e => updateColorVariant(groupIndex, variantIndex, 'quantity', parseInt(e.target.value) || 0)}
+                              value={sizeQty.quantity}
+                              onChange={e => updateSizeQuantity(colorIndex, sizeIndex, 'quantity', parseInt(e.target.value) || 0)}
                               className='flex-1 p-2 border rounded'
                               required
                             />
                             <button
                               type='button'
-                              onClick={() => removeColorVariantFromGroup(groupIndex, variantIndex)}
+                              onClick={() => removeSizeFromColorVariant(colorIndex, sizeIndex)}
                               className='bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded'>
                               Remove
                             </button>
                           </div>
                         ))}
+
                         <button
                           type='button'
-                          onClick={() => addColorVariantToGroup(groupIndex)}
-                          className='bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-2 rounded'>
-                          Add Color
+                          onClick={() => addSizeToColorVariant(colorIndex)}
+                          className='bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-2 rounded mt-2'>
+                          Add Size
                         </button>
                       </div>
                     </div>
                   ))}
+
                   <button
                     type='button'
-                    onClick={addVariantGroup}
-                    className='bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full mt-2 mb-2'>
-                    Add Variant Group
+                    onClick={addColorVariantGroup}
+                    className='bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full mt-2 mb-4'>
+                    Add Color Variant
                   </button>
                 </div>
               )}
@@ -612,7 +640,7 @@ const sizeOptions = [
                   onClick={() => {
                     setEditingProduct(null)
                     setSelectedFile(null)
-                    setVariantGroups([])
+                    setColorVariantGroups([])
                   }}
                   className='bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded mr-2'>
                   Cancel
@@ -625,7 +653,6 @@ const sizeOptions = [
           </div>
         </div>
       )}
-
     </div>
   )
 }
