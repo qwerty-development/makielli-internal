@@ -1115,115 +1115,128 @@ const handleEditExistingProduct = (index: number) => {
 		</div>
 	)
 
-	const renderInvoiceTable = () => (
-		<div className='overflow-x-auto bg-white rounded-lg shadow'>
-			{loadingStates.isMainLoading ? (
-				<div className='flex justify-center items-center p-8'>
-					<FaSpinner className='animate-spin text-4xl text-blue' />
-				</div>
-			) : (
-				<table className='w-full table-auto'>
-					<thead>
-						<tr className='bg-gray text-white uppercase text-sm leading-normal'>
-							<th className='py-3 px-6 text-left'>
-								{activeTab === 'client' ? 'Client' : 'Supplier'}
-							</th>
-							<th
-								className='py-3 px-6 text-left cursor-pointer'
-								onClick={() => handleSort('created_at')}>
-								Date {sortField === 'created_at' && <FaSort className='inline' />}
-							</th>
-							<th
-								className='py-3 px-6 text-left cursor-pointer'
-								onClick={() => handleSort('total_price')}>
-								Total Price {sortField === 'total_price' && <FaSort className='inline' />}
-							</th>
-							<th className='py-3 px-6 text-left'>Order Number</th>
-							<th className='py-3 px-6 text-center'>Files</th>
-							<th className='py-3 px-6 text-center'>Actions</th>
-							<th className='py-3 px-6 text-center'>Type</th>
-						</tr>
-					</thead>
-					<tbody className='text-gray text-sm font-light'>
-						{invoices.map(invoice => (
-							<tr
-								key={invoice.id}
-								className={`border-b border-gray cursor-pointer ${
-									invoice.type === 'return' ? 'bg-red-50' : ''
-								}`}
-								onClick={() => handleInvoiceClick(invoice)}>
-								<td className='py-3 px-6 text-left whitespace-nowrap'>
-									{activeTab === 'client'
-										? clients.find(client => client.client_id === invoice.client_id)
-												?.name
-										: suppliers.find(supplier => supplier.id === invoice.supplier_id)
-												?.name || '-'}
-								</td>
-								<td className='py-3 px-6 text-left'>
-									{new Date(invoice.created_at).toLocaleDateString() || 'N/A'}
-								</td>
-								<td
-									className={`py-3 px-6 text-left ${
+const renderInvoiceTable = () => (
+	<div className='overflow-x-auto bg-white rounded-lg shadow'>
+		{loadingStates.isMainLoading ? (
+			<div className='flex justify-center items-center p-8'>
+				<FaSpinner className='animate-spin text-4xl text-blue' />
+			</div>
+		) : (
+			<table className='w-full table-auto'>
+				<thead>
+					<tr className='bg-gray text-white uppercase text-sm leading-normal'>
+						<th className='py-3 px-6 text-left'>
+							{activeTab === 'client' ? 'Client' : 'Supplier'}
+						</th>
+						<th
+							className='py-3 px-6 text-left cursor-pointer'
+							onClick={() => handleSort('created_at')}>
+							Date {sortField === 'created_at' && <FaSort className='inline' />}
+						</th>
+						<th
+							className='py-3 px-6 text-left cursor-pointer'
+							onClick={() => handleSort('total_price')}>
+							Total Price {sortField === 'total_price' && <FaSort className='inline' />}
+						</th>
+						<th
+							className='py-3 px-6 text-left cursor-pointer'
+							onClick={() => handleSort('remaining_amount')}>
+							Remaining Amount {sortField === 'remaining_amount' && <FaSort className='inline' />}
+						</th>
+						<th className='py-3 px-6 text-left'>Order Number</th>
+						<th className='py-3 px-6 text-center'>Files</th>
+						<th className='py-3 px-6 text-center'>Actions</th>
+						<th className='py-3 px-6 text-center'>Type</th>
+					</tr>
+				</thead>
+				<tbody className='text-gray text-sm font-light'>
+					{invoices.map(invoice => (
+						<tr
+							key={invoice.id}
+							className={`border-b border-gray cursor-pointer ${
+								invoice.type === 'return' ? 'bg-red-50' : ''
+							}`}
+							onClick={() => handleInvoiceClick(invoice)}>
+							<td className='py-3 px-6 text-left whitespace-nowrap'>
+								{activeTab === 'client'
+									? clients.find(client => client.client_id === invoice.client_id)
+											?.name
+									: suppliers.find(supplier => supplier.id === invoice.supplier_id)
+											?.name || '-'}
+							</td>
+							<td className='py-3 px-6 text-left'>
+								{new Date(invoice.created_at).toLocaleDateString() || 'N/A'}
+							</td>
+							<td
+								className={`py-3 px-6 text-left ${
+									invoice.type === 'return'
+										? 'text-red-600'
+										: 'text-green-600'
+								}`}>
+								${(invoice.total_price || 0).toFixed(2)}
+								{invoice.type === 'return' && ' (Return)'}
+							</td>
+							<td
+								className={`py-3 px-6 text-left ${
+									invoice.remaining_amount > 0
+										? 'text-orange-600'
+										: 'text-green-600'
+								}`}>
+								${(invoice.remaining_amount || 0).toFixed(2)}
+							</td>
+							<td className='py-3 px-6 text-left'>{invoice.order_number || '-'}</td>
+							<td className='py-3 px-6 text-center'>
+								{invoice.files && invoice.files.length > 0 ? (
+									<FaFile className='inline text-blue' />
+								) : (
+									'-'
+								)}
+							</td>
+							<td className='py-3 px-6 text-center'>
+								<div className='flex item-center justify-center'>
+									<button
+										className='mr-2 bg-blue text-white p-1 rounded-lg text-nowrap transform hover:scale-110'
+										onClick={e => {
+											e.stopPropagation()
+											handleSendEmail(invoice)
+										}}>
+										Send Email
+									</button>
+									<button
+										className='w-4 mr-2 transform text-blue hover:text-purple-500 hover:scale-110'
+										onClick={e => {
+											e.stopPropagation()
+											handleEditInvoice(invoice)
+										}}>
+										<FaEdit />
+									</button>
+									<button
+										className='w-4 mr-2 transform text-blue hover:text-red-500 hover:scale-110'
+										onClick={e => {
+											e.stopPropagation()
+											handleDeleteInvoice(invoice.id)
+										}}>
+										<FaTrash />
+									</button>
+								</div>
+							</td>
+							<td className='py-3 px-6 text-center'>
+								<span
+									className={`px-2 py-1 rounded-full text-xs font-medium ${
 										invoice.type === 'return'
-											? 'text-red-600'
-											: 'text-green-600'
+											? 'bg-red-100 text-red-800'
+											: 'bg-green-100 text-green-800'
 									}`}>
-									${(invoice.total_price || 0).toFixed(2)}
-									{invoice.type === 'return' && ' (Return)'}
-								</td>
-								<td className='py-3 px-6 text-left'>{invoice.order_number || '-'}</td>
-								<td className='py-3 px-6 text-center'>
-									{invoice.files && invoice.files.length > 0 ? (
-										<FaFile className='inline text-blue' />
-									) : (
-										'-'
-									)}
-								</td>
-								<td className='py-3 px-6 text-center'>
-									<div className='flex item-center justify-center'>
-										<button
-											className='mr-2 bg-blue text-white p-1 rounded-lg text-nowrap transform hover:scale-110'
-											onClick={e => {
-												e.stopPropagation()
-												handleSendEmail(invoice)
-											}}>
-											Send Email
-										</button>
-										<button
-											className='w-4 mr-2 transform text-blue hover:text-purple-500 hover:scale-110'
-											onClick={e => {
-												e.stopPropagation()
-												handleEditInvoice(invoice)
-											}}>
-											<FaEdit />
-										</button>
-										<button
-											className='w-4 mr-2 transform text-blue hover:text-red-500 hover:scale-110'
-											onClick={e => {
-												e.stopPropagation()
-												handleDeleteInvoice(invoice.id)
-											}}>
-											<FaTrash />
-										</button>
-									</div>
-								</td>
-								<td className='py-3 px-6 text-center'>
-									<span
-										className={`px-2 py-1 rounded-full text-xs font-medium ${
-											invoice.type === 'return'
-												? 'bg-red-100 text-red-800'
-												: 'bg-green-100 text-green-800'
-										}`}>
-										{invoice.type === 'return' ? 'Return' : 'Regular'}
-									</span>
-								</td>
-							</tr>
-						))}
-					</tbody>
-				</table>
-			)}
-		</div>
-	)
+									{invoice.type === 'return' ? 'Return' : 'Regular'}
+								</span>
+							</td>
+						</tr>
+					))}
+				</tbody>
+			</table>
+		)}
+	</div>
+)
 
 	const renderPagination = () => {
 		const totalPages = Math.ceil(totalInvoices / itemsPerPage)
