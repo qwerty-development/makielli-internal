@@ -1032,78 +1032,284 @@ const QuotationsPage: React.FC = () => {
     </div>
   )
 
-  const renderQuotationDetails = () => {
-    if (!selectedQuotation) return null
-    return (
-      <div className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'>
-        <div className='relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white'>
-          <div className='mt-3 text-center'>
-            <h3 className='text-lg leading-6 font-medium text-gray'>Order Details</h3>
-            <div className='mt-2 px-7 py-3'>
-              <p className='text-sm text-gray'>ID: {selectedQuotation.id || '-'}</p>
-              <p className='text-sm text-gray'>
-                Date: {new Date(selectedQuotation.created_at).toLocaleDateString() || 'N/A'}
-              </p>
-              <p className='text-sm text-gray'>
-                Total Price: ${selectedQuotation.total_price?.toFixed(2) || '0.00'}
-              </p>
-              {selectedQuotation.include_vat && (
-                <p className='text-sm text-gray'>
-                  VAT Amount: ${selectedQuotation.vat_amount?.toFixed(2) || '0.00'}
-                </p>
-              )}
-              <p className='text-sm text-gray'>
-                Client: {clients.find(c => c.client_id === selectedQuotation.client_id)?.name || '-'}
-              </p>
-              <p className='text-sm text-gray'>Status: {selectedQuotation.status || '-'}</p>
-              <p className='text-sm text-gray'>Note: {selectedQuotation.note || '-'}</p>
-              <p className='text-sm text-gray'>
-                Order Number: {selectedQuotation.order_number || '-'}
-              </p>
-              <p className='text-sm text-gray'>
-                Currency: {selectedQuotation.currency === 'euro' ? '€ (EUR)' : '$ (USD)'}
-              </p>
-              <p className='text-sm text-gray'>
-                Payment Terms: {selectedQuotation.payment_term || '-'}
-              </p>
+const renderQuotationDetails = () => {
+  if (!selectedQuotation) return null;
+
+  const client = clients.find(c => c.client_id === selectedQuotation.client_id);
+  const currency = selectedQuotation.currency || 'usd';
+  const currencySymbol = currency === 'euro' ? '€' : '$';
+
+  // Size options matching PDF
+  const sizeOptions = [
+    'OS', 'XXS', 'XS', 'S', 'S/M', 'M', 'M/L', 'L', 'XL', '2XL', '3XL',
+    '36', '38', '40', '42', '44', '46'
+  ];
+
+  // Calculate totals matching PDF calculation logic
+  const subtotal = selectedQuotation.products?.reduce((total, product) => {
+    const parentProduct = products.find(p => p.id === product.product_id);
+    if (!parentProduct) return total;
+
+    const price = parentProduct.price || 0;
+    return total + (price * product.quantity);
+  }, 0) || 0;
+
+  const totalDiscount = selectedQuotation.products?.reduce((total, product) => {
+    const discount = selectedQuotation.discounts?.[product.product_id] || 0;
+    return total + (discount * product.quantity);
+  }, 0) || 0;
+
+  const totalBeforeVAT = subtotal - totalDiscount;
+  const vatAmount = selectedQuotation.include_vat ? totalBeforeVAT * 0.11 : 0;
+
+  // Transform product data to match PDF format
+  const productsByNameColor:any = {};
+  selectedQuotation.products?.forEach(product => {
+    const parentProduct = products.find(p => p.id === product.product_id);
+    if (!parentProduct) return;
+
+    const variant = allProductVariants.find(v => v.id === product.product_variant_id);
+    if (!variant) return;
+
+    const key = `${parentProduct.name}-${variant.color}`;
+    if (!productsByNameColor[key]) {
+      productsByNameColor[key] = {
+        product_id: parentProduct.id,
+        name: parentProduct.name,
+        color: variant.color,
+        image: parentProduct.photo,
+        unitPrice: parentProduct.price,
+        sizes: {},
+        notes: new Set(),
+        totalQuantity: 0,
+        discount: selectedQuotation.discounts?.[parentProduct.id] || 0
+      };
+    }
+
+    // Add quantity to the specific size
+    productsByNameColor[key].sizes[variant.size] =
+      (productsByNameColor[key].sizes[variant.size] || 0) + product.quantity;
+
+    // Update total quantity
+    productsByNameColor[key].totalQuantity += product.quantity;
+
+    // Add note if it exists
+    if (product.note) {
+      productsByNameColor[key].notes.add(product.note);
+    }
+  });
+
+  // Convert to array and sort by name then color (matching PDF)
+  const productsArray = Object.values(productsByNameColor).sort((a:any, b:any) => {
+    const nameComparison = a.name.localeCompare(b.name);
+    if (nameComparison !== 0) return nameComparison;
+    return a.color.localeCompare(b.color);
+  });
+
+  return (
+    <div className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'>
+      <div className='relative top-10 mx-auto p-5 border w-4/5 max-w-5xl shadow-lg rounded-md bg-white'>
+        <div className='mt-3'>
+          <div className='flex justify-between items-start mb-6'>
+            <div>
+              <img src="/logo/logo.png" alt="Company Logo" className="h-16 w-auto" />
+            </div>
+            <div className='text-right'>
+              <h4 className='font-bold'>Company Information</h4>
+              <p className='text-sm'>Frisson International LLC</p>
+              <p className='text-sm'>1441 Caribbean breeze drive</p>
+              <p className='text-sm'>Tampa Florida, 33613</p>
+              <p className='text-sm'>United States Of America</p>
+            </div>
+          </div>
+
+          <div className='mb-6 text-center'>
+            <h2 className='text-2xl font-bold text-blue'>PURCHASE ORDER</h2>
+          </div>
+
+          <div className='flex justify-between mb-6'>
+            <div className='w-1/2 pr-4'>
+              <h4 className='font-bold mb-2'>Order To:</h4>
+              <p className='text-sm'>{client?.name || 'N/A'}</p>
+              <p className='text-sm'>{client?.address || 'N/A'}</p>
+              <p className='text-sm'>Phone: {client?.phone || 'N/A'}</p>
+              <p className='text-sm'>Email: {client?.email || 'N/A'}</p>
+              <p className='text-sm'>Tax Number: {client?.tax_number || 'N/A'}</p>
+            </div>
+
+            <div className='w-1/2 pl-4'>
+              <h4 className='font-bold mb-2'>Order Details:</h4>
+              <p className='text-sm'>Order Number: {selectedQuotation.id || 'N/A'}</p>
+              <p className='text-sm'>Date: {selectedQuotation.created_at ? format(new Date(selectedQuotation.created_at), 'PP') : 'N/A'}</p>
+              <p className='text-sm'>Order Number: {selectedQuotation.order_number || 'N/A'}</p>
               {selectedQuotation.delivery_date && (
-                <p className='text-sm text-gray'>
-                  Delivery Date: {format(new Date(selectedQuotation.delivery_date), 'PP')}
-                </p>
+                <p className='text-sm'>Delivery Date: {format(new Date(selectedQuotation.delivery_date), 'PP')}</p>
               )}
-              <h4 className='text-sm font-medium text-gray mt-4'>Products:</h4>
-              <ul className='list-disc list-inside'>
-                {selectedQuotation.products.map((product, index) => {
-                  const variant = allProductVariants.find(v => v.id === product.product_variant_id)
-                  const productItem = products.find(p => p.id === variant?.product_id)
+              {selectedQuotation.payment_term && (
+                <p className='text-sm'>Payment Term: {selectedQuotation.payment_term}</p>
+              )}
+              <p className='text-sm'>Status: <span className={`px-2 py-1 rounded-full text-xs ${
+                selectedQuotation.status === 'pending'
+                  ? 'bg-yellow-200 text-yellow-800'
+                  : selectedQuotation.status === 'accepted'
+                  ? 'bg-green-200 text-green-800'
+                  : 'bg-red-200 text-red-800'
+              }`}>{selectedQuotation.status}</span></p>
+            </div>
+          </div>
+
+          {/* Products Table - Matching PDF Layout */}
+          <div className='mb-6 overflow-x-auto'>
+            <table className='min-w-full border border-neutral-300'>
+              <thead>
+                <tr className='bg-neutral-100'>
+                  <th className='w-16 p-2 text-xs font-bold text-center border border-neutral-300'>IMAGE</th>
+                  <th className='w-24 p-2 text-xs font-bold text-center border border-neutral-300'>STYLE</th>
+                  <th className='w-24 p-2 text-xs font-bold text-center border border-neutral-300'>DESCRIPTION</th>
+                  <th className='w-16 p-2 text-xs font-bold text-center border border-neutral-300'>COLOR</th>
+                  {sizeOptions.map(size => (
+                    <th key={size} className='w-10 p-1 text-xs font-bold text-center border border-neutral-300'>{size}</th>
+                  ))}
+                  <th className='w-16 p-2 text-xs font-bold text-center border border-neutral-300'>TOTAL PCS</th>
+                  <th className='w-20 p-2 text-xs font-bold text-center border border-neutral-300'>UNIT PRICE</th>
+                  {Object.values(productsByNameColor).some((p:any) => p.discount > 0) && (
+                    <th className='w-20 p-2 text-xs font-bold text-center border border-neutral-300'>DISCOUNT</th>
+                  )}
+                  <th className='w-24 p-2 text-xs font-bold text-center border border-neutral-300'>TOTAL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {productsArray.map((product:any, index:any) => {
+                  const priceAfterDiscount = product.unitPrice - product.discount;
+                  const lineTotal = priceAfterDiscount * product.totalQuantity;
+
                   return (
-                    <li key={index} className='text-sm text-gray'>
-                      {productItem?.name || 'N/A'} - {variant?.size || 'N/A'} - {variant?.color || 'N/A'} - Quantity: {product.quantity || 0}
-                      {product.note && (
-                        <div className='ml-4 text-xs italic'>Note: {product.note}</div>
+                    <tr key={index} className='border-b border-neutral-300'>
+                      <td className='p-2 text-center border-r border-neutral-300'>
+                        {product.image ? (
+                          <img src={product.image} alt={product.name} className='w-12 h-12 object-contain mx-auto' />
+                        ) : (
+                          <div className='w-12 h-12 bg-neutral-200 mx-auto'></div>
+                        )}
+                      </td>
+                      <td className='p-2 text-xs font-semibold border-r border-neutral-300'>{product.name || 'N/A'}</td>
+                      <td className='p-2 text-xs border-r border-neutral-300'>
+                        {Array.from(product.notes).map((note:any, i) => (
+                          <p key={i} className='text-xs italic text-neutral-600'>{note}</p>
+                        ))}
+                      </td>
+                      <td className='p-2 text-xs text-center border-r border-neutral-300'>{product.color || 'N/A'}</td>
+
+                      {/* Size columns */}
+                      {sizeOptions.map(size => (
+                        <td key={size} className='p-1 text-xs text-center border-r border-neutral-300'>
+                          {product.sizes[size] ? product.sizes[size] : '-'}
+                        </td>
+                      ))}
+
+                      <td className='p-2 text-xs text-center border-r border-neutral-300'>{product.totalQuantity}</td>
+                      <td className='p-2 text-xs text-center border-r border-neutral-300'>
+                        {currencySymbol}{product.unitPrice?.toFixed(2)}
+                      </td>
+
+                      {Object.values(productsByNameColor).some((p:any) => p.discount > 0) && (
+                        <td className='p-2 text-xs text-center border-r border-neutral-300'>
+                          {product.discount > 0 ? `${currencySymbol}${product.discount.toFixed(2)}` : '-'}
+                        </td>
                       )}
-                    </li>
-                  )
+
+                      <td className='p-2 text-xs text-center border-r border-neutral-300'>
+                        {currencySymbol}{lineTotal.toFixed(2)}
+                      </td>
+                    </tr>
+                  );
                 })}
-              </ul>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Totals Section - Matching PDF Layout */}
+          <div className='flex flex-col items-end mb-6 mt-4'>
+            {Math.abs(subtotal) !== Math.abs(selectedQuotation.total_price || 0) && (
+              <div className='flex justify-end mb-1 w-1/3'>
+                <div className='w-1/2 font-bold text-right pr-4'>Subtotal:</div>
+                <div className='w-1/2 text-right'>
+                  {currencySymbol}{subtotal.toFixed(2)}
+                </div>
+              </div>
+            )}
+
+            {totalDiscount > 0 && (
+              <div className='flex justify-end mb-1 w-1/3'>
+                <div className='w-1/2 font-bold text-right pr-4'>Total Discount:</div>
+                <div className='w-1/2 text-right'>
+                  {currencySymbol}{totalDiscount.toFixed(2)}
+                </div>
+              </div>
+            )}
+
+            {selectedQuotation.include_vat && (
+              <>
+                {totalBeforeVAT !== subtotal && (
+                  <div className='flex justify-end mb-1 w-1/3'>
+                    <div className='w-1/2 font-bold text-right pr-4'>Total Before VAT:</div>
+                    <div className='w-1/2 text-right'>
+                      {currencySymbol}{totalBeforeVAT.toFixed(2)}
+                    </div>
+                  </div>
+                )}
+                <div className='flex justify-end mb-1 w-1/3'>
+                  <div className='w-1/2 font-bold text-right pr-4'>VAT (11%):</div>
+                  <div className='w-1/2 text-right'>
+                    {currencySymbol}{vatAmount.toFixed(2)}
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div className='flex justify-end mb-1 w-1/3'>
+              <div className='w-1/2 font-bold text-right pr-4'>Total:</div>
+              <div className='w-1/2 text-right font-bold'>
+                {currencySymbol}{(selectedQuotation.total_price || 0).toFixed(2)}
+              </div>
             </div>
-            <div className='items-center px-4 py-3'>
-              <button
-                className='px-4 py-2 bg-blue text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue focus:outline-none mb-2'
-                onClick={() => handlePDFGeneration(selectedQuotation!)}>
-                Download PDF
-              </button>
-              <button
-                className='px-4 py-2 bg-gray text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-gray focus:outline-none'
-                onClick={() => setSelectedQuotation(null)}>
-                Close
-              </button>
+
+            <div className='w-2/3 text-right italic text-sm text-neutral-600 mt-1'>
+              Amount in words: [Amount in words would appear here]
             </div>
+          </div>
+
+          {/* Payment Information Section */}
+
+          {/* Note Section */}
+          {selectedQuotation.note && (
+            <div className='mb-6'>
+              <h4 className='font-bold mb-2'>Additional Notes:</h4>
+              <p className='text-sm'>{selectedQuotation.note}</p>
+            </div>
+          )}
+
+          <div className='text-center text-neutral-500 text-sm mb-4'>
+            Thank you for your business!
+          </div>
+
+          <div className='flex justify-center space-x-4 mt-6'>
+            <button
+              className='px-4 py-2 bg-blue text-white font-medium rounded-md shadow-sm hover:bg-blue-700 focus:outline-none'
+              onClick={() => handlePDFGeneration(selectedQuotation)}>
+              Download PDF
+            </button>
+            <button
+              className='px-4 py-2 bg-gray text-white font-medium rounded-md shadow-sm hover:bg-neutral-700 focus:outline-none'
+              onClick={() => setSelectedQuotation(null)}>
+              Close
+            </button>
           </div>
         </div>
       </div>
-    )
-  }
+    </div>
+  );
+};
 
   return (
     <div className='mx-auto px-4 py-8 text-gray'>

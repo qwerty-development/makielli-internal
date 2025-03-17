@@ -1792,116 +1792,324 @@ const renderInvoiceTable = () => (
 		</div>
 	)
 
-	const renderInvoiceDetails = () => {
-		if (!selectedInvoice) return null
+const renderInvoiceDetails = () => {
+  if (!selectedInvoice) return null;
 
-		let subtotal = 0
-		let totalDiscount = 0
+  const isClientInvoice = activeTab === 'client';
+  const entity:any = isClientInvoice
+    ? clients.find(client => client.client_id === selectedInvoice.client_id)
+    : suppliers.find(supplier => supplier.id === selectedInvoice.supplier_id);
 
-		return (
-			<div className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'>
-				<div className='relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white'>
-					<div className='mt-3 text-center'>
-						<h3 className='text-lg leading-6 font-medium text-gray'>Invoice Details</h3>
-						<div className='mt-2 px-7 py-3'>
-							<p className='text-sm text-gray'>ID: {selectedInvoice.id || '-'}</p>
-							<p className='text-sm text-gray'>
-								Total Price: ${ (selectedInvoice.total_price || 0).toFixed(2) }
-							</p>
-							{selectedInvoice.include_vat && (
-								<p className='text-sm text-gray'>
-									VAT (11%): ${ (selectedInvoice.vat_amount || 0).toFixed(2) }
-								</p>
-							)}
-							<p className='text-sm text-gray'>
-								Order Number: {selectedInvoice.order_number || '-'}
-							</p>
-							<p className='text-sm text-neutral-500'>
-								Currency: {selectedInvoice.currency === 'euro' ? '€ (EUR)' : '$ (USD)'}
-							</p>
-							<p className='text-sm text-neutral-500'>
-								Payment Terms: {selectedInvoice.payment_term || '-'}
-							</p>
-							{selectedInvoice.payment_info && (
-								<div className='mt-4'>
-									<h4 className='text-sm font-medium text-gray'>Payment Information</h4>
-									<PaymentInfoDisplay option={selectedInvoice.payment_info} />
-								</div>
-							)}
-							{selectedInvoice.delivery_date && (
-								<p className='text-sm text-neutral-500'>
-									Delivery Date: {format(new Date(selectedInvoice.delivery_date), 'PP')}
-								</p>
-							)}
-							<h4 className='text-sm font-medium text-gray mt-4'>Products:</h4>
-							<ul className='list-disc list-inside'>
-								{(selectedInvoice.products || []).map((product, index) => {
-									const parentProduct = products.find(p => p.id === product.product_id)
-									const variant = parentProduct?.variants.find(
-										v => v.id === product.product_variant_id
-									)
-									const unitPrice = activeTab === 'client'
-										? parentProduct?.price || 0
-										: parentProduct?.cost || 0
-									const discount = selectedInvoice.discounts?.[product.product_id] || 0
-									const discountedPrice = (unitPrice || 0) - discount
-									const lineTotal = discountedPrice * product.quantity
-									const lineTotalDiscount = discount * product.quantity
+  const isReturn = selectedInvoice.type === 'return';
+  const currency = selectedInvoice.currency || 'usd';
+  const currencySymbol = currency === 'euro' ? '€' : '$';
 
-									subtotal += (unitPrice || 0) * product.quantity
-									totalDiscount += lineTotalDiscount
+  // Calculate totals matching PDF calculation logic
+  const subtotal = selectedInvoice.products?.reduce((total, product) => {
+    const parentProduct = products.find(p => p.id === product.product_id);
+    if (!parentProduct) return total;
 
-									return (
-										<li key={index} className='text-sm text-gray'>
-											{parentProduct?.name || 'N/A'} - {variant?.size || 'N/A'} - {variant?.color || 'N/A'} - Quantity: {product.quantity || 0} - Unit {activeTab === 'client' ? 'Price' : 'Cost'}: ${ (unitPrice || 0).toFixed(2) } - Discount per item: ${ discount.toFixed(2) } - Discounted Price: ${ discountedPrice.toFixed(2) } - Line Total: ${ lineTotal.toFixed(2) } - Line Discount: ${ lineTotalDiscount.toFixed(2) }
-											{product.note && (
-												<div className='ml-4 text-xs italic'>Note: {product.note}</div>
-											)}
-										</li>
-									)
-								})}
-							</ul>
-							<div className='mt-4'>
-								<p className='text-sm text-gray'>Subtotal: ${ subtotal.toFixed(2) }</p>
-								<p className='text-sm text-gray'>Total Discount: ${ totalDiscount.toFixed(2) }</p>
-								<p className='text-sm text-gray'>Total Before VAT: ${ (subtotal - totalDiscount).toFixed(2) }</p>
-								{selectedInvoice.include_vat && (
-									<p className='text-sm text-gray'>VAT (11%): ${ (selectedInvoice.vat_amount || 0).toFixed(2) }</p>
-								)}
-								<p className='text-sm font-bold text-gray'>Final Total: ${ (selectedInvoice.total_price || 0).toFixed(2) }</p>
-							</div>
-							<h4 className='text-sm font-medium text-gray mt-4'>Files:</h4>
-							<ul className='list-disc list-inside'>
-								{(selectedInvoice.files || []).map((file, index) => (
-									<li key={index} className='text-sm text-gray'>
-										<a
-											href={file}
-											target='_blank'
-											rel='noopener noreferrer'
-											className='text-blue hover:underline'>
-											{file.split('/').pop() || 'File'}
-										</a>
-									</li>
-								))}
-							</ul>
-						</div>
-						<div className='items-center px-4 py-3'>
-							<button
-								className='px-4 py-2 bg-blue text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue focus:outline-none focus:ring-2 focus:ring-blue mb-2'
-								onClick={() => handlePDFGeneration(selectedInvoice!)}>
-								Download PDF
-							</button>
-							<button
-								className='px-4 py-2 bg-gray text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-gray focus:outline-none focus:ring-2 focus:ring-gray'
-								onClick={() => setSelectedInvoice(null)}>
-								Close
-							</button>
-						</div>
-					</div>
-				</div>
-			</div>
-		)
-	}
+    const price = isClientInvoice ? (parentProduct.price || 0) : (parentProduct.cost || 0);
+    const lineTotal = price * product.quantity;
+    return total + (isReturn ? -lineTotal : lineTotal);
+  }, 0) || 0;
+
+  const totalDiscount = selectedInvoice.products?.reduce((total, product) => {
+    const discount = selectedInvoice.discounts?.[product.product_id] || 0;
+    const lineDiscount = discount * product.quantity;
+    return total + (isReturn ? -lineDiscount : lineDiscount);
+  }, 0) || 0;
+
+  const totalBeforeVAT = subtotal - totalDiscount;
+  const vatAmount = selectedInvoice.include_vat ? totalBeforeVAT * 0.11 : 0;
+
+  // Size options matching PDF
+  const sizeOptions = [
+    'OS', 'XXS', 'XS', 'S', 'S/M', 'M', 'M/L', 'L', 'XL', '2XL', '3XL',
+    '36', '38', '40', '42', '44', '46'
+  ];
+
+  // Transform product data to match PDF format
+  const productsByNameColor:any = {};
+  selectedInvoice.products?.forEach(product => {
+    const parentProduct = products.find(p => p.id === product.product_id);
+    const variant = parentProduct?.variants.find(v => v.id === product.product_variant_id);
+
+    if (!parentProduct || !variant) return;
+
+    const key = `${parentProduct.name}-${variant.color}`;
+    if (!productsByNameColor[key]) {
+      productsByNameColor[key] = {
+        product_id: parentProduct.id,
+        name: parentProduct.name,
+        color: variant.color,
+        image: parentProduct.photo,
+        unitPrice: isClientInvoice ? parentProduct.price : parentProduct.cost,
+        sizes: {},
+        notes: new Set(),
+        totalQuantity: 0,
+        discount: selectedInvoice.discounts?.[parentProduct.id] || 0
+      };
+    }
+
+    // Add quantity to the specific size
+    productsByNameColor[key].sizes[variant.size] =
+      (productsByNameColor[key].sizes[variant.size] || 0) + product.quantity;
+
+    // Update total quantity
+    productsByNameColor[key].totalQuantity += product.quantity;
+
+    // Add note if it exists
+    if (product.note) {
+      productsByNameColor[key].notes.add(product.note);
+    }
+  });
+
+  // Convert to array and sort by name then color (matching PDF)
+  const productsArray = Object.values(productsByNameColor).sort((a:any, b:any) => {
+    const nameComparison = a.name.localeCompare(b.name);
+    if (nameComparison !== 0) return nameComparison;
+    return a.color.localeCompare(b.color);
+  });
+
+  return (
+    <div className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'>
+      <div className='relative top-10 mx-auto p-5 border w-4/5 max-w-5xl shadow-lg rounded-md bg-white'>
+        <div className='mt-3'>
+          <div className='flex justify-between items-start mb-6'>
+            <div>
+              <img src="/logo/logo.png" alt="Company Logo" className="h-16 w-auto" />
+            </div>
+            <div className='text-right'>
+              <h4 className='font-bold'>Company Information</h4>
+              <p className='text-sm'>Frisson International LLC</p>
+              <p className='text-sm'>1441 Caribbean breeze drive</p>
+              <p className='text-sm'>Tampa Florida, 33613</p>
+              <p className='text-sm'>United States Of America</p>
+            </div>
+          </div>
+
+          <div className='mb-6 text-center'>
+            <h2 className={`text-2xl font-bold ${isReturn ? 'text-red-600' : 'text-blue'}`}>
+              {isReturn ? 'RETURN INVOICE' : 'INVOICE'}
+            </h2>
+
+            {isReturn && (
+              <div className='mt-2 bg-red-100 p-2 rounded-md'>
+                <p className='text-red-600 font-semibold'>Return Invoice</p>
+              </div>
+            )}
+          </div>
+
+          <div className='flex justify-between mb-6'>
+            <div className='w-1/2 pr-4'>
+              <h4 className='font-bold mb-2'>{isClientInvoice ? 'Bill To:' : 'Supplier:'}</h4>
+              <p className='text-sm'>{entity?.name || 'N/A'}</p>
+              <p className='text-sm'>{isClientInvoice ? entity?.address : entity?.location}</p>
+              <p className='text-sm'>Phone: {entity?.phone || 'N/A'}</p>
+              <p className='text-sm'>Email: {entity?.email || 'N/A'}</p>
+              {isClientInvoice && <p className='text-sm'>Tax Number: {entity?.tax_number || 'N/A'}</p>}
+            </div>
+
+            <div className='w-1/2 pl-4'>
+              <h4 className='font-bold mb-2'>Invoice Details:</h4>
+              <p className='text-sm'>Invoice Number: {selectedInvoice.id || 'N/A'}</p>
+              <p className='text-sm'>Date: {selectedInvoice.created_at ? format(new Date(selectedInvoice.created_at), 'PP') : 'N/A'}</p>
+              <p className='text-sm'>Order Number: {selectedInvoice.order_number || 'N/A'}</p>
+              {selectedInvoice.delivery_date && (
+                <p className='text-sm'>Delivery Date: {format(new Date(selectedInvoice.delivery_date), 'PP')}</p>
+              )}
+              {selectedInvoice.payment_term && (
+                <p className='text-sm'>Payment Term: {selectedInvoice.payment_term}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Products Table - Matching PDF Layout */}
+          <div className='mb-6 overflow-x-auto'>
+            <table className='min-w-full border border-neutral-300'>
+              <thead>
+                <tr className='bg-neutral-100'>
+                  <th className='w-16 p-2 text-xs font-bold text-center border border-neutral-300'>IMAGE</th>
+                  <th className='w-24 p-2 text-xs font-bold text-center border border-neutral-300'>STYLE</th>
+                  <th className='w-24 p-2 text-xs font-bold text-center border border-neutral-300'>DESCRIPTION</th>
+                  <th className='w-16 p-2 text-xs font-bold text-center border border-neutral-300'>COLOR</th>
+                  {sizeOptions.map(size => (
+                    <th key={size} className='w-10 p-1 text-xs font-bold text-center border border-neutral-300'>{size}</th>
+                  ))}
+                  <th className='w-16 p-2 text-xs font-bold text-center border border-neutral-300'>TOTAL PCS</th>
+                  <th className='w-20 p-2 text-xs font-bold text-center border border-neutral-300'>UNIT PRICE</th>
+                  {Object.values(productsByNameColor).some((p:any) => p.discount > 0) && (
+                    <th className='w-20 p-2 text-xs font-bold text-center border border-neutral-300'>DISCOUNT</th>
+                  )}
+                  <th className='w-24 p-2 text-xs font-bold text-center border border-neutral-300'>TOTAL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {productsArray.map((product:any, index:any) => {
+                  const priceAfterDiscount = product.unitPrice - product.discount;
+                  const lineTotal = priceAfterDiscount * product.totalQuantity;
+                  const displayLineTotal = isReturn ? -lineTotal : lineTotal;
+
+                  return (
+                    <tr key={index} className='border-b border-neutral-300'>
+                      <td className='p-2 text-center border-r border-neutral-300'>
+                        {product.image ? (
+                          <img src={product.image} alt={product.name} className='w-12 h-12 object-contain mx-auto' />
+                        ) : (
+                          <div className='w-12 h-12 bg-neutral-200 mx-auto'></div>
+                        )}
+                      </td>
+                      <td className='p-2 text-xs font-semibold border-r border-neutral-300'>{product.name || 'N/A'}</td>
+                      <td className='p-2 text-xs border-r border-neutral-300'>
+                        {Array.from(product.notes).map((note:any, i:any) => (
+                          <p key={i} className='text-xs italic text-neutral-600'>{note}</p>
+                        ))}
+                      </td>
+                      <td className='p-2 text-xs text-center border-r border-neutral-300'>{product.color || 'N/A'}</td>
+
+                      {/* Size columns */}
+                      {sizeOptions.map(size => (
+                        <td key={size} className='p-1 text-xs text-center border-r border-neutral-300'>
+                          {product.sizes[size] ? product.sizes[size] : '-'}
+                        </td>
+                      ))}
+
+                      <td className='p-2 text-xs text-center border-r border-neutral-300'>{product.totalQuantity}</td>
+                      <td className='p-2 text-xs text-center border-r border-neutral-300'>
+                        {currencySymbol}{product.unitPrice?.toFixed(2)}
+                      </td>
+
+                      {Object.values(productsByNameColor).some((p:any) => p.discount > 0) && (
+                        <td className='p-2 text-xs text-center border-r border-neutral-300'>
+                          {product.discount > 0 ? `${currencySymbol}${product.discount.toFixed(2)}` : '-'}
+                        </td>
+                      )}
+
+                      <td className='p-2 text-xs text-center border-r border-neutral-300'>
+                        {currencySymbol}{Math.abs(displayLineTotal).toFixed(2)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Totals Section - Matching PDF Layout */}
+          <div className='flex flex-col items-end mb-6 mt-4'>
+            {Math.abs(subtotal) !== Math.abs(selectedInvoice.total_price || 0) && (
+              <div className='flex justify-end mb-1 w-1/3'>
+                <div className='w-1/2 font-bold text-right pr-4'>Subtotal:</div>
+                <div className='w-1/2 text-right'>
+                  {currencySymbol}{Math.abs(subtotal).toFixed(2)}
+                  {isReturn && ' (Return)'}
+                </div>
+              </div>
+            )}
+
+            {totalDiscount > 0 && (
+              <div className='flex justify-end mb-1 w-1/3'>
+                <div className='w-1/2 font-bold text-right pr-4'>Total Discount:</div>
+                <div className='w-1/2 text-right'>
+                  {currencySymbol}{Math.abs(totalDiscount).toFixed(2)}
+                  {isReturn && ' (Return)'}
+                </div>
+              </div>
+            )}
+
+            {selectedInvoice.include_vat && (
+              <>
+                {totalBeforeVAT !== subtotal && (
+                  <div className='flex justify-end mb-1 w-1/3'>
+                    <div className='w-1/2 font-bold text-right pr-4'>Total Before VAT:</div>
+                    <div className='w-1/2 text-right'>
+                      {currencySymbol}{Math.abs(totalBeforeVAT).toFixed(2)}
+                      {isReturn && ' (Return)'}
+                    </div>
+                  </div>
+                )}
+                <div className='flex justify-end mb-1 w-1/3'>
+                  <div className='w-1/2 font-bold text-right pr-4'>VAT (11%):</div>
+                  <div className='w-1/2 text-right'>
+                    {currencySymbol}{Math.abs(vatAmount).toFixed(2)}
+                    {isReturn && ' (Return)'}
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div className='flex justify-end mb-1 w-1/3'>
+              <div className='w-1/2 font-bold text-right pr-4'>Total:</div>
+              <div className='w-1/2 text-right font-bold'>
+                {currencySymbol}{Math.abs(selectedInvoice.total_price || 0).toFixed(2)}
+                {isReturn && ' (Return)'}
+              </div>
+            </div>
+
+            <div className='w-2/3 text-right italic text-sm text-neutral-600 mt-1'>
+              Amount in words: [Amount in words would appear here]
+              {isReturn && ' (Credit)'}
+            </div>
+          </div>
+
+          {/* Payment Information Section */}
+          <div className='border-t border-neutral-300 pt-4 mb-6'>
+            <h4 className='font-bold mb-2'>Payment Information:</h4>
+            {selectedInvoice.payment_info && (
+              <PaymentInfoDisplay option={selectedInvoice.payment_info} />
+            )}
+          </div>
+
+          {/* Files Section */}
+          {selectedInvoice.files && selectedInvoice.files.length > 0 && (
+            <div className='mb-6'>
+              <h4 className='font-bold mb-2'>Attached Files:</h4>
+              <ul className='list-disc list-inside'>
+                {selectedInvoice.files.map((file, index) => (
+                  <li key={index} className='text-sm'>
+                    <a
+                      href={file}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      className='text-blue hover:underline'>
+                      {file.split('/').pop() || 'File'}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {isReturn && (
+            <div className='text-center mb-6'>
+              <p className='text-red-600 italic text-sm'>
+                This is a return invoice. All amounts shown are credits to be applied to your account.
+              </p>
+            </div>
+          )}
+
+          <div className='text-center text-neutral-500 text-sm mb-4'>
+            Thank you for your business!
+          </div>
+
+          <div className='flex justify-center space-x-4 mt-6'>
+            <button
+              className='px-4 py-2 bg-blue text-white font-medium rounded-md shadow-sm hover:bg-blue-700 focus:outline-none'
+              onClick={() => handlePDFGeneration(selectedInvoice)}>
+              Download PDF
+            </button>
+            <button
+              className='px-4 py-2 bg-gray text-white font-medium rounded-md shadow-sm hover:bg-neutral-700 focus:outline-none'
+              onClick={() => setSelectedInvoice(null)}>
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 	return (
 		<div className='mx-auto px-4 py-8 text-gray'>
