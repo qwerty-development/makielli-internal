@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
     marginVertical: 2
   },
   imageContainer: {
-    width: '7%', // Changed from 8%
+    width: '7%',
     height: 54,
     justifyContent: 'center',
     alignItems: 'center'
@@ -199,24 +199,11 @@ const convertAmountToWords = (
   })
 }
 
+// Updated size options array with new sizes
 const sizeOptions = [
-  'OS',
-  'XXS',
-  'XS',
-  'S',
-  'S/M',
-  'M',
-  'M/L',
-  'L',
-  'XL',
-  '2XL',
-  '3XL',
-  '36',
-  '38',
-  '40',
-  '42',
-  '44',
-  '46'
+  'OS', 'XXS', 'XS', 'S', 'S/M', 'M', 'M/L', 'L', 'XL', '2XL', '3XL',
+  '36', '38', '40', '42', '44', '46',
+  '50', '52', '54', '56', '58'  // New sizes added
 ]
 
 const QuotationPDF: React.FC<{
@@ -325,7 +312,7 @@ const QuotationPDF: React.FC<{
             <View style={[styles.tableColHeader, { width: '7%' }]}>
               <Text style={styles.tableCellHeader}>IMAGE</Text>
             </View>
-            <View style={[styles.tableColHeader, { width: '11%' }]}>
+            <View style={[styles.tableColHeader, { width: '8%' }]}>
               <Text style={styles.tableCellHeader}>STYLE</Text>
             </View>
             <View style={[styles.tableColHeader, { width: '9%' }]}>
@@ -335,22 +322,22 @@ const QuotationPDF: React.FC<{
               <Text style={styles.tableCellHeader}>COLOR</Text>
             </View>
             {sizeOptions.map(size => (
-              <View key={size} style={[styles.tableColHeader, { width: '3.25%' }]}>
+              <View key={size} style={[styles.tableColHeader, { width: '3%' }]}>
                 <Text style={styles.tableCellHeader}>{size}</Text>
               </View>
             ))}
-            <View style={[styles.tableColHeader, { width: '9%' }]}>
+            <View style={[styles.tableColHeader, { width: '8%' }]}>
               <Text style={styles.tableCellHeader}>TOTAL PCS</Text>
             </View>
             <View style={[styles.tableColHeader, { width: '8%' }]}>
               <Text style={styles.tableCellHeader}>UNIT PRICE</Text>
             </View>
             {hasDiscounts && (
-              <View style={[styles.tableColHeader, { width: '9%' }]}>
+              <View style={[styles.tableColHeader, { width: '8%' }]}>
                 <Text style={styles.tableCellHeader}>DISCOUNT</Text>
               </View>
             )}
-            <View style={[styles.tableColHeader, { width: '10%' }]}>
+            <View style={[styles.tableColHeader, { width: '7%' }]}>
               <Text style={styles.tableCellHeader}>TOTAL</Text>
             </View>
           </View>
@@ -371,7 +358,7 @@ const QuotationPDF: React.FC<{
                     style={styles.productImage}
                   />
                 </View>
-                <View style={[styles.tableCol, { width: '11%' }]}>
+                <View style={[styles.tableCol, { width: '8%' }]}>
                   <Text style={styles.tableCell}>{product.name || 'N/A'}</Text>
                 </View>
                 <View style={[styles.tableCol, { width: '9%' }]}>
@@ -389,13 +376,13 @@ const QuotationPDF: React.FC<{
                   <Text style={styles.tableCell}>{product.color || 'N/A'}</Text>
                 </View>
                 {sizeOptions.map(size => (
-                  <View key={size} style={[styles.tableCol, { width: '3.25%' }]}>
+                  <View key={size} style={[styles.tableCol, { width: '3%' }]}>
                     <Text style={styles.tableCell}>
                       {product.sizes && product.sizes[size] ? product.sizes[size] : '-'}
                     </Text>
                   </View>
                 ))}
-                <View style={[styles.tableCol, { width: '9%' }]}>
+                <View style={[styles.tableCol, { width: '8%' }]}>
                   <Text style={styles.tableCell}>{totalQuantity}</Text>
                 </View>
                 <View style={[styles.tableCol, { width: '8%' }]}>
@@ -405,13 +392,13 @@ const QuotationPDF: React.FC<{
                   </Text>
                 </View>
                 {hasDiscounts && (
-                  <View style={[styles.tableCol, { width: '9%' }]}>
+                  <View style={[styles.tableCol, { width: '8%' }]}>
                     <Text style={styles.tableCell}>
                       {discount > 0 ? `${currencySymbol}${discount.toFixed(2)}` : '-'}
                     </Text>
                   </View>
                 )}
-                <View style={[styles.tableCol, { width: '10%' }]}>
+                <View style={[styles.tableCol, { width: '7%' }]}>
                   <Text style={styles.tableCell}>
                     {currencySymbol}
                     {lineTotal.toFixed(2)}

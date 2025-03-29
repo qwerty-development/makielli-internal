@@ -31,7 +31,12 @@ export default function ProductsPage() {
     '40',
     '42',
     '44',
-    '46'
+    '46',
+    '50',
+    '52',
+    '54',
+    '56',
+    '58'
   ]
 
   // State variables

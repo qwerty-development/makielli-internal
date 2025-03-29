@@ -910,7 +910,13 @@ const InvoicesPage: React.FC = () => {
   '40',
   '42',
   '44',
-  '46'
+  '46',
+  '48',
+  '50',
+  '52',
+  '54',
+  '56',
+  '58'
 ]
 				const sizes = sizeOptions.reduce((acc: any, size: any) => {
 					acc[size] = 0
@@ -1823,10 +1829,11 @@ const renderInvoiceDetails = () => {
   const totalBeforeVAT = subtotal - totalDiscount;
   const vatAmount = selectedInvoice.include_vat ? totalBeforeVAT * 0.11 : 0;
 
-  // Size options matching PDF
+  // Updated size options to match PDF - added sizes 50, 52, 54, 56, 58
   const sizeOptions = [
     'OS', 'XXS', 'XS', 'S', 'S/M', 'M', 'M/L', 'L', 'XL', '2XL', '3XL',
-    '36', '38', '40', '42', '44', '46'
+    '36', '38', '40', '42', '44', '46','48',
+    '50', '52', '54', '56', '58'
   ];
 
   // Transform product data to match PDF format
@@ -1925,24 +1932,24 @@ const renderInvoiceDetails = () => {
             </div>
           </div>
 
-          {/* Products Table - Matching PDF Layout */}
+          {/* Products Table - Matching PDF Layout with adjusted column widths for additional sizes */}
           <div className='mb-6 overflow-x-auto'>
-            <table className='min-w-full border border-neutral-300'>
+            <table className='min-w-full border border-neutral-300 text-xs'>
               <thead>
                 <tr className='bg-neutral-100'>
-                  <th className='w-16 p-2 text-xs font-bold text-center border border-neutral-300'>IMAGE</th>
-                  <th className='w-24 p-2 text-xs font-bold text-center border border-neutral-300'>STYLE</th>
-                  <th className='w-24 p-2 text-xs font-bold text-center border border-neutral-300'>DESCRIPTION</th>
-                  <th className='w-16 p-2 text-xs font-bold text-center border border-neutral-300'>COLOR</th>
+                  <th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'>IMAGE</th>
+                  <th className='w-20 p-1 text-xs font-bold text-center border border-neutral-300'>STYLE</th>
+                  <th className='w-20 p-1 text-xs font-bold text-center border border-neutral-300'>DESCRIPTION</th>
+                  <th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'>COLOR</th>
                   {sizeOptions.map(size => (
-                    <th key={size} className='w-10 p-1 text-xs font-bold text-center border border-neutral-300'>{size}</th>
+                    <th key={size} className='w-8 p-0.5 text-xs font-bold text-center border border-neutral-300'>{size}</th>
                   ))}
-                  <th className='w-16 p-2 text-xs font-bold text-center border border-neutral-300'>TOTAL PCS</th>
-                  <th className='w-20 p-2 text-xs font-bold text-center border border-neutral-300'>UNIT PRICE</th>
+                  <th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'>TOTAL PCS</th>
+                  <th className='w-16 p-1 text-xs font-bold text-center border border-neutral-300'>UNIT PRICE</th>
                   {Object.values(productsByNameColor).some((p:any) => p.discount > 0) && (
-                    <th className='w-20 p-2 text-xs font-bold text-center border border-neutral-300'>DISCOUNT</th>
+                    <th className='w-16 p-1 text-xs font-bold text-center border border-neutral-300'>DISCOUNT</th>
                   )}
-                  <th className='w-24 p-2 text-xs font-bold text-center border border-neutral-300'>TOTAL</th>
+                  <th className='w-20 p-1 text-xs font-bold text-center border border-neutral-300'>TOTAL</th>
                 </tr>
               </thead>
               <tbody>
@@ -1953,40 +1960,40 @@ const renderInvoiceDetails = () => {
 
                   return (
                     <tr key={index} className='border-b border-neutral-300'>
-                      <td className='p-2 text-center border-r border-neutral-300'>
+                      <td className='p-1 text-center border-r border-neutral-300'>
                         {product.image ? (
-                          <img src={product.image} alt={product.name} className='w-12 h-12 object-contain mx-auto' />
+                          <img src={product.image} alt={product.name} className='w-10 h-10 object-contain mx-auto' />
                         ) : (
-                          <div className='w-12 h-12 bg-neutral-200 mx-auto'></div>
+                          <div className='w-10 h-10 bg-neutral-200 mx-auto'></div>
                         )}
                       </td>
-                      <td className='p-2 text-xs font-semibold border-r border-neutral-300'>{product.name || 'N/A'}</td>
-                      <td className='p-2 text-xs border-r border-neutral-300'>
+                      <td className='p-1 text-xs font-semibold border-r border-neutral-300'>{product.name || 'N/A'}</td>
+                      <td className='p-1 text-xs border-r border-neutral-300'>
                         {Array.from(product.notes).map((note:any, i:any) => (
                           <p key={i} className='text-xs italic text-neutral-600'>{note}</p>
                         ))}
                       </td>
-                      <td className='p-2 text-xs text-center border-r border-neutral-300'>{product.color || 'N/A'}</td>
+                      <td className='p-1 text-xs text-center border-r border-neutral-300'>{product.color || 'N/A'}</td>
 
-                      {/* Size columns */}
+                      {/* Size columns - Adjusted to be more compact */}
                       {sizeOptions.map(size => (
-                        <td key={size} className='p-1 text-xs text-center border-r border-neutral-300'>
+                        <td key={size} className='p-0.5 text-xs text-center border-r border-neutral-300'>
                           {product.sizes[size] ? product.sizes[size] : '-'}
                         </td>
                       ))}
 
-                      <td className='p-2 text-xs text-center border-r border-neutral-300'>{product.totalQuantity}</td>
-                      <td className='p-2 text-xs text-center border-r border-neutral-300'>
+                      <td className='p-1 text-xs text-center border-r border-neutral-300'>{product.totalQuantity}</td>
+                      <td className='p-1 text-xs text-center border-r border-neutral-300'>
                         {currencySymbol}{product.unitPrice?.toFixed(2)}
                       </td>
 
                       {Object.values(productsByNameColor).some((p:any) => p.discount > 0) && (
-                        <td className='p-2 text-xs text-center border-r border-neutral-300'>
+                        <td className='p-1 text-xs text-center border-r border-neutral-300'>
                           {product.discount > 0 ? `${currencySymbol}${product.discount.toFixed(2)}` : '-'}
                         </td>
                       )}
 
-                      <td className='p-2 text-xs text-center border-r border-neutral-300'>
+                      <td className='p-1 text-xs text-center border-r border-neutral-300'>
                         {currencySymbol}{Math.abs(displayLineTotal).toFixed(2)}
                       </td>
                     </tr>
