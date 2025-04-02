@@ -216,31 +216,38 @@ export const generatePDF = async (
         product.product_variant_id && product.product_variant_id.trim() !== ""
     )
 
-    await Promise.all(
-      validProducts.map(async (product: { product_variant_id: any; quantity: any; note: any }) => {
-        const details = await fetchProductDetails(product.product_variant_id)
-        const key = `${details.name}-${details.color}`
+await Promise.all(
+  validProducts.map(async (product:any) => {
+    const details = await fetchProductDetails(product.product_variant_id)
+    const key = `${details.name}-${details.color}`
 
-        if (!productMap.has(key)) {
-          productMap.set(key, {
-            ...details,
-            sizes: {},
-            totalQuantity: 0,
-            notes: new Set(),
-            discount: data.discounts?.[details.product_id] || 0
-          })
-        }
-
-        const existingProduct = productMap.get(key)
-        existingProduct.sizes[details.size] =
-          (existingProduct.sizes[details.size] || 0) + product.quantity
-        existingProduct.totalQuantity += product.quantity
-        if (product.note) {
-          existingProduct.notes.add(product.note)
-        }
-        productMap.set(key, existingProduct)
+    if (!productMap.has(key)) {
+      productMap.set(key, {
+        ...details,
+        sizes: {},
+        totalQuantity: 0,
+        notes: new Set(),
+        discount: data.discounts?.[details.product_id] || 0
       })
-    )
+    } else {
+      // Update existing entry if the current variant has an image and the stored one doesn't
+      const existingProduct = productMap.get(key)
+      if (!existingProduct.image && details.image) {
+        existingProduct.image = details.image
+        productMap.set(key, existingProduct)
+      }
+    }
+
+    const existingProduct = productMap.get(key)
+    existingProduct.sizes[details.size] =
+      (existingProduct.sizes[details.size] || 0) + product.quantity
+    existingProduct.totalQuantity += product.quantity
+    if (product.note) {
+      existingProduct.notes.add(product.note)
+    }
+    productMap.set(key, existingProduct)
+  })
+)
 
 
 const productsArray = Array.from(productMap.values()).map((product) => ({
