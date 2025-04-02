@@ -60,7 +60,7 @@ interface Invoice {
 	include_vat: boolean
 	vat_amount: number
 	discounts?: { [productId: string]: number }
-	type: 'regular' | 'return'
+	type?: 'regular' | 'return'
 	currency: 'usd' | 'euro'
 	payment_term:
 		| '30% deposit 70% before shipping'
@@ -423,69 +423,77 @@ const InvoicesPage: React.FC = () => {
 		return { subtotal, vatAmount, totalPrice }
 	}
 
-	const handleCreateInvoice = async () => {
-		const isUpdate = Boolean(newInvoice.id)
-		updateLoadingState(
-			isUpdate ? 'isInvoiceUpdating' : 'isInvoiceCreating',
-			true
-		)
+const handleCreateInvoice = async () => {
+  const isUpdate = Boolean(newInvoice.id)
+  updateLoadingState(
+    isUpdate ? 'isInvoiceUpdating' : 'isInvoiceCreating',
+    true
+  )
 
-		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
-		const isClientInvoice = activeTab === 'client'
+  const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
+  const isClientInvoice = activeTab === 'client'
 
-		try {
-			// Validate entity ID
-			const entityId: any = getEntityId(newInvoice)
+  try {
+    // Validate entity ID
+    const entityId: any = getEntityId(newInvoice)
 
-			// Ensure all products have valid variant IDs
-			if (newInvoice.products?.some(p => !p.product_variant_id)) {
-				toast.error("All products must have a valid variant selected.")
-				return
-			}
+    // Ensure all products have valid variant IDs
+    if (newInvoice.products?.some(p => !p.product_variant_id)) {
+      toast.error("All products must have a valid variant selected.")
+      return
+    }
 
-			// If delivery_date is missing, default to one month from now
-			if (!newInvoice.delivery_date) {
-				setNewInvoice(prev => ({
-					...prev,
-					delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString()
-				}))
-			}
+    // If delivery_date is missing, default to one month from now
+    if (!newInvoice.delivery_date) {
+      setNewInvoice(prev => ({
+        ...prev,
+        delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString()
+      }))
+    }
 
-			// Validate payment_info field
-			if (!newInvoice.payment_info) {
-				setNewInvoice(prev => ({
-					...prev,
-					payment_info: 'frisson_llc'
-				}))
-			}
+    // Validate payment_info field
+    if (!newInvoice.payment_info) {
+      setNewInvoice(prev => ({
+        ...prev,
+        payment_info: 'frisson_llc'
+      }))
+    }
 
-			const { subtotal, vatAmount, totalPrice } = calculateTotalPrice(
-				newInvoice.products || [],
-				newInvoice.discounts || {},
-				isClientInvoice,
-				newInvoice.include_vat || false
-			)
+    const { subtotal, vatAmount, totalPrice } = calculateTotalPrice(
+      newInvoice.products || [],
+      newInvoice.discounts || {},
+      isClientInvoice,
+      newInvoice.include_vat || false
+    )
 
-			const finalTotalPrice =
-				newInvoice.type === 'return'
-					? -Math.abs(totalPrice)
-					: Math.abs(totalPrice)
-			const finalVatAmount =
-				newInvoice.type === 'return'
-					? -Math.abs(vatAmount)
-					: Math.abs(vatAmount)
+    // For supplier invoices, always treat as regular (not return)
+    const isReturnInvoice = isClientInvoice ? (newInvoice.type === 'return') : false;
 
-			const invoiceData = {
-				...newInvoice,
-				total_price: finalTotalPrice,
-				remaining_amount: finalTotalPrice,
-				vat_amount: finalVatAmount,
-				[isClientInvoice ? 'client_id' : 'supplier_id']: entityId,
-				currency: newInvoice.currency || 'usd',
-				payment_term: newInvoice.payment_term,
-				delivery_date: newInvoice.delivery_date,
-				payment_info: newInvoice.payment_info || 'frisson_llc'
-			}
+    const finalTotalPrice = isReturnInvoice
+      ? -Math.abs(totalPrice)
+      : Math.abs(totalPrice);
+
+    const finalVatAmount = isReturnInvoice
+      ? -Math.abs(vatAmount)
+      : Math.abs(vatAmount);
+
+    // Create base invoice data
+    let invoiceData: any = {
+      ...newInvoice,
+      total_price: finalTotalPrice,
+      remaining_amount: finalTotalPrice,
+      vat_amount: finalVatAmount,
+      [isClientInvoice ? 'client_id' : 'supplier_id']: entityId,
+      currency: newInvoice.currency || 'usd',
+      payment_term: newInvoice.payment_term,
+      delivery_date: newInvoice.delivery_date,
+      payment_info: newInvoice.payment_info || 'frisson_llc'
+    };
+
+    // Remove type field for supplier invoices
+    if (!isClientInvoice) {
+      delete invoiceData.type;
+    }
 
 			if (newInvoice.id && originalInvoiceData) {
 				// Update existing invoice
@@ -553,39 +561,42 @@ const InvoicesPage: React.FC = () => {
 		}
 	}
 
-	const updateProductQuantities = async (
-		products: InvoiceProduct[],
-		isClientInvoice: boolean,
-		isReturn: boolean,
-		isReversal: boolean = false
-	) => {
-		for (const product of products) {
-			try {
-				let quantityChange = isClientInvoice
-					? -product.quantity
-					: product.quantity
+const updateProductQuantities = async (
+  products: InvoiceProduct[],
+  isClientInvoice: boolean,
+  isReturn: boolean,
+  isReversal: boolean = false
+) => {
+  // For supplier invoices, always treat as regular (not return)
+  const isReturnInvoice = isClientInvoice ? isReturn : false;
 
-				if (isReturn) {
-					quantityChange = -quantityChange
-				}
+  for (const product of products) {
+    try {
+      let quantityChange = isClientInvoice
+        ? -product.quantity
+        : product.quantity
 
-				if (isReversal) {
-					quantityChange = -quantityChange
-				}
+      if (isReturnInvoice) {
+        quantityChange = -quantityChange
+      }
 
-				const { error } = await supabase.rpc('update_product_variant_quantity', {
-					variant_id: product.product_variant_id,
-					quantity_change: quantityChange
-				})
+      if (isReversal) {
+        quantityChange = -quantityChange
+      }
 
-				if (error) throw error
-			} catch (error: any) {
-				throw new Error(
-					`Error updating quantity for product ${product.product_id}: ${error.message}`
-				)
-			}
-		}
-	}
+      const { error } = await supabase.rpc('update_product_variant_quantity', {
+        variant_id: product.product_variant_id,
+        quantity_change: quantityChange
+      })
+
+      if (error) throw error
+    } catch (error: any) {
+      throw new Error(
+        `Error updating quantity for product ${product.product_id}: ${error.message}`
+      )
+    }
+  }
+}
 
 	const updateEntityBalance = async (
 		amount: number,
@@ -1384,23 +1395,25 @@ const renderInvoiceTable = () => (
 									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 								/>
 							</div>
-							<div className='mb-4'>
-								<label className='block text-gray text-sm font-bold mb-2'>
-									Invoice Type
-								</label>
-								<select
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
-									value={newInvoice.type}
-									onChange={e =>
-										setNewInvoice({
-											...newInvoice,
-											type: e.target.value as 'regular' | 'return'
-										})
-									}>
-									<option value='regular'>Regular Invoice</option>
-									<option value='return'>Return Invoice</option>
-								</select>
-							</div>
+				{activeTab === 'client' && (
+  <div className='mb-4'>
+    <label className='block text-gray text-sm font-bold mb-2'>
+      Invoice Type
+    </label>
+    <select
+      className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+      value={newInvoice.type || 'regular'}
+      onChange={e =>
+        setNewInvoice({
+          ...newInvoice,
+          type: e.target.value as 'regular' | 'return'
+        })
+      }>
+      <option value='regular'>Regular Invoice</option>
+      <option value='return'>Return Invoice</option>
+    </select>
+  </div>
+)}
 							<div className='mb-4'>
 								<label className='block text-gray text-sm font-bold mb-2' htmlFor='entity'>
 									{activeTab === 'client' ? 'Client' : 'Supplier'}
