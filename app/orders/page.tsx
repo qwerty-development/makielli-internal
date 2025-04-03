@@ -20,6 +20,7 @@ import {
 import { generatePDF } from '@/utils/pdfGenerator'
 import { debounce } from 'lodash'
 import { format } from 'date-fns/format'
+import SearchableSelect from '@/components/SearchableSelect'
 
 interface QuotationProduct {
   product_id: string
@@ -600,57 +601,66 @@ const QuotationsPage: React.FC = () => {
     )
   }
 
-  const renderFilters = () => (
-    <div className='mb-6 flex items-center space-x-4'>
-      <div className='relative'>
-        <DatePicker
-          selected={filterStartDate}
-          onChange={(date: Date | null) => setFilterStartDate(date)}
-          selectsStart
-          startDate={filterStartDate}
-          endDate={filterEndDate}
-          placeholderText='Start Date'
-          className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue sm:text-sm'
-        />
-        <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-          <FaFilter className='h-5 w-5 text-gray' />
-        </div>
+  const handleFilterClientChange = (clientId: number | null) => {
+  setFilterClient(clientId);
+  setCurrentPage(1);
+};
+
+
+const renderFilters = () => (
+  <div className='mb-6 flex flex-wrap items-center gap-4'>
+    <div className='relative min-w-[200px]'>
+      <DatePicker
+        selected={filterStartDate}
+        onChange={(date: Date | null) => setFilterStartDate(date)}
+        selectsStart
+        startDate={filterStartDate}
+        endDate={filterEndDate}
+        placeholderText='Start Date'
+        className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue sm:text-sm'
+      />
+      <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
+        <FaFilter className='h-5 w-5 text-gray' />
       </div>
-      <div className='relative'>
-        <DatePicker
-          selected={filterEndDate}
-          onChange={(date: Date | null) => setFilterEndDate(date)}
-          selectsEnd
-          startDate={filterStartDate}
-          endDate={filterEndDate}
-          minDate={filterStartDate}
-          placeholderText='End Date'
-          className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue sm:text-sm'
-        />
-        <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-          <FaFilter className='h-5 w-5 text-gray' />
-        </div>
-      </div>
-      <select
-        onChange={e => setFilterClient(e.target.value ? Number(e.target.value) : null)}
-        className='block w-full pl-3 pr-10 py-2 text-base border-gray rounded-md focus:outline-none focus:ring-blue sm:text-sm'>
-        <option value=''>All Clients</option>
-        {clients.map(client => (
-          <option key={client.client_id} value={client.client_id}>
-            {client.name}
-          </option>
-        ))}
-      </select>
-      <select
-        onChange={e => setFilterStatus(e.target.value || null)}
-        className='block w-full pl-3 pr-10 py-2 text-base border-gray rounded-md focus:outline-none focus:ring-blue sm:text-sm'>
-        <option value=''>All Statuses</option>
-        <option value='pending'>Pending</option>
-        <option value='accepted'>Accepted</option>
-        <option value='rejected'>Rejected</option>
-      </select>
     </div>
-  )
+
+    <div className='relative min-w-[200px]'>
+      <DatePicker
+        selected={filterEndDate}
+        onChange={(date: Date | null) => setFilterEndDate(date)}
+        selectsEnd
+        startDate={filterStartDate}
+        endDate={filterEndDate}
+        minDate={filterStartDate}
+        placeholderText='End Date'
+        className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue sm:text-sm'
+      />
+      <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
+        <FaFilter className='h-5 w-5 text-gray' />
+      </div>
+    </div>
+
+    <div className='flex-grow min-w-[250px]'>
+      <SearchableSelect
+        options={clients}
+        value={filterClient}
+        onChange={handleFilterClientChange}
+        placeholder="All Clients"
+        label="Filter Client"
+        idField="client_id"
+      />
+    </div>
+
+    <select
+      onChange={e => setFilterStatus(e.target.value || null)}
+      className='block min-w-[200px] pl-3 pr-10 py-2 text-base border-gray rounded-md focus:outline-none focus:ring-blue sm:text-sm'>
+      <option value=''>All Statuses</option>
+      <option value='pending'>Pending</option>
+      <option value='accepted'>Accepted</option>
+      <option value='rejected'>Rejected</option>
+    </select>
+  </div>
+);
 
   const renderQuotationModal = () => (
     <div className={`fixed z-10 inset-0 overflow-y-auto ${showModal ? '' : 'hidden'}`}>
@@ -682,26 +692,17 @@ const QuotationsPage: React.FC = () => {
                   className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'
                 />
               </div>
-              <div className='mb-4'>
-                <label className='block text-gray text-sm font-bold mb-2' htmlFor='client'>
-                  Client
-                </label>
-                <select
-                  id='client'
-                  required
-                  className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'
-                  value={newQuotation.client_id || ''}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                    setNewQuotation({ ...newQuotation, client_id: Number(e.target.value) })
-                  }>
-                  <option value=''>Select Client</option>
-                  {clients.map(client => (
-                    <option key={client.client_id} value={client.client_id}>
-                      {client.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+        <div className='mb-4'>
+  <SearchableSelect
+    options={clients}
+    value={newQuotation.client_id}
+    onChange={(clientId) => setNewQuotation({ ...newQuotation, client_id: Number(clientId) })}
+    placeholder="Select Client"
+    label="Client"
+    idField="client_id"
+    required
+  />
+</div>
               <div className='mb-4'>
                 <label className='block text-gray text-sm font-bold mb-2'>Products</label>
                 <div className='flex mb-2'>

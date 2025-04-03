@@ -29,7 +29,7 @@ import {
 import { generatePDF } from '@/utils/pdfGenerator'
 import { debounce } from 'lodash'
 import { format } from 'date-fns'
-
+import SearchableSelect from '@/components/SearchableSelect'
 interface LoadingStates {
 	isMainLoading: boolean
 	isPDFGenerating: boolean
@@ -1296,59 +1296,50 @@ const renderInvoiceTable = () => (
 		)
 	}
 
-	const renderFilters = () => (
-		<div className='mb-6 flex items-center space-x-4'>
-			<div className='relative'>
-				<DatePicker
-					selected={filterStartDate}
-					onChange={(date: Date | null) => setFilterStartDate(date)}
-					selectsStart
-					startDate={filterStartDate}
-					endDate={filterEndDate}
-					placeholderText='Start Date'
-					className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
-				/>
-				<div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-					<FaFilter className='h-5 w-5 text-gray' />
-				</div>
-			</div>
-			<div className='relative'>
-				<DatePicker
-					selected={filterEndDate}
-					onChange={(date: Date | null) => setFilterEndDate(date)}
-					selectsEnd
-					startDate={filterStartDate}
-					endDate={filterEndDate}
-					minDate={filterStartDate}
-					placeholderText='End Date'
-					className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
-				/>
-				<div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-					<FaFilter className='h-5 w-5 text-gray' />
-				</div>
-			</div>
-			<select
-				onChange={e =>
-					handleFilterEntityChange(
-						e.target.value ? Number(e.target.value) : null
-					)
-				}
-				className='block w-full pl-3 pr-10 py-2 text-base border-gray focus:outline-none focus:ring-blue focus:border-blue sm:text-sm rounded-md'>
-				<option value=''>All {activeTab === 'client' ? 'Clients' : 'Suppliers'}</option>
-				{activeTab === 'client'
-					? clients.map(client => (
-							<option key={client.client_id} value={client.client_id.toString()}>
-								{client.name}
-							</option>
-					  ))
-					: suppliers.map(supplier => (
-							<option key={supplier.id} value={supplier.id}>
-								{supplier.name}
-							</option>
-					  ))}
-			</select>
-		</div>
-	)
+const renderFilters = () => (
+  <div className='mb-6 flex flex-wrap items-center gap-4'>
+    <div className='relative min-w-[200px]'>
+      <DatePicker
+        selected={filterStartDate}
+        onChange={(date: Date | null) => setFilterStartDate(date)}
+        selectsStart
+        startDate={filterStartDate}
+        endDate={filterEndDate}
+        placeholderText='Start Date'
+        className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
+      />
+      <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
+        <FaFilter className='h-5 w-5 text-gray' />
+      </div>
+    </div>
+
+    <div className='relative min-w-[200px]'>
+      <DatePicker
+        selected={filterEndDate}
+        onChange={(date: Date | null) => setFilterEndDate(date)}
+        selectsEnd
+        startDate={filterStartDate}
+        endDate={filterEndDate}
+        minDate={filterStartDate}
+        placeholderText='End Date'
+        className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
+      />
+      <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
+        <FaFilter className='h-5 w-5 text-gray' />
+      </div>
+    </div>
+
+    <SearchableSelect
+      options={activeTab === 'client' ? clients : suppliers}
+      value={filterEntity}
+      onChange={(value) => handleFilterEntityChange(value)}
+      placeholder={`Filter by ${activeTab === 'client' ? 'Client' : 'Supplier'}`}
+      label={activeTab === 'client' ? 'Filter Client' : 'Filter Supplier'}
+      idField={activeTab === 'client' ? 'client_id' : 'id'}
+      className="flex-grow"
+    />
+  </div>
+)
 
 	const renderInvoiceModal = () => (
 		<div
@@ -1414,37 +1405,20 @@ const renderInvoiceTable = () => (
     </select>
   </div>
 )}
-							<div className='mb-4'>
-								<label className='block text-gray text-sm font-bold mb-2' htmlFor='entity'>
-									{activeTab === 'client' ? 'Client' : 'Supplier'}
-								</label>
-								<select
-									required
-									id='entity'
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
-									value={
-										activeTab === 'client'
-											? newInvoice.client_id
-											: newInvoice.supplier_id
-									}
-									onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-										const idField = activeTab === 'client' ? 'client_id' : 'supplier_id'
-										setNewInvoice({ ...newInvoice, [idField]: e.target.value })
-									}}>
-									<option value=''>Select {activeTab === 'client' ? 'Client' : 'Supplier'}</option>
-									{activeTab === 'client'
-										? clients.map(client => (
-												<option key={client.client_id} value={client.client_id}>
-													{client.name}
-												</option>
-										  ))
-										: suppliers.map(supplier => (
-												<option key={supplier.id} value={supplier.id}>
-													{supplier.name}
-												</option>
-										  ))}
-								</select>
-							</div>
+<div className='mb-4'>
+  <SearchableSelect
+    options={activeTab === 'client' ? clients : suppliers}
+    value={activeTab === 'client' ? newInvoice.client_id : newInvoice.supplier_id}
+    onChange={(value) => {
+      const idField = activeTab === 'client' ? 'client_id' : 'supplier_id';
+      setNewInvoice({ ...newInvoice, [idField]: value });
+    }}
+    placeholder={`Select ${activeTab === 'client' ? 'Client' : 'Supplier'}`}
+    label={activeTab === 'client' ? 'Client' : 'Supplier'}
+    idField={activeTab === 'client' ? 'client_id' : 'id'}
+    required
+  />
+</div>
 							<div className='mb-4'>
 								<label className='block text-gray text-sm font-bold mb-2'>Products</label>
 								<div className='flex mb-2'>
