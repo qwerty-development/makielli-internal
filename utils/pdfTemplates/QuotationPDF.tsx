@@ -353,11 +353,20 @@ const QuotationPDF: React.FC<{
             return (
               <View key={index} style={styles.tableRow}>
                 <View style={[styles.tableCol, { width: '7%' }]}>
-                  <Image
-                    src={product.image || '/placeholder-image.jpg'}
-                    style={styles.productImage}
-                  />
-                </View>
+                 {product.image ? (
+    <Image
+      src={product.image}
+      style={styles.productImage}
+      cache={true}
+    />
+  ) : (
+    <Image
+      src="/placeholder-image.jpg"
+      style={styles.productImage}
+      cache={true}
+    />
+  )}
+</View>
                 <View style={[styles.tableCol, { width: '8%' }]}>
                   <Text style={styles.tableCell}>{product.name || 'N/A'}</Text>
                 </View>

@@ -330,19 +330,74 @@ const QuotationsPage: React.FC = () => {
       updateLoadingState('isOrderAccepting', false)
     }
   }
-
-  const handleDeleteQuotation = async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this Order?')) {
-      const { error } = await supabase.from('Quotations').delete().eq('id', id)
-      if (error) {
-        toast.error(`Error deleting Order: ${error.message}`)
-      } else {
-        toast.success('Order deleted successfully')
-        fetchQuotations()
-      }
-    }
+const handleDeleteQuotation = async (id: number) => {
+  if (!window.confirm('Are you sure you want to delete this Order?')) {
+    return;
   }
 
+  updateLoadingState('isOrderDeleting', true);
+
+  try {
+    // First, fetch the quotation to check its status
+    const { data: quotation, error: fetchError } = await supabase
+      .from('Quotations')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchError) {
+      throw new Error(`Error fetching order details: ${fetchError.message}`);
+    }
+
+    // If the quotation status is 'accepted', find and delete the related invoice
+    if (quotation && quotation.status === 'accepted') {
+      // Find invoice(s) that were created from this quotation
+      const { data: relatedInvoices, error: invoiceFetchError } = await supabase
+        .from('ClientInvoices')
+        .select('*')
+        .eq('client_id', quotation.client_id)
+        .eq('order_number', quotation.order_number);
+
+      if (invoiceFetchError) {
+        throw new Error(`Error finding related invoices: ${invoiceFetchError.message}`);
+      }
+
+      if (relatedInvoices && relatedInvoices.length > 0) {
+        // Delete each related invoice
+        for (const invoice of relatedInvoices) {
+          // Delete the invoice
+          const { error: invoiceDeleteError } = await supabase
+            .from('ClientInvoices')
+            .delete()
+            .eq('id', invoice.id);
+
+          if (invoiceDeleteError) {
+            throw new Error(`Error deleting related invoice: ${invoiceDeleteError.message}`);
+          }
+        }
+
+        toast.success(`Related ${relatedInvoices.length > 1 ? 'invoices were' : 'invoice was'} also deleted`);
+      }
+    }
+
+    // Delete the quotation
+    const { error: deleteError } = await supabase
+      .from('Quotations')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) {
+      throw new Error(`Error deleting order: ${deleteError.message}`);
+    }
+
+    toast.success('Order deleted successfully');
+    fetchQuotations();
+  } catch (error) {
+    handleError(error, 'delete order');
+  } finally {
+    updateLoadingState('isOrderDeleting', false);
+  }
+}
   const handleSort = (field: keyof Quotation) => {
     if (field === sortField) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
@@ -538,6 +593,7 @@ const QuotationsPage: React.FC = () => {
                         <FaCheck />
                       </button>
                     )}
+                    { quotation.status!== 'accepted' &&
                     <button
                       className='w-4 mr-2 transform hover:text-purple-500 hover:scale-110'
                       onClick={e => {
@@ -546,6 +602,7 @@ const QuotationsPage: React.FC = () => {
                       }}>
                       <FaEdit />
                     </button>
+}
                     <button
                       className='w-4 mr-2 transform hover:text-red-500 hover:scale-110'
                       onClick={e => {

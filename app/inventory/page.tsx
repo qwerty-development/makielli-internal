@@ -4,13 +4,74 @@ import React, { useState, useEffect, ChangeEvent } from 'react'
 import { supabase } from '../../utils/supabase'
 import { productFunctions, Product, ProductVariant } from '../../utils/functions/products'
 import { toast } from 'react-hot-toast'
-import { set } from 'lodash'
+import imageCompression from 'browser-image-compression';
 
 // Redefine the variant group interface to focus on color first
 interface ColorVariantGroup {
   color: string
   // For each color, we track quantities for different sizes with optional variant id
   sizeQuantities: { size: string; quantity: number; id?: string }[]
+}
+
+const imageCompressionOptions = {
+  maxSizeMB: 0.5,          // Maximum file size in MB
+  maxWidthOrHeight: 1024,  // Maximum width/height in pixels
+  useWebWorker: true,      // Use web worker for better UI performance
+  initialQuality: 0.8,     // Initial quality setting (0 to 1)
+}
+
+
+const getCompressionOptions = (file: File) => {
+  // Adjust compression settings based on file size
+  if (file.size > 5 * 1024 * 1024) {
+    // For very large files (>5MB), use stronger compression
+    return {
+      maxSizeMB: 0.3,
+      maxWidthOrHeight: 800,
+      initialQuality: 0.7
+    };
+  } else if (file.size > 2 * 1024 * 1024) {
+    // For medium files (2-5MB)
+    return {
+      maxSizeMB: 0.5,
+      maxWidthOrHeight: 1024,
+      initialQuality: 0.8
+    };
+  } else {
+    // For smaller files (<2MB), use lighter compression
+    return {
+      maxSizeMB: 1,
+      maxWidthOrHeight: 1280,
+      initialQuality: 0.85
+    };
+  }
+}
+
+
+const compressImage = async (file: File): Promise<File> => {
+  try {
+    // Skip compression for small images or non-image files
+    if (!file.type.startsWith('image/') || file.size < 100 * 1024) {
+      return file;
+    }
+
+    // Get dynamic compression options based on file size
+    const options = {
+      ...imageCompressionOptions,
+      ...getCompressionOptions(file)
+    };
+
+    console.log('Original file size:', (file.size / 1024 / 1024).toFixed(2) + 'MB');
+    const compressedFile = await imageCompression(file, options);
+    console.log('Compressed file size:', (compressedFile.size / 1024 / 1024).toFixed(2) + 'MB');
+
+    return new File([compressedFile], `compressed_${file.name}`, {
+      type: compressedFile.type
+    });
+  } catch (error) {
+    console.error('Error during image compression:', error);
+    return file;
+  }
 }
 
 export default function ProductsPage() {
@@ -44,6 +105,7 @@ export default function ProductsPage() {
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [showProductForm, setShowProductForm] = useState(false)
+  const [isCompressing, setIsCompressing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('')
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [newProduct, setNewProduct] = useState<Omit<Product, 'id' | 'variants'>>({
@@ -88,32 +150,68 @@ export default function ProductsPage() {
     }
   }
 
-  // File change and upload functions
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setSelectedFile(e.target.files[0])
+const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+  if (e.target.files && e.target.files.length > 0) {
+    const originalFile = e.target.files[0];
+
+    // Show loading state if needed
+    // setIsCompressing(true);
+
+    try {
+      // Compress the image
+      const compressedFile = await compressImage(originalFile);
+      setSelectedFile(compressedFile);
+
+      // Optional: Update UI to show compression results
+      if (compressedFile.size !== originalFile.size) {
+        const originalSizeMB = (originalFile.size / 1024 / 1024).toFixed(2);
+        const compressedSizeMB = (compressedFile.size / 1024 / 1024).toFixed(2);
+        toast.success(
+          `Image compressed: ${originalSizeMB}MB → ${compressedSizeMB}MB (${
+            Math.round((1 - compressedFile.size / originalFile.size) * 100)
+          }% reduction)`
+        );
+      }
+    } catch (error) {
+      console.error('Error handling file:', error);
+      toast.error('Failed to process image. Using original file instead.');
+      setSelectedFile(originalFile);
+    } finally {
+      // Clear loading state if needed
+      // setIsCompressing(false);
     }
+  }
+}
+
+const handleFileUpload = async (): Promise<string> => {
+  if (!selectedFile) {
+    throw new Error('No file selected');
   }
 
-  const handleFileUpload = async (): Promise<string> => {
-    if (!selectedFile) {
-      throw new Error('No file selected')
-    }
-    const fileName = `${Date.now()}_${selectedFile.name}`
-    const { data, error } = await supabase.storage
-      .from('Products')
-      .upload(fileName, selectedFile)
-    if (error) {
-      throw error
-    }
-    const { data: publicURLData } = supabase.storage
-      .from('Products')
-      .getPublicUrl(fileName)
-    if (!publicURLData) {
-      throw new Error('Error getting public URL: No data returned')
-    }
-    return publicURLData.publicUrl
+  // Generate a unique filename with timestamp
+  const timestamp = Date.now();
+  const fileExtension = selectedFile.name.split('.').pop();
+  const fileName = `${timestamp}_product_image.${fileExtension}`;
+
+  // Upload the compressed file
+  const { data, error } = await supabase.storage
+    .from('Products')
+    .upload(fileName, selectedFile);
+
+  if (error) {
+    throw error;
   }
+
+  const { data: publicURLData } = supabase.storage
+    .from('Products')
+    .getPublicUrl(fileName);
+
+  if (!publicURLData) {
+    throw new Error('Error getting public URL: No data returned');
+  }
+
+  return publicURLData.publicUrl;
+}
 
   const handleFileDelete = async (fileUrl: string) => {
     const decodedUrl = decodeURIComponent(fileUrl)
@@ -336,11 +434,19 @@ export default function ProductsPage() {
             className='w-full p-2 mb-2 border rounded'
             rows={3}
           />
-          <input
-            type='file'
-            onChange={handleFileChange}
-            className='w-full p-2 mb-2 text-white border rounded'
-          />
+    <div className="relative">
+  <input
+    type="file"
+    onChange={handleFileChange}
+    className="w-full p-2 mb-2 text-white border rounded"
+    disabled={isCompressing}
+  />
+  {isCompressing && (
+    <div className="absolute inset-0 flex items-center justify-center bg-gray-700 bg-opacity-50 rounded">
+      <p className="text-white">Compressing image...</p>
+    </div>
+  )}
+</div>
           <select
             value={newProduct.type}
             onChange={e =>
@@ -533,11 +639,19 @@ export default function ProductsPage() {
                 <option value='Stock'>Stock</option>
                 <option value='Sample'>Sample</option>
               </select>
-              <input
-                type='file'
-                onChange={handleFileChange}
-                className='w-full p-2 mb-2 border text-white rounded'
-              />
+          <div className="relative">
+  <input
+    type="file"
+    onChange={handleFileChange}
+    className="w-full p-2 mb-2 text-white border rounded"
+    disabled={isCompressing}
+  />
+  {isCompressing && (
+    <div className="absolute inset-0 flex items-center justify-center bg-gray-700 bg-opacity-50 rounded">
+      <p className="text-white">Compressing image...</p>
+    </div>
+  )}
+</div>
               {editingProduct.photo && (
                 <img
                   src={editingProduct.photo}

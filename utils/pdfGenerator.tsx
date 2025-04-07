@@ -6,6 +6,48 @@ import ClientFinancialReportPDF from './pdfTemplates/ClientFinancialReportPDF'
 import SupplierFinancialReportPDF from './pdfTemplates/SupplierFinancialReportPDF'
 import { supabase } from './supabase'
 
+async function preloadImages(products: any[]) {
+  const imageCache = new Map();
+  const imageFetchPromises = [];
+
+  for (const product of products) {
+    if (product.image && !imageCache.has(product.image)) {
+      // Create a promise to fetch each image
+      const fetchPromise = new Promise((resolve) => {
+        const img = new Image();
+
+        // Handle successful loading
+        img.onload = () => {
+          imageCache.set(product.image, product.image);
+          resolve(true);
+        };
+
+        // Handle failed loading by resolving with false (don't reject)
+        img.onerror = () => {
+          console.warn(`Failed to preload image: ${product.image}`);
+          resolve(false);
+        };
+
+        // Set a timeout to prevent hanging
+        setTimeout(() => {
+          if (!imageCache.has(product.image)) {
+            console.warn(`Image load timeout: ${product.image}`);
+            resolve(false);
+          }
+        }, 5000); // 5 second timeout
+
+        img.src = product.image;
+      });
+
+      imageFetchPromises.push(fetchPromise);
+    }
+  }
+
+  // Wait for all images to either load or fail
+  await Promise.allSettled(imageFetchPromises);
+  return imageCache;
+}
+
 // Fetch client details. Throws a clear error if not found.
 const fetchClientDetails = async (clientId: any) => {
   const { data, error } = await supabase
@@ -206,72 +248,87 @@ export const generatePDF = async (
   let component:any
   let fileName:any
 
-  // For invoice and quotation, prepare product mapping & defaults.
-  if (type === 'invoice' || type === 'quotation') {
-    const productMap = new Map()
+ if (type === 'invoice' || type === 'quotation') {
+    const productMap = new Map();
 
-    // Filter out products with an empty product_variant_id
     const validProducts = data.products.filter(
       (product: { product_variant_id: string }) =>
         product.product_variant_id && product.product_variant_id.trim() !== ""
-    )
+    );
 
 await Promise.all(
-  validProducts.map(async (product:any) => {
-    const details = await fetchProductDetails(product.product_variant_id)
-    const key = `${details.name}-${details.color}`
+      validProducts.map(async (product: any) => {
+        const details = await fetchProductDetails(product.product_variant_id);
+        const key = `${details.name}-${details.color}`;
 
-    if (!productMap.has(key)) {
-      productMap.set(key, {
-        ...details,
-        sizes: {},
-        totalQuantity: 0,
-        notes: new Set(),
-        discount: data.discounts?.[details.product_id] || 0
+        if (!productMap.has(key)) {
+          productMap.set(key, {
+            ...details,
+            sizes: {},
+            totalQuantity: 0,
+            notes: new Set(),
+            discount: data.discounts?.[details.product_id] || 0
+          });
+        } else {
+          // Update existing entry if the current variant has an image and the stored one doesn't
+          const existingProduct = productMap.get(key);
+          if (!existingProduct.image && details.image) {
+            existingProduct.image = details.image;
+            productMap.set(key, existingProduct);
+          }
+        }
+
+        const existingProduct = productMap.get(key);
+        existingProduct.sizes[details.size] =
+          (existingProduct.sizes[details.size] || 0) + product.quantity;
+        existingProduct.totalQuantity += product.quantity;
+        if (product.note) {
+          existingProduct.notes.add(product.note);
+        }
+        productMap.set(key, existingProduct);
       })
-    } else {
-      // Update existing entry if the current variant has an image and the stored one doesn't
-      const existingProduct = productMap.get(key)
-      if (!existingProduct.image && details.image) {
-        existingProduct.image = details.image
-        productMap.set(key, existingProduct)
-      }
+    );
+
+
+
+ const productsArray = Array.from(productMap.values()).map((product) => ({
+      ...product,
+      notes: Array.from(product.notes)
+    }));
+
+    // Add sorting to ensure consistent order
+    productsArray.sort((a, b) => {
+      // First sort by product name
+      const nameComparison = a.name.localeCompare(b.name);
+      if (nameComparison !== 0) return nameComparison;
+
+      // If names are equal, sort by color
+      return a.color.localeCompare(b.color);
+    });
+
+ try {
+      console.log("Preloading images for PDF generation...");
+      const imageCache = await preloadImages(productsArray);
+
+      // Update the product images based on preload results
+      productsArray.forEach(product => {
+        if (product.image && !imageCache.has(product.image)) {
+          console.log(`Using placeholder for failed image: ${product.image}`);
+          product.image = '/placeholder-image.jpg';
+        }
+      });
+    } catch (err) {
+      console.error("Error during image preloading:", err);
+      // Continue with PDF generation even if preloading fails
     }
 
-    const existingProduct = productMap.get(key)
-    existingProduct.sizes[details.size] =
-      (existingProduct.sizes[details.size] || 0) + product.quantity
-    existingProduct.totalQuantity += product.quantity
-    if (product.note) {
-      existingProduct.notes.add(product.note)
-    }
-    productMap.set(key, existingProduct)
-  })
-)
-
-
-const productsArray = Array.from(productMap.values()).map((product) => ({
-  ...product,
-  notes: Array.from(product.notes)
-}));
-
-// Add sorting to ensure consistent order
-productsArray.sort((a, b) => {
-  // First sort by product name
-  const nameComparison = a.name.localeCompare(b.name);
-  if (nameComparison !== 0) return nameComparison;
-
-  // If names are equal, sort by color
-  return a.color.localeCompare(b.color);
-});
-
-data = {
-  ...data,
-  products: productsArray,
-  discounts: data.discounts || {},
-  type: data.type || 'regular',
-  payment_info: data.payment_info || 'frisson_llc'
-}
+    data = {
+      ...data,
+      products: productsArray,
+      discounts: data.discounts || {},
+      type: data.type || 'regular',
+      payment_info: data.payment_info || 'frisson_llc'
+    };
   }
   switch (type) {
     case 'invoice': {
