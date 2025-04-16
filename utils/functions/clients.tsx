@@ -24,7 +24,7 @@ export interface Company {
 
 export const clientFunctions = {
 	async getAllClients(): Promise<Client[]> {
-		const { data, error } = await supabase.from('Clients').select('*')
+		const { data, error } = await supabase.from('Clients').select('*').order('name', { ascending: true })
 
 		if (error) throw error
 		return data || []
@@ -42,7 +42,7 @@ export const clientFunctions = {
 	},
 
 	async getAllClientGroups(): Promise<ClientGroup[]> {
-		const { data, error } = await supabase.from('ClientGroups').select('*')
+		const { data, error } = await supabase.from('ClientGroups').select('*').order('name', { ascending: true })
 
 		if (error) throw error
 		return data || []
@@ -63,7 +63,7 @@ export const clientFunctions = {
 		const { data, error } = await supabase
 			.from('Clients')
 			.select('*')
-			.eq('group_id', groupId)
+			.eq('group_id', groupId).order('name', { ascending: true })
 
 		if (error) throw error
 		return data || []

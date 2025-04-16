@@ -89,7 +89,7 @@ const QuotationsPage: React.FC = () => {
   const [showModal, setShowModal] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
-  const [sortField, setSortField] = useState<keyof Quotation>('created_at')
+  const [sortField, setSortField] = useState<keyof Quotation | 'entity_name'>('created_at')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [filterStartDate, setFilterStartDate] = useState<any>(null)
   const [filterEndDate, setFilterEndDate] = useState<any>(null)
@@ -167,40 +167,56 @@ const QuotationsPage: React.FC = () => {
     }
   }
 
-  const fetchQuotations = async () => {
-    updateLoadingState('isMainLoading', true)
-    try {
-      let query = supabase.from('Quotations').select('*', { count: 'exact' })
-      if (filterStartDate) {
-        query = query.gte('created_at', filterStartDate.toISOString())
-      }
-      if (filterEndDate) {
-        query = query.lte('created_at', filterEndDate.toISOString())
-      }
-      if (filterClient) {
-        query = query.eq('client_id', filterClient)
-      }
-      if (filterStatus) {
-        query = query.eq('status', filterStatus)
-      }
-
-if (orderNumberSearch) {
-  query = query.ilike('order_number', `%${orderNumberSearch}%`);
-}
-      query = query.order(sortField, { ascending: sortOrder === 'asc' })
-      const { data, error, count } = await query.range(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage - 1
-      )
-      if (error) throw error
-      setQuotations(data || [])
-      setTotalQuotations(count || 0)
-    } catch (error) {
-      handleError(error, 'fetch orders')
-    } finally {
-      updateLoadingState('isMainLoading', false)
+const fetchQuotations = async () => {
+  updateLoadingState('isMainLoading', true)
+  try {
+    let query = supabase.from('Quotations').select('*', { count: 'exact' })
+    if (filterStartDate) {
+      query = query.gte('created_at', filterStartDate.toISOString())
     }
+    if (filterEndDate) {
+      query = query.lte('created_at', filterEndDate.toISOString())
+    }
+    if (filterClient) {
+      query = query.eq('client_id', filterClient)
+    }
+    if (filterStatus) {
+      query = query.eq('status', filterStatus)
+    }
+
+    // Only apply database sorting for fields other than entity_name
+    if (sortField !== 'entity_name') {
+      query = query.order(sortField, { ascending: sortOrder === 'asc' })
+    }
+
+    const { data, error, count } = await query.range(
+      (currentPage - 1) * itemsPerPage,
+      currentPage * itemsPerPage - 1
+    )
+
+    if (error) throw error
+
+    // Sort by client name if entity_name is selected as sort field
+    let sortedData = data || []
+    if (sortField === 'entity_name') {
+      sortedData = sortedData.sort((a, b) => {
+        const entityA = clients.find(client => client.client_id === a.client_id)?.name || ''
+        const entityB = clients.find(client => client.client_id === b.client_id)?.name || ''
+
+        return sortOrder === 'asc'
+          ? entityA.localeCompare(entityB)
+          : entityB.localeCompare(entityA)
+      })
+    }
+
+    setQuotations(sortedData)
+    setTotalQuotations(count || 0)
+  } catch (error) {
+    handleError(error, 'fetch orders')
+  } finally {
+    updateLoadingState('isMainLoading', false)
   }
+}
 
   const handleOrderNumberSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
   setOrderNumberSearch(e.target.value);
@@ -208,7 +224,7 @@ if (orderNumberSearch) {
 };
 
   const fetchClients = async () => {
-    const { data, error } = await supabase.from('Clients').select('*')
+    const { data, error } = await supabase.from('Clients').select('*').order('name', { ascending: true })
     if (error) {
       toast.error(`Error fetching clients: ${error.message}`)
     } else {
@@ -408,7 +424,7 @@ const handleDeleteQuotation = async (id: number) => {
     updateLoadingState('isOrderDeleting', false);
   }
 }
-  const handleSort = (field: keyof Quotation) => {
+  const handleSort = (field: any) => {
     if (field === sortField) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
     } else {
@@ -533,103 +549,109 @@ const handleDeleteQuotation = async (id: number) => {
     resetProductEditingState()
   }
 
-  const renderQuotationTable = () => (
-    <div className='overflow-x-auto bg-white rounded-lg shadow'>
-      {loadingStates.isMainLoading ? (
-        <div className='flex justify-center items-center p-8'>
-          <FaSpinner className='animate-spin text-4xl text-blue' />
-        </div>
-      ) : (
-        <table className='w-full table-auto'>
-          <thead>
-            <tr className='bg-gray text-white uppercase text-sm leading-normal'>
-              <th
-                className='py-3 px-6 text-left cursor-pointer'
-                onClick={() => handleSort('id')}>
-                Order Number {sortField === 'id' && <FaSort className='inline' />}
-              </th>
-              <th
-                className='py-3 px-6 text-left cursor-pointer'
-                onClick={() => handleSort('created_at')}>
-                Date {sortField === 'created_at' && <FaSort className='inline' />}
-              </th>
-              <th
-                className='py-3 px-6 text-left cursor-pointer'
-                onClick={() => handleSort('total_price')}>
-                Total Price {sortField === 'total_price' && <FaSort className='inline' />}
-              </th>
-              <th className='py-3 px-6 text-left'>Client</th>
-              <th className='py-3 px-6 text-left'>Status</th>
-              <th className='py-3 px-6 text-center'>Actions</th>
+const renderQuotationTable = () => (
+  <div className='overflow-x-auto bg-white rounded-lg shadow'>
+    {loadingStates.isMainLoading ? (
+      <div className='flex justify-center items-center p-8'>
+        <FaSpinner className='animate-spin text-4xl text-blue' />
+      </div>
+    ) : (
+      <table className='w-full table-auto'>
+        <thead>
+          <tr className='bg-gray text-white uppercase text-sm leading-normal'>
+            <th
+              className='py-3 px-6 text-left cursor-pointer'
+              onClick={() => handleSort('entity_name')}>
+              Client {sortField === 'entity_name' && <FaSort className='inline' />}
+            </th>
+            <th
+              className='py-3 px-6 text-left cursor-pointer'
+              onClick={() => handleSort('created_at')}>
+              Date {sortField === 'created_at' && <FaSort className='inline' />}
+            </th>
+            <th
+              className='py-3 px-6 text-left cursor-pointer'
+              onClick={() => handleSort('total_price')}>
+              Total Price {sortField === 'total_price' && <FaSort className='inline' />}
+            </th>
+            <th
+              className='py-3 px-6 text-left cursor-pointer'
+              onClick={() => handleSort('status')}>
+              Status {sortField === 'status' && <FaSort className='inline' />}
+            </th>
+            <th
+              className='py-3 px-6 text-left cursor-pointer'
+              onClick={() => handleSort('order_number')}>
+              Order Number {sortField === 'order_number' && <FaSort className='inline' />}
+            </th>
+            <th className='py-3 px-6 text-center'>Actions</th>
+          </tr>
+        </thead>
+        <tbody className='text-gray text-sm font-light'>
+          {quotations.map(quotation => (
+            <tr
+              key={quotation.id}
+              className='border-b border-gray hover:bg-neutral-100 cursor-pointer'
+              onClick={() => handleQuotationClick(quotation)}>
+              <td className='py-3 px-6 text-left whitespace-nowrap'>
+                {clients.find(client => client.client_id === quotation.client_id)?.name || '-'}
+              </td>
+              <td className='py-3 px-6 text-left'>
+                {new Date(quotation.created_at).toLocaleDateString() || 'N/A'}
+              </td>
+              <td className='py-3 px-6 text-left'>
+                ${quotation.total_price?.toFixed(2)}
+              </td>
+              <td className='py-3 px-6 text-left'>
+                <span
+                  className={`px-2 py-1 rounded-full text-xs ${
+                    quotation.status === 'pending'
+                      ? 'bg-yellow-200 text-yellow-800'
+                      : quotation.status === 'accepted'
+                      ? 'bg-green-200 text-green-800'
+                      : 'bg-red-200 text-red-800'
+                  }`}>
+                  {quotation.status}
+                </span>
+              </td>
+              <td className='py-3 px-6 text-left'>{quotation.order_number || '-'}</td>
+              <td className='py-3 px-6 text-center'>
+                <div className='flex items-center justify-center'>
+                  {quotation.status === 'pending' && (
+                    <button
+                      className='w-4 mr-2 transform hover:text-green-500 hover:scale-110'
+                      onClick={e => {
+                        e.stopPropagation()
+                        handleAcceptQuotation(quotation)
+                      }}>
+                      <FaCheck />
+                    </button>
+                  )}
+                  <button
+                    className='w-4 mr-2 transform hover:text-purple-500 hover:scale-110'
+                    onClick={e => {
+                      e.stopPropagation()
+                      handleEditQuotation(quotation)
+                    }}>
+                    <FaEdit />
+                  </button>
+                  <button
+                    className='w-4 mr-2 transform hover:text-red-500 hover:scale-110'
+                    onClick={e => {
+                      e.stopPropagation()
+                      handleDeleteQuotation(quotation.id)
+                    }}>
+                    <FaTrash />
+                  </button>
+                </div>
+              </td>
             </tr>
-          </thead>
-          <tbody className='text-gray text-sm font-light'>
-            {quotations.map(quotation => (
-              <tr
-                key={quotation.id}
-                className='border-b border-gray hover:bg-neutral-100 cursor-pointer'
-                onClick={() => handleQuotationClick(quotation)}>
-                <td className='py-3 px-6 text-left whitespace-nowrap'>{quotation.id}</td>
-                <td className='py-3 px-6 text-left'>
-                  {new Date(quotation.created_at).toLocaleDateString() || 'N/A'}
-                </td>
-                <td className='py-3 px-6 text-left'>
-                  ${quotation.total_price?.toFixed(2)}
-                </td>
-                <td className='py-3 px-6 text-left'>
-                  {clients.find(c => c.client_id === quotation.client_id)?.name || '-'}
-                </td>
-                <td className='py-3 px-6 text-left'>
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs ${
-                      quotation.status === 'pending'
-                        ? 'bg-yellow-200 text-yellow-800'
-                        : quotation.status === 'accepted'
-                        ? 'bg-green-200 text-green-800'
-                        : 'bg-red-200 text-red-800'
-                    }`}>
-                    {quotation.status}
-                  </span>
-                </td>
-                <td className='py-3 px-6 text-center'>
-                  <div className='flex items-center justify-center'>
-                    {quotation.status === 'pending' && (
-                      <button
-                        className='w-4 mr-2 transform hover:text-green-500 hover:scale-110'
-                        onClick={e => {
-                          e.stopPropagation()
-                          handleAcceptQuotation(quotation)
-                        }}>
-                        <FaCheck />
-                      </button>
-                    )}
-                    { quotation.status!== 'accepted' &&
-                    <button
-                      className='w-4 mr-2 transform hover:text-purple-500 hover:scale-110'
-                      onClick={e => {
-                        e.stopPropagation()
-                        handleEditQuotation(quotation)
-                      }}>
-                      <FaEdit />
-                    </button>
-}
-                    <button
-                      className='w-4 mr-2 transform hover:text-red-500 hover:scale-110'
-                      onClick={e => {
-                        e.stopPropagation()
-                        handleDeleteQuotation(quotation.id)
-                      }}>
-                      <FaTrash />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
-  )
+          ))}
+        </tbody>
+      </table>
+    )}
+  </div>
+)
 
   const renderPagination = () => {
     const totalPages = Math.ceil(totalQuotations / itemsPerPage)
