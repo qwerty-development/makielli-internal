@@ -66,7 +66,7 @@ interface Invoice {
 		| '30% deposit 70% before shipping'
 		| '30 days after shipping'
 		| '60 days after shipping'
-		| '100% after delivery'
+		| '100% after delivery' | '100% prepayment'
 	delivery_date: string
 	payment_info: PaymentInfoOption
 }
@@ -217,7 +217,7 @@ const InvoicesPage: React.FC = () => {
 		isInvoiceDeleting: false,
 		isFileUploading: false
 	})
-
+const [orderNumberSearch, setOrderNumberSearch] = useState<string>('');
 	const [editingProductIndex, setEditingProductIndex] = useState<number | null>(null)
 	const [newInvoice, setNewInvoice] = useState<Partial<Invoice>>({
 		created_at: new Date().toISOString(),
@@ -271,7 +271,8 @@ const InvoicesPage: React.FC = () => {
 		sortOrder,
 		filterStartDate,
 		filterEndDate,
-		filterEntity
+		filterEntity,
+    orderNumberSearch
 	])
 
 	useEffect(() => {
@@ -291,6 +292,11 @@ const InvoicesPage: React.FC = () => {
 		)
 		setFilteredProducts(filtered)
 	}, [productSearch, products])
+
+  const handleOrderNumberSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+  setOrderNumberSearch(e.target.value);
+  setCurrentPage(1); // Reset to first page when searching
+};
 
 	const handleError = (error: any, context: string) => {
 		console.error(`Error in ${context}:`, error)
@@ -351,6 +357,9 @@ const InvoicesPage: React.FC = () => {
 				const idField = activeTab === 'client' ? 'client_id' : 'supplier_id'
 				query = query.eq(idField, filterEntity)
 			}
+      if (orderNumberSearch) {
+  query = query.ilike('order_number', `%${orderNumberSearch}%`);
+}
 
 			query = query.order(sortField, { ascending: sortOrder === 'asc' })
 
@@ -1329,6 +1338,20 @@ const renderFilters = () => (
       </div>
     </div>
 
+    {/* Add Order Number search input */}
+    <div className='relative min-w-[200px]'>
+      <input
+        type='text'
+        value={orderNumberSearch}
+        onChange={handleOrderNumberSearch}
+        placeholder='Search by Order Number'
+        className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
+      />
+      <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
+        <FaSearch className='h-5 w-5 text-gray' />
+      </div>
+    </div>
+
     <SearchableSelect
       options={activeTab === 'client' ? clients : suppliers}
       value={filterEntity}
@@ -1632,6 +1655,7 @@ const renderFilters = () => (
 									<option value='30% deposit 70% before shipping'>30% deposit 70% before shipping</option>
 									<option value='30 days after shipping'>30 days after shipping</option>
 									<option value='60 days after shipping'>60 days after shipping</option>
+                  <option value='100% prepayment'>100% prepayment</option>
 								</select>
 							</div>
 							<div className='mb-4'>

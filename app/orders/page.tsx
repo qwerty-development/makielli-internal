@@ -46,7 +46,7 @@ interface Quotation {
     | '30% deposit 70% before shipping'
     | '30 days after shipping'
     | '60 days after shipping'
-    | '100% after delivery'
+    | '100% after delivery'| '100% prepayment'
   delivery_date: string
 }
 
@@ -126,13 +126,14 @@ const QuotationsPage: React.FC = () => {
     isOrderDeleting: false,
     isOrderAccepting: false
   })
+  const [orderNumberSearch, setOrderNumberSearch] = useState<string>('');
 
   // Fetch data on mount and when filters change
   useEffect(() => {
     fetchQuotations()
     fetchClients()
     fetchProducts()
-  }, [currentPage, sortField, sortOrder, filterStartDate, filterEndDate, filterClient, filterStatus])
+  }, [currentPage, sortField, sortOrder, filterStartDate, filterEndDate, filterClient, filterStatus, orderNumberSearch])
 
   useEffect(() => {
     const filtered = products.filter(product =>
@@ -182,6 +183,10 @@ const QuotationsPage: React.FC = () => {
       if (filterStatus) {
         query = query.eq('status', filterStatus)
       }
+
+if (orderNumberSearch) {
+  query = query.ilike('order_number', `%${orderNumberSearch}%`);
+}
       query = query.order(sortField, { ascending: sortOrder === 'asc' })
       const { data, error, count } = await query.range(
         (currentPage - 1) * itemsPerPage,
@@ -196,6 +201,11 @@ const QuotationsPage: React.FC = () => {
       updateLoadingState('isMainLoading', false)
     }
   }
+
+  const handleOrderNumberSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+  setOrderNumberSearch(e.target.value);
+  setCurrentPage(1); // Reset to first page when searching
+};
 
   const fetchClients = async () => {
     const { data, error } = await supabase.from('Clients').select('*')
@@ -697,6 +707,18 @@ const renderFilters = () => (
       </div>
     </div>
 
+<div className='relative min-w-[200px]'>
+  <input
+    type='text'
+    value={orderNumberSearch}
+    onChange={handleOrderNumberSearch}
+    placeholder='Search by Order Number'
+    className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
+  />
+  <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
+    <FaSearch className='h-5 w-5 text-gray' />
+  </div>
+</div>
     <div className='flex-grow min-w-[250px]'>
       <SearchableSelect
         options={clients}
@@ -981,6 +1003,7 @@ const renderFilters = () => (
                   <option value='30% deposit 70% before shipping'>30% deposit 70% before shipping</option>
                   <option value='30 days after shipping'>30 days after shipping</option>
                   <option value='60 days after shipping'>60 days after shipping</option>
+                   <option value='100% prepayment'>100% prepayment</option>
                 </select>
               </div>
               <div className='mb-4'>
