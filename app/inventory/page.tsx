@@ -5,6 +5,9 @@ import { supabase } from '../../utils/supabase'
 import { productFunctions, Product, ProductVariant } from '../../utils/functions/products'
 import { toast } from 'react-hot-toast'
 import imageCompression from 'browser-image-compression';
+import ProductHistoryModal from '@/components/ProductHistoryModal'
+import Link from 'next/link'
+import { FaHistory, FaChartBar } from 'react-icons/fa'
 
 // Redefine the variant group interface to focus on color first
 interface ColorVariantGroup {
@@ -119,6 +122,18 @@ export default function ProductsPage() {
   // Using color-first approach for variant groups
   const [colorVariantGroups, setColorVariantGroups] = useState<ColorVariantGroup[]>([])
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+
+  // State for product history modal
+  const [historyModalOpen, setHistoryModalOpen] = useState(false)
+  const [selectedProductHistory, setSelectedProductHistory] = useState<{
+    id: string;
+    name: string;
+    variantId?: string;
+    variantInfo?: {
+      size: string;
+      color: string;
+    };
+  } | null>(null)
 
   // Fetch products when component mounts
   useEffect(() => {
@@ -391,6 +406,29 @@ const handleFileUpload = async (): Promise<string> => {
     }))
   }
 
+  // Handle opening history modal for a product
+  const handleOpenProductHistory = (product: Product) => {
+    setSelectedProductHistory({
+      id: product.id,
+      name: product.name
+    })
+    setHistoryModalOpen(true)
+  }
+
+  // Handle opening history modal for a specific variant
+  const handleOpenVariantHistory = (product: Product, variant: ProductVariant) => {
+    setSelectedProductHistory({
+      id: product.id,
+      name: product.name,
+      variantId: variant.id,
+      variantInfo: {
+        size: variant.size,
+        color: variant.color
+      }
+    })
+    setHistoryModalOpen(true)
+  }
+
   // --- Rendering ---
 
   if (isLoading) {
@@ -399,7 +437,15 @@ const handleFileUpload = async (): Promise<string> => {
 
   return (
     <div className='p-8 text-gray'>
-      <h1 className='text-3xl font-bold text-center mb-8'>Product Management</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className='text-3xl font-bold'>Product Management</h1>
+        <div className="flex gap-4">
+          <Link href="/analytics" className="bg-blue hover:bg-black text-white px-4 py-2 rounded-lg flex items-center gap-2">
+            <FaChartBar />
+            <span>Analytics Dashboard</span>
+          </Link>
+        </div>
+      </div>
 
       <div className='flex justify-between mb-4'>
         <input
@@ -569,22 +615,31 @@ const handleFileUpload = async (): Promise<string> => {
             {product.description && (
               <p className='text-white text-sm mb-4 italic'>{product.description}</p>
             )}
-            <p className='text-white text-2xl mb-4'>Type: {product.type}</p>
-            <p className='text-white text-2xl mb-4'>
-              ${product.price ? product.price.toFixed(2) : '0.00'}
-            </p>
-            <p className='text-white text-2xl mb-4'>
-              ${product.cost ? product.cost.toFixed(2) : '0.00'}
-            </p>
+            <p className='text-white text-lg mb-2'>Type: {product.type}</p>
+            <div className="flex justify-between mb-4">
+              <p className='text-white text-lg'>Price: ${product.price ? product.price.toFixed(2) : '0.00'}</p>
+              <p className='text-white text-lg'>Cost: ${product.cost ? product.cost.toFixed(2) : '0.00'}</p>
+            </div>
+
             <h3 className='font-semibold text-white mb-2'>Variants:</h3>
             <ul className='mb-4'>
               {(product.variants || []).map((variant, index) => (
-                <li key={index} className='text-sm text-white'>
-                  {variant.color} - {variant.size}: {variant.quantity} in stock
+                <li key={index} className='text-sm text-white flex justify-between items-center py-1'>
+                  <span>
+                    {variant.color} - {variant.size}: {variant.quantity} in stock
+                  </span>
+                  <button
+                    onClick={() => handleOpenVariantHistory(product, variant)}
+                    className="text-xs bg-blue hover:bg-black p-1 rounded ml-2"
+                    title="View variant history"
+                  >
+                    <FaHistory />
+                  </button>
                 </li>
               ))}
             </ul>
-            <div className='flex justify-between'>
+
+            <div className='flex justify-between mt-4'>
               <button
                 onClick={() => {
                   setEditingProduct(product)
@@ -597,6 +652,15 @@ const handleFileUpload = async (): Promise<string> => {
                 className='bg-blue hover:bg-black text-white font-bold py-2 px-4 rounded'>
                 Edit
               </button>
+
+              <button
+                onClick={() => handleOpenProductHistory(product)}
+                className='bg-blue hover:bg-black text-white font-bold py-2 px-3 rounded-full'
+                title="View product history"
+              >
+                <FaHistory />
+              </button>
+
               <button
                 onClick={() => handleDeleteProduct(product.id, product.photo)}
                 className='bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded'>
@@ -771,6 +835,21 @@ const handleFileUpload = async (): Promise<string> => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Product History Modal */}
+      {historyModalOpen && selectedProductHistory && (
+        <ProductHistoryModal
+          isOpen={historyModalOpen}
+          onClose={() => {
+            setHistoryModalOpen(false);
+            setSelectedProductHistory(null);
+          }}
+          productId={selectedProductHistory.id}
+          productName={selectedProductHistory.name}
+          variantId={selectedProductHistory.variantId}
+          variantInfo={selectedProductHistory.variantInfo}
+        />
       )}
     </div>
   )

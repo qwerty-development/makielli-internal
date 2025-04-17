@@ -1,4 +1,5 @@
 import { supabase } from '../supabase'
+import { analyticsFunctions } from './analytics'
 
 export interface Product {
 	id: string
@@ -41,10 +42,29 @@ export const productFunctions = {
 
 		if (variantError) throw variantError
 
+    // Record history for new variants
+    for (const variant of newVariants) {
+      try {
+        await analyticsFunctions.recordProductHistory(
+          variant.product_id,
+          variant.id,
+          variant.quantity,
+          0,
+          variant.quantity,
+          'manual',
+          'initial_setup',
+          'Initial product setup'
+        )
+      } catch (error) {
+        console.error('Error recording product history:', error)
+        // Continue even if analytics recording fails
+      }
+    }
+
 		return { ...newProduct, variants: newVariants }
 	},
 
-	// Add cost when updating a product
+  // Add cost when updating a product
 async updateProduct(
   id: string,
   updates: Partial<Omit<Product, 'variants'>>,
@@ -70,8 +90,11 @@ async updateProduct(
   // Process each provided variant (for update or insert)
   for (const variant of variants) {
     if (variant.id) {
+      // Find the original variant to compare quantity
+      const originalVariant = existingVariants.find(v => v.id === variant.id)
+
       // Update existing variant by id
-      const { error } = await supabase
+      const { data: updatedVariant, error } = await supabase
         .from('ProductVariants')
         .update({
           size: variant.size,
@@ -79,7 +102,30 @@ async updateProduct(
           quantity: variant.quantity
         })
         .eq('id', variant.id)
+        .select()
+        .single()
+
       if (error) throw error
+
+      // Record history if quantity changed
+      if (originalVariant && variant.quantity !== undefined &&
+          originalVariant.quantity !== variant.quantity) {
+        try {
+          await analyticsFunctions.recordProductHistory(
+            id,
+            variant.id,
+            variant.quantity - originalVariant.quantity,
+            originalVariant.quantity,
+            variant.quantity,
+            'manual',
+            'manual_update',
+            'Manual quantity update'
+          )
+        } catch (error) {
+          console.error('Error recording product history:', error)
+          // Continue even if analytics recording fails
+        }
+      }
     } else {
       // Check if a variant with same product_id, size, and color already exists
       const { data: existingVariant, error: checkError } = await supabase
@@ -93,20 +139,66 @@ async updateProduct(
 
       if (existingVariant) {
         // Update that variant with the new quantity instead of inserting a duplicate
-        const { error } = await supabase
+        const { data: updatedVariant, error } = await supabase
           .from('ProductVariants')
           .update({ quantity: variant.quantity })
           .eq('id', existingVariant.id)
+          .select()
+          .single()
+
         if (error) throw error
+
+        // Record history if quantity changed
+        if (variant.quantity !== undefined && existingVariant.quantity !== variant.quantity) {
+          try {
+            await analyticsFunctions.recordProductHistory(
+              id,
+              existingVariant.id,
+              variant.quantity - existingVariant.quantity,
+              existingVariant.quantity,
+              variant.quantity,
+              'manual',
+              'manual_update',
+              'Manual quantity update'
+            )
+          } catch (error) {
+            console.error('Error recording product history:', error)
+            // Continue even if analytics recording fails
+          }
+        }
       } else {
         // Insert as new variant if not found
-        const { error } = await supabase.from('ProductVariants').insert({
-          size: variant.size,
-          color: variant.color,
-          quantity: variant.quantity,
-          product_id: id
-        })
+        const { data: newVariant, error } = await supabase
+          .from('ProductVariants')
+          .insert({
+            size: variant.size,
+            color: variant.color,
+            quantity: variant.quantity,
+            product_id: id
+          })
+          .select()
+          .single()
+
         if (error) throw error
+
+        // Record history for new variant
+        if (variant.quantity && variant.quantity > 0) {
+          try {
+            await analyticsFunctions.recordProductHistory(
+              id,
+              newVariant.id,
+              variant.quantity,
+              0,
+              variant.quantity,
+              'manual',
+              'new_variant',
+              'New variant added'
+            )
+          } catch (error) {
+            console.error('Error recording product history:', error)
+            // Continue even if analytics recording fails
+          }
+        }
       }
     }
   }
@@ -118,6 +210,28 @@ async updateProduct(
     .map(v => v.id)
 
   if (variantIdsToRemove.length > 0) {
+    // Record history for removed variants
+    for (const variantId of variantIdsToRemove) {
+      const removedVariant = existingVariants.find(v => v.id === variantId)
+      if (removedVariant) {
+        try {
+          await analyticsFunctions.recordProductHistory(
+            id,
+            variantId,
+            -removedVariant.quantity,
+            removedVariant.quantity,
+            0,
+            'manual',
+            'variant_removed',
+            'Variant removed'
+          )
+        } catch (error) {
+          console.error('Error recording product history:', error)
+          // Continue even if analytics recording fails
+        }
+      }
+    }
+
     const { error } = await supabase
       .from('ProductVariants')
       .delete()
@@ -135,7 +249,6 @@ async updateProduct(
 
   return { ...updatedProduct, variants: updatedVariants }
 },
-
 
 	// Fetch 'cost' along with products
 	async getAllProducts(): Promise<Product[]> {
@@ -166,21 +279,82 @@ async updateProduct(
 	},
 
 	async deleteProduct(id: string): Promise<void> {
-		const { error } = await supabase.from('Products').delete().eq('id', id)
+    // Get the product variants first to record history
+    const { data: variants, error: variantError } = await supabase
+      .from('ProductVariants')
+      .select('*')
+      .eq('product_id', id)
 
+    if (variantError) throw variantError
+
+    // Record history for all variants being deleted
+    for (const variant of variants || []) {
+      try {
+        await analyticsFunctions.recordProductHistory(
+          id,
+          variant.id,
+          -variant.quantity,
+          variant.quantity,
+          0,
+          'manual',
+          'product_deleted',
+          'Product deleted'
+        )
+      } catch (error) {
+        console.error('Error recording product history:', error)
+        // Continue even if analytics recording fails
+      }
+    }
+
+    // Delete the product (which will cascade delete variants)
+		const { error } = await supabase.from('Products').delete().eq('id', id)
 		if (error) throw error
 	},
 
 	async updateProductVariantQuantity(
 		variantId: string,
-		quantityChange: number
+		quantityChange: number,
+    sourceType: 'client_invoice' | 'supplier_invoice' | 'adjustment' | 'manual' | 'quotation' = 'manual',
+    sourceId: string = '',
+    notes: string = ''
 	): Promise<ProductVariant> {
+    // Get the current variant information
+    const { data: variant, error: variantError } = await supabase
+      .from('ProductVariants')
+      .select('*')
+      .eq('id', variantId)
+      .single()
+
+    if (variantError) throw variantError
+
+    const previousQuantity = variant.quantity
+    const newQuantity = previousQuantity + quantityChange
+
+    // Update the variant quantity
 		const { data, error } = await supabase.rpc(
 			'update_product_variant_quantity',
 			{ variant_id: variantId, quantity_change: quantityChange }
 		)
 
 		if (error) throw error
+
+    // Record the history
+    try {
+      await analyticsFunctions.recordProductHistory(
+        variant.product_id,
+        variantId,
+        quantityChange,
+        previousQuantity,
+        newQuantity,
+        sourceType,
+        sourceId,
+        notes
+      )
+    } catch (error) {
+      console.error('Error recording product history:', error)
+      // Continue even if analytics recording fails
+    }
+
 		return data
 	}
 }

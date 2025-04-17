@@ -30,6 +30,8 @@ import { generatePDF } from '@/utils/pdfGenerator'
 import { debounce } from 'lodash'
 import { format } from 'date-fns'
 import SearchableSelect from '@/components/SearchableSelect'
+import { productFunctions } from '../../utils/functions/products'
+import { analyticsFunctions } from '../../utils/functions/analytics'
 interface LoadingStates {
 	isMainLoading: boolean
 	isPDFGenerating: boolean
