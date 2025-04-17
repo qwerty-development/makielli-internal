@@ -538,18 +538,20 @@ const handleCreateInvoice = async () => {
 				if (updateError) throw updateError
 
 				// Update quantities and balance
-				await updateProductQuantities(
-					originalInvoiceData.products,
-					isClientInvoice,
-					originalInvoiceData.type === 'return',
-					true
-				)
-				await updateProductQuantities(
-					newInvoice.products || [],
-					isClientInvoice,
-					newInvoice.type === 'return',
-					false
-				)
+await updateProductQuantities(
+  originalInvoiceData.products,
+  isClientInvoice,
+  originalInvoiceData.type === 'return',
+  true,
+  newInvoice.id
+)
+		await updateProductQuantities(
+  newInvoice.products || [],
+  isClientInvoice,
+  newInvoice.type === 'return',
+  false,
+  newInvoice.id
+)
 
 				const oldAmount = originalInvoiceData.total_price || 0
 				const balanceChange = finalTotalPrice - oldAmount
@@ -568,12 +570,15 @@ const handleCreateInvoice = async () => {
 
 			if (createError) throw createError
 
-			await updateProductQuantities(
-				newInvoice.products || [],
-				isClientInvoice,
-				newInvoice.type === 'return',
-				false
-			)
+
+
+await updateProductQuantities(
+  newInvoice.products || [],
+  isClientInvoice,
+  newInvoice.type === 'return',
+  false,
+  newInvoiceData.id
+)
 			await updateEntityBalance(finalTotalPrice, entityId)
 
 			toast.success(`Invoice ${isUpdate ? 'updated' : 'created'} successfully`)
@@ -598,7 +603,8 @@ const updateProductQuantities = async (
   products: InvoiceProduct[],
   isClientInvoice: boolean,
   isReturn: boolean,
-  isReversal: boolean = false
+  isReversal: boolean = false,
+  invoiceId: number = 0
 ) => {
   // For supplier invoices, always treat as regular (not return)
   const isReturnInvoice = isClientInvoice ? isReturn : false;
@@ -617,12 +623,18 @@ const updateProductQuantities = async (
         quantityChange = -quantityChange
       }
 
-      const { error } = await supabase.rpc('update_product_variant_quantity', {
-        variant_id: product.product_variant_id,
-        quantity_change: quantityChange
-      })
-
-      if (error) throw error
+      // Use the product utility function instead of direct RPC call
+      await productFunctions.updateProductVariantQuantity(
+        product.product_variant_id,
+        quantityChange,
+        isClientInvoice ? 'client_invoice' : 'supplier_invoice',
+        invoiceId.toString(),
+        isReturnInvoice
+          ? 'Return invoice adjustment'
+          : isReversal
+            ? 'Invoice reversal adjustment'
+            : 'Regular invoice adjustment'
+      )
     } catch (error: any) {
       throw new Error(
         `Error updating quantity for product ${product.product_id}: ${error.message}`
@@ -705,15 +717,18 @@ const updateProductQuantities = async (
 
 			const isReturn = invoiceData.type === 'return'
 			const quantityMultiplier = isReturn ? -1 : 1
-			await Promise.all(
-				(invoiceData.products || []).map(
-					(product: { product_variant_id: any; quantity: number }) =>
-						supabase.rpc('update_product_variant_quantity', {
-							variant_id: product.product_variant_id,
-							quantity_change: quantityMultiplier * product.quantity
-						})
-				)
-			)
+await Promise.all(
+  (invoiceData.products || []).map(
+    (product: { product_variant_id: any; quantity: number }) =>
+      productFunctions.updateProductVariantQuantity(
+        product.product_variant_id,
+        quantityMultiplier * product.quantity,
+        isClientInvoice ? 'client_invoice' : 'supplier_invoice',
+        id.toString(),
+        'Invoice deletion - inventory adjustment'
+      )
+  )
+)
 
 			const { error: deleteError } = await supabase
 				.from(table)
