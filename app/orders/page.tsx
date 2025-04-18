@@ -1,5 +1,5 @@
 'use client'
-
+import { productFunctions } from '../../utils/functions/products'
 import React, { useState, useEffect, ChangeEvent, useRef, useCallback } from 'react'
 import { supabase } from '../../utils/supabase'
 import { toast } from 'react-hot-toast'
@@ -321,13 +321,41 @@ const QuotationsPage: React.FC = () => {
       delivery_date: quotation.delivery_date,
       payment_info: 'frisson_llc' // Default payment info
     };
-
-    const { error: invoiceError } = await supabase
+  
+    // Insert the invoice and get the created invoice data
+    const { data: createdInvoice, error: invoiceError } = await supabase
       .from('ClientInvoices')
-      .insert(invoiceData);
-
+      .insert(invoiceData)
+      .select()
+      .single();
+  
     if (invoiceError) {
       throw new Error(`Error creating invoice: ${invoiceError.message}`);
+    }
+  
+    // Update inventory quantities for the new invoice
+    await updateInventoryForInvoice(quotation.products, createdInvoice.id);
+  };
+  
+  // Add a function to handle inventory updates
+  const updateInventoryForInvoice = async (products: QuotationProduct[], invoiceId: number) => {
+    for (const product of products) {
+      try {
+        // For client invoices, we subtract from inventory (negative quantity change)
+        const quantityChange = -product.quantity;
+        
+        // Use the product utility function with proper source tracking
+        await productFunctions.updateProductVariantQuantity(
+          product.product_variant_id,
+          quantityChange,
+          'client_invoice',
+          invoiceId.toString(),
+          'Invoice created from quotation'
+        );
+      } catch (error: any) {
+        console.error(`Error updating product ${product.product_id} quantity:`, error);
+        // Continue with other products even if one fails
+      }
     }
   };
 

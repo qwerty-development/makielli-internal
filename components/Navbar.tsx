@@ -36,6 +36,9 @@ export default function Navbar() {
 					<Link href='/orders' className='text-white hover:text-black'>
 						Orders
 					</Link>
+					<Link href='/analytics' className='text-white hover:text-black'>
+						Analytics
+					</Link>
 				</div>
 			</div>
 		</nav>

@@ -469,7 +469,7 @@ export const analyticsFunctions = {
 
     if (error) throw error;
 
-    return (variants || []).map(variant => ({
+    return (variants || []).map((variant: any) => ({
       product_id: variant.product_id,
       product_name: variant.Products.name,
       variant_id: variant.id,
