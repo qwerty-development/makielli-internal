@@ -577,7 +577,7 @@ await updateProductQuantities(
   isClientInvoice,
   newInvoice.type === 'return',
   false,
-  newInvoiceData.id
+  invoiceData.id
 )
 			await updateEntityBalance(finalTotalPrice, entityId)
 
