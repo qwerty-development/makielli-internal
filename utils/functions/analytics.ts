@@ -57,6 +57,60 @@ export interface TopSellersData {
   } | null;
 }
 
+export interface SalesKPIData {
+  current_period: {
+    total_sales: number;
+    invoice_count: number;
+    avg_order_value: number;
+  };
+  prev_period: {
+    total_sales: number;
+    invoice_count: number;
+    avg_order_value: number;
+  };
+  changes: {
+    total_sales_change: number;
+    invoice_count_change: number;
+    avg_order_value_change: number;
+  };
+}
+
+// Cache implementation for memory storage with TTL
+class AnalyticsCache {
+  private cache: Map<string, { data: any; timestamp: number }> = new Map();
+  private readonly DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes
+
+  set(key: string, data: any, ttl: number = this.DEFAULT_TTL): void {
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now() + ttl
+    });
+  }
+
+  get<T>(key: string): T | null {
+    const cached = this.cache.get(key);
+    if (!cached) return null;
+    
+    if (cached.timestamp < Date.now()) {
+      this.cache.delete(key);
+      return null;
+    }
+    
+    return cached.data as T;
+  }
+
+  invalidate(key: string): void {
+    this.cache.delete(key);
+  }
+
+  invalidateAll(): void {
+    this.cache.clear();
+  }
+}
+
+// Global cache instance
+const analyticsCache = new AnalyticsCache();
+
 /**
  * Analytics functions for inventory and sales data
  */
@@ -90,16 +144,39 @@ export const analyticsFunctions = {
       .single();
 
     if (error) throw error;
+    
+    // Invalidate caches related to product
+    analyticsCache.invalidate(`product_history_${productId}`);
+    analyticsCache.invalidate(`variant_history_${variantId}`);
+    analyticsCache.invalidate('inventory_value');
+    analyticsCache.invalidate('low_stock_products');
+    
+    // History updates may affect time series data, so invalidate those caches too
+    const cacheKeys = Array.from(analyticsCache.cache.keys());
+    cacheKeys.forEach(key => {
+      if (key.startsWith('time_series_')) {
+        analyticsCache.invalidate(key);
+      }
+    });
+    
     return data;
   },
 
   /**
-   * Gets product history for a specific variant
+   * Gets product history for a specific variant with efficient caching
    */
   async getProductVariantHistory(
     variantId: string,
-    limit: number = 20
+    limit: number = 20,
+    forceRefresh: boolean = false
   ): Promise<ProductHistoryEntry[]> {
+    const cacheKey = `variant_history_${variantId}_${limit}`;
+    
+    if (!forceRefresh) {
+      const cached = analyticsCache.get<ProductHistoryEntry[]>(cacheKey);
+      if (cached) return cached;
+    }
+    
     const { data, error } = await supabase
       .from('ProductHistory')
       .select('*')
@@ -108,16 +185,26 @@ export const analyticsFunctions = {
       .limit(limit);
 
     if (error) throw error;
+    
+    analyticsCache.set(cacheKey, data || []);
     return data || [];
   },
 
   /**
-   * Gets product history for a specific product (across all variants)
+   * Gets product history for a specific product (across all variants) with caching
    */
   async getProductHistory(
     productId: string,
-    limit: number = 50
+    limit: number = 50,
+    forceRefresh: boolean = false
   ): Promise<ProductHistoryEntry[]> {
+    const cacheKey = `product_history_${productId}_${limit}`;
+    
+    if (!forceRefresh) {
+      const cached = analyticsCache.get<ProductHistoryEntry[]>(cacheKey);
+      if (cached) return cached;
+    }
+    
     const { data, error } = await supabase
       .from('ProductHistory')
       .select('*')
@@ -126,16 +213,26 @@ export const analyticsFunctions = {
       .limit(limit);
 
     if (error) throw error;
+    
+    analyticsCache.set(cacheKey, data || []);
     return data || [];
   },
 
   /**
-   * Gets product sales data for a specific time range
+   * Gets product sales data for a specific time range with caching
    */
   async getProductSales(
     startDate: string,
-    endDate: string
+    endDate: string,
+    forceRefresh: boolean = false
   ): Promise<ProductSalesData[]> {
+    const cacheKey = `product_sales_${startDate}_${endDate}`;
+    
+    if (!forceRefresh) {
+      const cached = analyticsCache.get<ProductSalesData[]>(cacheKey);
+      if (cached) return cached;
+    }
+    
     // This is a more complex query that joins multiple tables
     const { data, error } = await supabase.rpc('get_product_sales', {
       start_date: startDate,
@@ -156,26 +253,38 @@ export const analyticsFunctions = {
 
       // Process the data manually (simplified version)
       const salesByProduct: {[key: string]: ProductSalesData} = {};
+      const variantPromises: Promise<any>[] = [];
 
       for (const invoice of invoicesData || []) {
         for (const item of invoice.products || []) {
           if (!salesByProduct[item.product_id]) {
-            // Get the product details
-            const { data: productData } = await supabase
+            // Create a promise to get the product details
+            const productPromise = supabase
               .from('Products')
               .select('name')
               .eq('id', item.product_id)
-              .single();
-
-            salesByProduct[item.product_id] = {
-              product_id: item.product_id,
-              product_name: productData?.name || 'Unknown Product',
-              total_sold: 0,
-              total_revenue: 0,
-              variants: []
-            };
+              .single()
+              .then(({ data: productData }) => {
+                salesByProduct[item.product_id] = {
+                  product_id: item.product_id,
+                  product_name: productData?.name || 'Unknown Product',
+                  total_sold: 0,
+                  total_revenue: 0,
+                  variants: []
+                };
+              });
+            
+            variantPromises.push(productPromise);
           }
+        }
+      }
 
+      // Wait for all product details to be fetched
+      await Promise.all(variantPromises);
+
+      // Process the variant data
+      for (const invoice of invoicesData || []) {
+        for (const item of invoice.products || []) {
           // Update the sales data
           salesByProduct[item.product_id].total_sold += item.quantity;
 
@@ -186,35 +295,72 @@ export const analyticsFunctions = {
 
           if (variantIndex === -1) {
             // Get the variant details
-            const { data: variantData } = await supabase
+            const variantPromise = supabase
               .from('ProductVariants')
               .select('size, color')
               .eq('id', item.product_variant_id)
-              .single();
-
-            salesByProduct[item.product_id].variants.push({
-              id: item.product_variant_id,
-              size: variantData?.size || 'Unknown',
-              color: variantData?.color || 'Unknown',
-              quantity_sold: item.quantity
-            });
+              .single()
+              .then(({ data: variantData }) => {
+                if (variantData) {
+                  salesByProduct[item.product_id].variants.push({
+                    id: item.product_variant_id,
+                    size: variantData.size || 'Unknown',
+                    color: variantData.color || 'Unknown',
+                    quantity_sold: item.quantity
+                  });
+                }
+              });
+            
+            variantPromises.push(variantPromise);
           } else {
             salesByProduct[item.product_id].variants[variantIndex].quantity_sold += item.quantity;
           }
         }
       }
 
-      return Object.values(salesByProduct);
+      // Wait for all variant details to be fetched
+      await Promise.all(variantPromises);
+
+      const result = Object.values(salesByProduct);
+      analyticsCache.set(cacheKey, result);
+      return result;
     }
 
+    analyticsCache.set(cacheKey, data || []);
     return data || [];
   },
 
   /**
-   * Gets current inventory value summary
+   * Gets current inventory value summary with efficient caching
    */
-  async getInventoryValue(): Promise<InventoryValueData> {
-    // Get all products with their variants
+  async getInventoryValue(forceRefresh: boolean = false): Promise<InventoryValueData> {
+    const cacheKey = 'inventory_value';
+    
+    if (!forceRefresh) {
+      const cached = analyticsCache.get<InventoryValueData>(cacheKey);
+      if (cached) return cached;
+    }
+    
+    try {
+      // Try to use the optimized RPC first
+      const { data, error } = await supabase.rpc('get_inventory_value_summary');
+      
+      if (!error && data) {
+        const inventoryData: InventoryValueData = {
+          total_value: data.total_value,
+          total_cost: data.total_cost,
+          total_items: data.total_items,
+          by_product: data.by_product
+        };
+        
+        analyticsCache.set(cacheKey, inventoryData, 15 * 60 * 1000); // 15 minute cache for inventory
+        return inventoryData;
+      }
+    } catch (err) {
+      console.log('RPC not available, falling back to client-side calculation');
+    }
+    
+    // Fallback to the original implementation
     const { data: products, error: productsError } = await supabase
       .from('Products')
       .select(`
@@ -256,23 +402,62 @@ export const analyticsFunctions = {
       });
     }
 
-    return {
+    const inventoryData: InventoryValueData = {
       total_value: totalValue,
       total_cost: totalCost,
       total_items: totalItems,
       by_product: byProduct
     };
+    
+    analyticsCache.set(cacheKey, inventoryData, 15 * 60 * 1000); // 15 minute cache for inventory
+    return inventoryData;
   },
 
   /**
-   * Gets top selling products for a specific time range
+   * Gets top selling products for a specific time range using the optimized RPC
    */
   async getTopSellingProducts(
     startDate: string,
     endDate: string,
-    limit: number = 10
+    limit: number = 10,
+    forceRefresh: boolean = false
   ): Promise<TopSellersData[]> {
-    // Query client invoices within the date range
+    const cacheKey = `top_sellers_${startDate}_${endDate}_${limit}`;
+    
+    if (!forceRefresh) {
+      const cached = analyticsCache.get<TopSellersData[]>(cacheKey);
+      if (cached) return cached;
+    }
+    
+    try {
+      // Try to use the optimized RPC first
+      const { data, error } = await supabase.rpc('get_top_selling_products', {
+        start_date: startDate,
+        end_date: endDate,
+        items_limit: limit
+      });
+      
+      if (!error && data) {
+        const topSellers: TopSellersData[] = data.map((item: any) => ({
+          product_id: item.product_id,
+          product_name: item.product_name,
+          quantity_sold: item.quantity_sold,
+          revenue: item.revenue,
+          product_photo: item.product_photo,
+          most_popular_variant: item.popular_variant_size ? {
+            size: item.popular_variant_size,
+            color: item.popular_variant_color
+          } : null
+        }));
+        
+        analyticsCache.set(cacheKey, topSellers);
+        return topSellers;
+      }
+    } catch (err) {
+      console.log('RPC not available, falling back to client-side calculation');
+    }
+    
+    // Fallback to the original implementation
     const { data: invoices, error: invoicesError } = await supabase
       .from('ClientInvoices')
       .select('*')
@@ -289,6 +474,8 @@ export const analyticsFunctions = {
     }} = {};
 
     for (const invoice of invoices || []) {
+      if (invoice.type === 'return') continue; // Skip return invoices
+      
       for (const item of invoice.products || []) {
         if (!productSales[item.product_id]) {
           productSales[item.product_id] = {
@@ -310,143 +497,169 @@ export const analyticsFunctions = {
 
     // Get product details and calculate revenue
     const topSellers: TopSellersData[] = [];
+    const productPromises: Promise<void>[] = [];
 
     for (const productId in productSales) {
-      const { data: product, error: productError } = await supabase
-        .from('Products')
-        .select('name, price, photo')
-        .eq('id', productId)
-        .single();
-
-      if (productError) continue;
-
-      // Find most popular variant
-      let mostPopularVariantId = '';
-      let maxQuantity = 0;
-
-      for (const variantId in productSales[productId].variantSales) {
-        const qty = productSales[productId].variantSales[variantId];
-        if (qty > maxQuantity) {
-          maxQuantity = qty;
-          mostPopularVariantId = variantId;
-        }
-      }
-
-      let mostPopularVariant = null;
-
-      if (mostPopularVariantId) {
-        const { data: variant, error: variantError } = await supabase
-          .from('ProductVariants')
-          .select('size, color')
-          .eq('id', mostPopularVariantId)
+      const productPromise = (async () => {
+        const { data: product, error: productError } = await supabase
+          .from('Products')
+          .select('name, price, photo')
+          .eq('id', productId)
           .single();
 
-        if (!variantError) {
-          mostPopularVariant = {
-            size: variant.size,
-            color: variant.color
-          };
+        if (productError) return;
+
+        // Find most popular variant
+        let mostPopularVariantId = '';
+        let maxQuantity = 0;
+
+        for (const variantId in productSales[productId].variantSales) {
+          const qty = productSales[productId].variantSales[variantId];
+          if (qty > maxQuantity) {
+            maxQuantity = qty;
+            mostPopularVariantId = variantId;
+          }
         }
-      }
 
-      // Calculate revenue
-      const revenue = productSales[productId].quantity * product.price;
+        let mostPopularVariant = null;
 
-      topSellers.push({
-        product_id: productId,
-        product_name: product.name,
-        quantity_sold: productSales[productId].quantity,
-        revenue: revenue,
-        product_photo: product.photo,
-        most_popular_variant: mostPopularVariant
-      });
+        if (mostPopularVariantId) {
+          const { data: variant, error: variantError } = await supabase
+            .from('ProductVariants')
+            .select('size, color')
+            .eq('id', mostPopularVariantId)
+            .single();
+
+          if (!variantError) {
+            mostPopularVariant = {
+              size: variant.size,
+              color: variant.color
+            };
+          }
+        }
+
+        // Calculate revenue
+        const revenue = productSales[productId].quantity * product.price;
+
+        topSellers.push({
+          product_id: productId,
+          product_name: product.name,
+          quantity_sold: productSales[productId].quantity,
+          revenue: revenue,
+          product_photo: product.photo,
+          most_popular_variant: mostPopularVariant
+        });
+      })();
+      
+      productPromises.push(productPromise);
     }
 
+    await Promise.all(productPromises);
+
     // Sort by quantity sold in descending order and limit results
-    return topSellers
+    const result = topSellers
       .sort((a, b) => b.quantity_sold - a.quantity_sold)
       .slice(0, limit);
+    
+    analyticsCache.set(cacheKey, result);
+    return result;
   },
 
   /**
-   * Gets inventory changes over time for charting
+   * Gets inventory changes over time for charting using optimized RPC
    */
   async getInventoryTimeSeries(
     startDate: string,
     endDate: string,
-    interval: 'day' | 'week' | 'month' = 'day'
+    interval: 'day' | 'week' | 'month' = 'day',
+    forceRefresh: boolean = false
   ): Promise<TimeSeriesData[]> {
-    // Use RPC if available, otherwise calculate manually
-    const { data, error } = await supabase.rpc('get_inventory_time_series', {
-      start_date: startDate,
-      end_date: endDate,
-      time_interval: interval
-    });
-
-    if (error) {
-      console.error('Error fetching time series data:', error);
-
-      // As a fallback, calculate a simplified version
-      const { data: historyData, error: historyError } = await supabase
-        .from('ProductHistory')
-        .select('*')
-        .gte('created_at', startDate)
-        .lte('created_at', endDate)
-        .order('created_at', { ascending: true });
-
-      if (historyError) throw historyError;
-
-      // Group by date according to interval
-      const timeSeriesMap: {[key: string]: {sales: number, purchases: number}} = {};
-
-      for (const entry of historyData || []) {
-        let dateKey: string;
-        const date = new Date(entry.created_at);
-
-        if (interval === 'day') {
-          dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
-        } else if (interval === 'week') {
-          // Get the first day of the week (Sunday)
-          const day = date.getDay();
-          const diff = date.getDate() - day;
-          const firstDay = new Date(date);
-          firstDay.setDate(diff);
-          dateKey = firstDay.toISOString().split('T')[0];
-        } else {
-          // Month
-          dateKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
-        }
-
-        if (!timeSeriesMap[dateKey]) {
-          timeSeriesMap[dateKey] = { sales: 0, purchases: 0 };
-        }
-
-        // Add to sales or purchases based on source_type
-        if (entry.source_type === 'client_invoice') {
-          timeSeriesMap[dateKey].sales += Math.abs(entry.quantity_change);
-        } else if (entry.source_type === 'supplier_invoice') {
-          timeSeriesMap[dateKey].purchases += Math.abs(entry.quantity_change);
-        }
+    const cacheKey = `time_series_${startDate}_${endDate}_${interval}`;
+    
+    if (!forceRefresh) {
+      const cached = analyticsCache.get<TimeSeriesData[]>(cacheKey);
+      if (cached) return cached;
+    }
+    
+    try {
+      // Try to use the optimized RPC first
+      const { data, error } = await supabase.rpc('get_inventory_time_series', {
+        start_date: startDate,
+        end_date: endDate,
+        time_interval: interval
+      });
+      
+      if (!error && data) {
+        analyticsCache.set(cacheKey, data);
+        return data;
       }
-
-      // Convert map to array
-      const result: TimeSeriesData[] = Object.keys(timeSeriesMap).map(date => ({
-        date,
-        sales: timeSeriesMap[date].sales,
-        purchases: timeSeriesMap[date].purchases
-      }));
-
-      // Sort by date
-      return result.sort((a, b) => a.date.localeCompare(b.date));
+    } catch (err) {
+      console.log('RPC not available, falling back to client-side calculation');
     }
 
-    return data || [];
+    // Fallback to the original implementation
+    const { data: historyData, error: historyError } = await supabase
+      .from('ProductHistory')
+      .select('*')
+      .gte('created_at', startDate)
+      .lte('created_at', endDate)
+      .order('created_at', { ascending: true });
+
+    if (historyError) throw historyError;
+
+    // Group by date according to interval
+    const timeSeriesMap: {[key: string]: {sales: number, purchases: number}} = {};
+
+    for (const entry of historyData || []) {
+      let dateKey: string;
+      const date = new Date(entry.created_at);
+
+      if (interval === 'day') {
+        dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
+      } else if (interval === 'week') {
+        // Get the first day of the week (Sunday)
+        const day = date.getDay();
+        const diff = date.getDate() - day;
+        const firstDay = new Date(date);
+        firstDay.setDate(diff);
+        dateKey = firstDay.toISOString().split('T')[0];
+      } else {
+        // Month
+        dateKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+      }
+
+      if (!timeSeriesMap[dateKey]) {
+        timeSeriesMap[dateKey] = { sales: 0, purchases: 0 };
+      }
+
+      // Add to sales or purchases based on source_type
+      if (entry.source_type === 'client_invoice') {
+        timeSeriesMap[dateKey].sales += Math.abs(entry.quantity_change);
+      } else if (entry.source_type === 'supplier_invoice') {
+        timeSeriesMap[dateKey].purchases += Math.abs(entry.quantity_change);
+      }
+    }
+
+    // Convert map to array
+    const result: TimeSeriesData[] = Object.keys(timeSeriesMap).map(date => ({
+      date,
+      sales: timeSeriesMap[date].sales,
+      purchases: timeSeriesMap[date].purchases
+    }));
+
+    // Sort by date
+    const sortedResult = result.sort((a, b) => a.date.localeCompare(b.date));
+    analyticsCache.set(cacheKey, sortedResult);
+    return sortedResult;
   },
 
   /**
-   * Gets low stock products that need restocking
+   * Gets low stock products that need restocking using optimized RPC
    */
-  async getLowStockProducts(threshold: number = 5): Promise<{
+  async getLowStockProducts(
+    threshold: number = 5,
+    forceRefresh: boolean = false
+  ): Promise<{
     product_id: string;
     product_name: string;
     variant_id: string;
@@ -454,6 +667,28 @@ export const analyticsFunctions = {
     color: string;
     quantity: number;
   }[]> {
+    const cacheKey = `low_stock_products_${threshold}`;
+    
+    if (!forceRefresh) {
+      const cached = analyticsCache.get(cacheKey);
+      if (cached) return cached;
+    }
+    
+    try {
+      // Try to use the optimized RPC first
+      const { data, error } = await supabase.rpc('get_low_stock_products', {
+        threshold
+      });
+      
+      if (!error && data) {
+        analyticsCache.set(cacheKey, data, 10 * 60 * 1000); // 10 minute cache
+        return data;
+      }
+    } catch (err) {
+      console.log('RPC not available, falling back to client-side calculation');
+    }
+    
+    // Fallback to the original implementation
     const { data: variants, error } = await supabase
       .from('ProductVariants')
       .select(`
@@ -469,7 +704,7 @@ export const analyticsFunctions = {
 
     if (error) throw error;
 
-    return (variants || []).map((variant: any) => ({
+    const result = (variants || []).map((variant: any) => ({
       product_id: variant.product_id,
       product_name: variant.Products.name,
       variant_id: variant.id,
@@ -477,5 +712,103 @@ export const analyticsFunctions = {
       color: variant.color,
       quantity: variant.quantity
     }));
+    
+    analyticsCache.set(cacheKey, result, 10 * 60 * 1000); // 10 minute cache
+    return result;
+  },
+  
+  /**
+   * Gets sales KPIs with period comparison
+   */
+  async getSalesKPIs(
+    currentStart: string,
+    currentEnd: string,
+    previousStart: string,
+    previousEnd: string,
+    forceRefresh: boolean = false
+  ): Promise<SalesKPIData> {
+    const cacheKey = `sales_kpis_${currentStart}_${currentEnd}_${previousStart}_${previousEnd}`;
+    
+    if (!forceRefresh) {
+      const cached = analyticsCache.get<SalesKPIData>(cacheKey);
+      if (cached) return cached;
+    }
+    
+    try {
+      // Try to use the optimized RPC first
+      const { data, error } = await supabase.rpc('get_sales_kpis', {
+        current_start: currentStart,
+        current_end: currentEnd,
+        prev_start: previousStart,
+        prev_end: previousEnd
+      });
+      
+      if (!error && data) {
+        analyticsCache.set(cacheKey, data);
+        return data;
+      }
+    } catch (err) {
+      console.log('RPC not available, falling back to client-side calculation');
+    }
+    
+    // Fallback implementation
+    async function getPeriodMetrics(start: string, end: string) {
+      const { data, error } = await supabase
+        .from('ClientInvoices')
+        .select('total_price')
+        .gte('created_at', start)
+        .lte('created_at', end)
+        .eq('type', 'regular');
+        
+      if (error) throw error;
+      
+      const totalSales = data.reduce((sum, invoice) => sum + (invoice.total_price || 0), 0);
+      const invoiceCount = data.length;
+      const avgOrderValue = invoiceCount > 0 ? totalSales / invoiceCount : 0;
+      
+      return {
+        total_sales: totalSales,
+        invoice_count: invoiceCount,
+        avg_order_value: avgOrderValue
+      };
+    }
+    
+    const currentPeriod = await getPeriodMetrics(currentStart, currentEnd);
+    const prevPeriod = await getPeriodMetrics(previousStart, previousEnd);
+    
+    // Calculate percentage changes
+    const calculatePercentChange = (current: number, previous: number) => {
+      if (previous === 0) return 0;
+      return ((current - previous) / previous) * 100;
+    };
+    
+    const result: SalesKPIData = {
+      current_period: currentPeriod,
+      prev_period: prevPeriod,
+      changes: {
+        total_sales_change: calculatePercentChange(
+          currentPeriod.total_sales, 
+          prevPeriod.total_sales
+        ),
+        invoice_count_change: calculatePercentChange(
+          currentPeriod.invoice_count, 
+          prevPeriod.invoice_count
+        ),
+        avg_order_value_change: calculatePercentChange(
+          currentPeriod.avg_order_value, 
+          prevPeriod.avg_order_value
+        )
+      }
+    };
+    
+    analyticsCache.set(cacheKey, result);
+    return result;
+  },
+  
+  /**
+   * Clear analytics cache to force fresh data
+   */
+  clearCache(): void {
+    analyticsCache.invalidateAll();
   }
 };
