@@ -921,6 +921,7 @@ const QuotationsPage: React.FC = () => {
                 {isExistingOrder ? 'Edit Order' : 'Create New Order'}
               </h3>
 
+    
               {isAcceptedOrder && (
                 <div className="mb-4 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700">
                   <h3 className="font-medium">Editing an Accepted Order</h3>
@@ -1268,7 +1269,7 @@ const QuotationsPage: React.FC = () => {
                     </select>
                     {isAcceptedOrder && newQuotation.status !== 'accepted' && (
                       <p className="mt-1 text-xs text-red-600">
-                        Warning: Changing the status from "accepted" will not remove the related invoice.
+                        Warning: Changing the status from accepted will not remove the related invoice.
                       </p>
                     )}
                     {!isAcceptedOrder && newQuotation.status === 'accepted' && (
