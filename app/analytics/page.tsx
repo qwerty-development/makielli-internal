@@ -1,3 +1,4 @@
+/* eslint-disable react/display-name */
 'use client'
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
@@ -1017,7 +1018,7 @@ export default function AnalyticsDashboard() {
           value={loadingSalesKPIs || !salesKPIs ? "Loading..." : `$${salesKPIs.current_period.total_sales.toFixed(2)}`}
           icon={<FaChartLine />}
           loading={loadingSalesKPIs}
-          trend={salesKPIs?.changes.total_sales_change > 0 ? 'up' : 'down'}
+          trend={salesKPIs!.changes.total_sales_change > 0 ? 'up' : 'down'}
           trendValue={salesKPIs?.changes.total_sales_change || 0}
           info="Total revenue during the selected period compared to previous period of same length"
         />
@@ -1026,7 +1027,7 @@ export default function AnalyticsDashboard() {
           value={loadingSalesKPIs || !salesKPIs ? "Loading..." : salesKPIs.current_period.invoice_count.toString()}
           icon={<FaChartBar />}
           loading={loadingSalesKPIs}
-          trend={salesKPIs?.changes.invoice_count_change > 0 ? 'up' : 'down'}
+          trend={salesKPIs!.changes.invoice_count_change > 0 ? 'up' : 'down'}
           trendValue={salesKPIs?.changes.invoice_count_change || 0}
           info="Number of orders during the selected period compared to previous period"
         />
@@ -1035,7 +1036,7 @@ export default function AnalyticsDashboard() {
           value={loadingSalesKPIs || !salesKPIs ? "Loading..." : `$${salesKPIs.current_period.avg_order_value.toFixed(2)}`}
           icon={<FaChartLine />}
           loading={loadingSalesKPIs}
-          trend={salesKPIs?.changes.avg_order_value_change > 0 ? 'up' : 'down'}
+          trend={salesKPIs!.changes.avg_order_value_change > 0 ? 'up' : 'down'}
           trendValue={salesKPIs?.changes.avg_order_value_change || 0}
           info="Average value per order during the selected period compared to previous period"
         />
