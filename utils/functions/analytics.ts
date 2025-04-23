@@ -152,12 +152,6 @@ export const analyticsFunctions = {
     analyticsCache.invalidate('low_stock_products');
     
     // History updates may affect time series data, so invalidate those caches too
-    const cacheKeys = Array.from(analyticsCache.cache.keys());
-    cacheKeys.forEach(key => {
-      if (key.startsWith('time_series_')) {
-        analyticsCache.invalidate(key);
-      }
-    });
     
     return data;
   },
@@ -274,7 +268,7 @@ export const analyticsFunctions = {
                 };
               });
             
-            variantPromises.push(productPromise);
+            variantPromises.push(productPromise as Promise<any>);
           }
         }
       }
@@ -311,7 +305,7 @@ export const analyticsFunctions = {
                 }
               });
             
-            variantPromises.push(variantPromise);
+            variantPromises.push(variantPromise as Promise<any>);
           } else {
             salesByProduct[item.product_id].variants[variantIndex].quantity_sold += item.quantity;
           }
@@ -670,7 +664,14 @@ export const analyticsFunctions = {
     const cacheKey = `low_stock_products_${threshold}`;
     
     if (!forceRefresh) {
-      const cached = analyticsCache.get(cacheKey);
+      const cached = analyticsCache.get<{
+        product_id: string;
+        product_name: string;
+        variant_id: string;
+        size: string;
+        color: string;
+        quantity: number;
+      }[]>(cacheKey);
       if (cached) return cached;
     }
     
