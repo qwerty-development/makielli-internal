@@ -381,9 +381,12 @@ await Promise.all(
       } else {
         throw new Error('Invalid receipt: missing client_id or supplier_id. Please provide a valid entity.')
       }
-
+    
       component = ReceiptPDF({
-        receipt: data,
+        receipt: {
+          ...data,
+          currency: data.currency || invoiceData.currency || 'usd'  // Add this line
+        },
         entity: entityData2,
         company: companyData2,
         invoice: invoiceData,

@@ -32,6 +32,7 @@ interface Invoice {
 	remaining_amount: number
 	client_id?: number
 	supplier_id?: string
+	currency: 'usd' | 'euro'
 }
 
 interface Entity {
@@ -80,8 +81,6 @@ const ReceiptsPage: React.FC = () => {
 		filterEntity
 	])
 
-	console.log(entities)
-
 	const fetchReceipts = async () => {
 		const table = activeTab === 'client' ? 'ClientReceipts' : 'SupplierReceipts'
 		let query = supabase.from(table).select('*', { count: 'exact' })
@@ -125,15 +124,28 @@ const ReceiptsPage: React.FC = () => {
 
 	const fetchInvoices = async () => {
 		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
+		const selectFields = activeTab === 'client' 
+		  ? 'id, total_price, remaining_amount, client_id, currency'    // Only select client_id for ClientInvoices
+		  : 'id, total_price, remaining_amount, supplier_id, currency'  // Only select supplier_id for SupplierInvoices
+		
 		const { data, error } = await supabase
-			.from(table)
-			.select('*')
-			.gt('remaining_amount', 0)
+		  .from(table)
+		  .select(selectFields)
+		  .gt('remaining_amount', 0)
 		if (error) {
-			toast.error(`Error fetching invoices: ${error.message}`)
+		  toast.error(`Error fetching invoices: ${error.message}`)
 		} else {
-			setInvoices(data || [])
+		  setInvoices(data || [])
 		}
+	  }
+
+	const getCurrencySymbol = (currency: 'usd' | 'euro' | undefined): string => {
+		return currency === 'euro' ? '€' : '$'
+	}
+
+	const getInvoiceCurrency = (invoiceId: number): 'usd' | 'euro' => {
+		const invoice = invoices.find(inv => inv.id === invoiceId)
+		return invoice?.currency || 'usd'
 	}
 
 	const handleCreateOrUpdateReceipt = async () => {
@@ -408,67 +420,79 @@ const ReceiptsPage: React.FC = () => {
 					</tr>
 				</thead>
 				<tbody className='text-gray-600 text-sm font-light'>
-					{receipts.map(receipt => (
-						<tr
-							key={receipt.id}
-							className='border-b border-gray hover:bg-gray'
-							onClick={() => setSelectedReceipt(receipt)}>
-							<td className='py-3 px-6 text-left whitespace-nowrap'>
-								{receipt.id}
-							</td>
-							<td className='py-3 px-6 text-left whitespace-nowrap'>
-								{activeTab === 'client'
-									? entities.find(
-											entity => entity.client_id === receipt.client_id
-									  )?.name
-									: entities.find(entity => entity.id === receipt.supplier_id)
-											?.name || '-'}
-							</td>
-							<td className='py-3 px-6 text-left'>
-								{new Date(receipt.paid_at).toLocaleDateString()}
-							</td>
-							<td className='py-3 px-6 text-left'>{receipt.invoice_id}</td>
-							<td className='py-3 px-6 text-left'>
-								${receipt.amount.toFixed(2)}
-							</td>
-							<td className='py-3 px-6 text-center'>
-								{receipt.files && receipt.files.length > 0 ? (
-									<FaFile
-										className='inline text-blue cursor-pointer'
-										onClick={() => setSelectedReceipt(receipt)}
-									/>
-								) : (
-									'-'
-								)}
-							</td>
-							<td className='py-3  text-center'>
-								<div className='flex item-center justify-center'>
-									<button
-										className='mr-2 bg-blue text-white p-1 rounded-lg text-nowrap transform  hover:scale-110'
-										onClick={e => {
-											e.stopPropagation()
-											handleSendEmail(receipt)
-										}}>
-										Send Email
-									</button>
-									<button
-										className='w-4 mr-2 transform hover:text-blue hover:scale-110'
-										onClick={() => handleEditReceipt(receipt)}>
-										<FaEdit />
-									</button>
-									<button
-										className='w-4 mr-2 transform hover:text-blue hover:scale-110'
-										onClick={() => handleDeleteReceipt(receipt.id)}>
-										<FaTrash />
-									</button>
-								</div>
-							</td>
-						</tr>
-					))}
+					{receipts.map(receipt => {
+						const currency = getInvoiceCurrency(receipt.invoice_id)
+						const currencySymbol = getCurrencySymbol(currency)
+						
+						return (
+							<tr
+								key={receipt.id}
+								className='border-b border-gray hover:bg-gray'
+								onClick={() => setSelectedReceipt(receipt)}>
+								<td className='py-3 px-6 text-left whitespace-nowrap'>
+									{receipt.id}
+								</td>
+								<td className='py-3 px-6 text-left whitespace-nowrap'>
+									{activeTab === 'client'
+										? entities.find(
+												entity => entity.client_id === receipt.client_id
+										  )?.name
+										: entities.find(entity => entity.id === receipt.supplier_id)
+												?.name || '-'}
+								</td>
+								<td className='py-3 px-6 text-left'>
+									{new Date(receipt.paid_at).toLocaleDateString()}
+								</td>
+								<td className='py-3 px-6 text-left'>{receipt.invoice_id}</td>
+								<td className='py-3 px-6 text-left'>
+									{currencySymbol}{receipt.amount.toFixed(2)}
+								</td>
+								<td className='py-3 px-6 text-center'>
+									{receipt.files && receipt.files.length > 0 ? (
+										<FaFile
+											className='inline text-blue cursor-pointer'
+											onClick={() => setSelectedReceipt(receipt)}
+										/>
+									) : (
+										'-'
+									)}
+								</td>
+								<td className='py-3  text-center'>
+									<div className='flex item-center justify-center'>
+										<button
+											className='mr-2 bg-blue text-white p-1 rounded-lg text-nowrap transform  hover:scale-110'
+											onClick={e => {
+												e.stopPropagation()
+												handleSendEmail(receipt)
+											}}>
+											Send Email
+										</button>
+										<button
+											className='w-4 mr-2 transform hover:text-blue hover:scale-110'
+											onClick={(e) => {
+												e.stopPropagation()
+												handleEditReceipt(receipt)
+											}}>
+											<FaEdit />
+										</button>
+										<button
+											className='w-4 mr-2 transform hover:text-blue hover:scale-110'
+											onClick={(e) => {
+												e.stopPropagation()
+												handleDeleteReceipt(receipt.id)
+											}}>
+											<FaTrash />
+										</button>
+									</div>
+								</td>
+							</tr>
+						)
+					})}
 				</tbody>
 			</table>
 		</div>
 	)
+
 	const renderPagination = () => {
 		const totalPages = Math.ceil(totalReceipts / itemsPerPage)
 		return (
@@ -568,165 +592,184 @@ const ReceiptsPage: React.FC = () => {
 		</div>
 	)
 
-	const renderReceiptModal = () => (
-		<div
-			className={`fixed z-10 inset-0 overflow-y-auto ${
-				showModal ? '' : 'hidden'
-			}`}>
-			<div className='flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0'>
-				<div className='fixed inset-0 transition-opacity' aria-hidden='true'>
-					<div className='absolute inset-0 bg-gray opacity-75'></div>
-				</div>
-				<span
-					className='hidden sm:inline-block sm:align-middle sm:h-screen'
-					aria-hidden='true'>
-					&#8203;
-				</span>
-				<div className='inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full'>
-					<div className='bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4'>
-						<h3 className='text-lg leading-6 font-medium text-gray-900 mb-4'>
-							{isEditing ? 'Edit Receipt' : 'Create New Receipt'}
-						</h3>
-						<form>
-							<div className='mb-4'>
-								<label
-									className='block text-gray-700 text-sm font-bold mb-2'
-									htmlFor='date'>
-									Date
-								</label>
-								<DatePicker
-									selected={
-										newReceipt.paid_at ? new Date(newReceipt.paid_at) : null
-									}
-									onChange={(date: Date | null) =>
-										setNewReceipt({
-											...newReceipt,
-											paid_at: date ? date.toISOString() : ''
-										})
-									}
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
-								/>
-							</div>
-							<div className='mb-4'>
-								<label
-									className='block text-gray-700 text-sm font-bold mb-2'
-									htmlFor='invoice'>
-									Invoice
-								</label>
-								<select
-									id='invoice'
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
-									value={newReceipt.invoice_id}
-									onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-										const selectedInvoice = invoices.find(
-											invoice => invoice.id === Number(e.target.value)
-										)
-										if (selectedInvoice) {
+	const renderReceiptModal = () => {
+		const selectedInvoice = newReceipt.invoice_id 
+			? invoices.find(invoice => invoice.id === newReceipt.invoice_id) 
+			: null;
+		const currency = selectedInvoice?.currency || 'usd';
+		const currencySymbol = getCurrencySymbol(currency);
+
+		return (
+			<div
+				className={`fixed z-10 inset-0 overflow-y-auto ${
+					showModal ? '' : 'hidden'
+				}`}>
+				<div className='flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0'>
+					<div className='fixed inset-0 transition-opacity' aria-hidden='true'>
+						<div className='absolute inset-0 bg-gray opacity-75'></div>
+					</div>
+					<span
+						className='hidden sm:inline-block sm:align-middle sm:h-screen'
+						aria-hidden='true'>
+						&#8203;
+					</span>
+					<div className='inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full'>
+						<div className='bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4'>
+							<h3 className='text-lg leading-6 font-medium text-gray-900 mb-4'>
+								{isEditing ? 'Edit Receipt' : 'Create New Receipt'}
+							</h3>
+							<form>
+								<div className='mb-4'>
+									<label
+										className='block text-gray-700 text-sm font-bold mb-2'
+										htmlFor='date'>
+										Date
+									</label>
+									<DatePicker
+										selected={
+											newReceipt.paid_at ? new Date(newReceipt.paid_at) : null
+										}
+										onChange={(date: Date | null) =>
 											setNewReceipt({
 												...newReceipt,
-												invoice_id: selectedInvoice.id,
-												[activeTab === 'client' ? 'client_id' : 'supplier_id']:
-													selectedInvoice[
-														activeTab === 'client' ? 'client_id' : 'supplier_id'
-													]
+												paid_at: date ? date.toISOString() : ''
 											})
 										}
-									}}>
-									<option value=''>Select Invoice</option>
-									{invoices.map(invoice => (
-										<option key={invoice.id} value={invoice.id}>
-											Invoice #{invoice.id} - Remaining: $
-											{invoice.remaining_amount.toFixed(2)}
-										</option>
-									))}
-								</select>
-							</div>
-							<div className='mb-4'>
-								<label
-									className='block text-gray-700 text-sm font-bold mb-2'
-									htmlFor='amount'>
-									Amount
-								</label>
-								<input
-									type='number'
-									id='amount'
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
-									value={newReceipt.amount || ''}
-									onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-										setNewReceipt({
-											...newReceipt,
-											amount: Number(e.target.value)
-										})
-									}
-								/>
-							</div>
-							<div className='mb-4'>
-								<label className='block text-gray-700 text-sm font-bold mb-2'>
-									Files
-								</label>
-								<input
-									type='file'
-									onChange={handleFileChange}
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
-								/>
-								{selectedFile && (
-									<button
-										type='button'
-										onClick={handleFileUpload}
-										disabled={uploadingFile}
-										className='mt-2 bg-blue hover:bg-blue text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline'>
-										{uploadingFile ? 'Uploading...' : 'Upload File'}
-									</button>
-								)}
-								{newReceipt.files?.map((file, index) => (
-									<div key={index} className='flex items-center mt-2'>
-										<a
-											href={file}
-											target='_blank'
-											rel='noopener noreferrer'
-											className='text-blue hover:underline mr-2'>
-											{file.split('/').pop()}
-										</a>
+										className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+									/>
+								</div>
+								<div className='mb-4'>
+									<label
+										className='block text-gray-700 text-sm font-bold mb-2'
+										htmlFor='invoice'>
+										Invoice
+									</label>
+									<select
+										id='invoice'
+										className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+										value={newReceipt.invoice_id}
+										onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+											const selectedInvoice = invoices.find(
+												invoice => invoice.id === Number(e.target.value)
+											)
+											if (selectedInvoice) {
+												setNewReceipt({
+													...newReceipt,
+													invoice_id: selectedInvoice.id,
+													[activeTab === 'client' ? 'client_id' : 'supplier_id']:
+														selectedInvoice[
+															activeTab === 'client' ? 'client_id' : 'supplier_id'
+														]
+												})
+											}
+										}}>
+										<option value=''>Select Invoice</option>
+										{invoices.map(invoice => {
+											const invCurrencySymbol = getCurrencySymbol(invoice.currency)
+											return (
+												<option key={invoice.id} value={invoice.id}>
+													Invoice #{invoice.id} - Remaining: {invCurrencySymbol}
+													{invoice.remaining_amount.toFixed(2)} ({invoice?.currency?.toUpperCase()})
+												</option>
+											)
+										})}
+									</select>
+								</div>
+								<div className='mb-4'>
+									<label
+										className='block text-gray-700 text-sm font-bold mb-2'
+										htmlFor='amount'>
+										Amount {selectedInvoice ? `(${currency?.toUpperCase()})` : ''}
+									</label>
+									<div className='relative'>
+										<span className='absolute left-3 top-2 text-gray-700'>
+											{currencySymbol}
+										</span>
+										<input
+											type='number'
+											id='amount'
+											className='shadow appearance-none border rounded w-full py-2 pl-8 pr-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+											value={newReceipt.amount || ''}
+											onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+												setNewReceipt({
+													...newReceipt,
+													amount: Number(e.target.value)
+												})
+											}
+										/>
+									</div>
+								</div>
+								<div className='mb-4'>
+									<label className='block text-gray-700 text-sm font-bold mb-2'>
+										Files
+									</label>
+									<input
+										type='file'
+										onChange={handleFileChange}
+										className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+									/>
+									{selectedFile && (
 										<button
 											type='button'
-											onClick={() => handleFileDelete(file)}
-											className='text-blue hover:text-gray'>
-											<FaTrash />
+											onClick={handleFileUpload}
+											disabled={uploadingFile}
+											className='mt-2 bg-blue hover:bg-blue text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline'>
+											{uploadingFile ? 'Uploading...' : 'Upload File'}
 										</button>
-									</div>
-								))}
-							</div>
-						</form>
-					</div>
-					<div className='bg-gray px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse'>
-						<button
-							type='button'
-							className='w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue text-base font-medium text-white hover:bg-blue focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue sm:ml-3 sm:w-auto sm:text-sm'
-							onClick={handleCreateOrUpdateReceipt}>
-							{isEditing ? 'Update Receipt' : 'Create Receipt'}
-						</button>
-						<button
-							type='button'
-							className='mt-3 w-full inline-flex justify-center rounded-md border border-gray shadow-sm px-4 py-2 bg-white text-base font-medium text-gray hover:bg-gray focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
-							onClick={() => {
-								setShowModal(false)
-								setNewReceipt({
-									paid_at: new Date().toISOString(),
-									amount: 0,
-									files: []
-								})
-								setIsEditing(false)
-							}}>
-							Cancel
-						</button>
+									)}
+									{newReceipt.files?.map((file, index) => (
+										<div key={index} className='flex items-center mt-2'>
+											<a
+												href={file}
+												target='_blank'
+												rel='noopener noreferrer'
+												className='text-blue hover:underline mr-2'>
+												{file.split('/').pop()}
+											</a>
+											<button
+												type='button'
+												onClick={() => handleFileDelete(file)}
+												className='text-blue hover:text-gray'>
+												<FaTrash />
+											</button>
+										</div>
+									))}
+								</div>
+							</form>
+						</div>
+						<div className='bg-gray px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse'>
+							<button
+								type='button'
+								className='w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue text-base font-medium text-white hover:bg-blue focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue sm:ml-3 sm:w-auto sm:text-sm'
+								onClick={handleCreateOrUpdateReceipt}>
+								{isEditing ? 'Update Receipt' : 'Create Receipt'}
+							</button>
+							<button
+								type='button'
+								className='mt-3 w-full inline-flex justify-center rounded-md border border-gray shadow-sm px-4 py-2 bg-white text-base font-medium text-gray hover:bg-gray focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
+								onClick={() => {
+									setShowModal(false)
+									setNewReceipt({
+										paid_at: new Date().toISOString(),
+										amount: 0,
+										files: []
+									})
+									setIsEditing(false)
+								}}>
+								Cancel
+							</button>
+						</div>
 					</div>
 				</div>
 			</div>
-		</div>
-	)
+		)
+	}
 
 	const renderReceiptDetails = () => {
 		if (!selectedReceipt) return null
+
+		const currency = getInvoiceCurrency(selectedReceipt.invoice_id)
+		const currencySymbol = getCurrencySymbol(currency)
 
 		return (
 			<div className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'>
@@ -744,7 +787,7 @@ const ReceiptsPage: React.FC = () => {
 								Invoice ID: {selectedReceipt.invoice_id}
 							</p>
 							<p className='text-sm text-gray-500'>
-								Amount: ${selectedReceipt.amount.toFixed(2)}
+								Amount: {currencySymbol}{selectedReceipt.amount.toFixed(2)} ({currency?.toUpperCase()})
 							</p>
 							<h4 className='text-sm font-medium text-gray-900 mt-4'>Files:</h4>
 							<ul className='list-disc list-inside'>
@@ -764,7 +807,13 @@ const ReceiptsPage: React.FC = () => {
 						<div className='items-center px-4 py-3'>
 							<button
 								className='px-4 py-2 bg-blue text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 mb-2'
-								onClick={() => generatePDF('receipt', selectedReceipt)}>
+								onClick={() => {
+									// Pass currency information to PDF generator
+									generatePDF('receipt', {
+										...selectedReceipt,
+										currency: currency
+									})
+								}}>
 								Download PDF
 							</button>
 							<button

@@ -160,174 +160,180 @@ const ReceiptPDF: React.FC<{
 	invoice: any
 	isClient: boolean
 	logoBase64?: string
-}> = ({ receipt, entity, company, invoice, isClient, logoBase64 }) => (
-	<Document>
-		<Page size='A4' style={styles.page}>
-			<View style={styles.header}>
-				<View style={styles.headerLeft}>
-					{logoBase64 ? (
-						<Image src={logoBase64} style={styles.logo} />
-					) : (
-						<Image src='/logo/logo.png' style={styles.logo} />
-					)}
-					<Text style={styles.title}>Receipt</Text>
-				</View>
-				<View style={styles.headerRight}>
-					<Text style={styles.receiptDetails}>Receipt No: {receipt.id}</Text>
-					<Text style={styles.receiptDetails}>
-						Date: {format(new Date(receipt.paid_at), 'PPP')}
-					</Text>
-					<Text style={styles.receiptDetails}>
-						Invoice No: {receipt.invoice_id}
-					</Text>
-				</View>
-			</View>
-
-			<View style={styles.section}>
-				<Text style={styles.sectionTitle}>
-					{isClient ? 'Client' : 'Supplier'} Information
-				</Text>
-				<View style={styles.row}>
-					<View style={styles.column}>
-						<Text style={styles.label}>Name:</Text>
-						<Text style={styles.value}>{entity.name}</Text>
+}> = ({ receipt, entity, company, invoice, isClient, logoBase64 }) => {
+	// Determine currency symbol based on receipt.currency or invoice.currency
+	const currency = receipt.currency || invoice.currency || 'usd';
+	const currencySymbol = currency === 'euro' ? '€' : '$';
+	
+	return (
+		<Document>
+			<Page size='A4' style={styles.page}>
+				<View style={styles.header}>
+					<View style={styles.headerLeft}>
+						{logoBase64 ? (
+							<Image src={logoBase64} style={styles.logo} />
+						) : (
+							<Image src='/logo/logo.png' style={styles.logo} />
+						)}
+						<Text style={styles.title}>Receipt</Text>
 					</View>
-					<View style={styles.column}>
-						<Text style={styles.label}>Address:</Text>
-						<Text style={styles.value}>
-							{isClient ? entity.address : entity.location}
+					<View style={styles.headerRight}>
+						<Text style={styles.receiptDetails}>Receipt No: {receipt.id}</Text>
+						<Text style={styles.receiptDetails}>
+							Date: {format(new Date(receipt.paid_at), 'PPP')}
 						</Text>
-					</View>
-					<View style={styles.column}>
-						<Text style={styles.label}>Contact:</Text>
-						<Text style={styles.value}>{entity.phone}</Text>
-						<Text style={styles.value}>{entity.email}</Text>
-					</View>
-					{isClient && (
-						<View style={styles.column}>
-							<Text style={styles.label}>Tax Number:</Text>
-							<Text style={styles.value}>{entity.tax_number}</Text>
-						</View>
-					)}
-				</View>
-			</View>
-
-			<View style={styles.section}>
-				<Text style={styles.sectionTitle}>Company Information</Text>
-				<View style={styles.row}>
-					<View style={styles.column}>
-						<Text style={styles.label}>Name:</Text>
-						<Text style={styles.value}>{company.name}</Text>
-					</View>
-					<View style={styles.column}>
-						<Text style={styles.label}>Address:</Text>
-						<Text style={styles.value}>{company.address}</Text>
-					</View>
-					<View style={styles.column}>
-						<Text style={styles.label}>Identification:</Text>
-						<Text style={styles.value}>{company.identification_type}</Text>
-						<Text style={styles.value}>{company.identification_number}</Text>
-					</View>
-				</View>
-			</View>
-
-			<View style={styles.section}>
-				<Text style={styles.sectionTitle}>Invoice Details</Text>
-				<View style={styles.row}>
-					<View style={styles.column}>
-						<Text style={styles.label}>Invoice Date:</Text>
-						<Text style={styles.value}>
-							{format(new Date(invoice.created_at), 'PPP')}
-						</Text>
-					</View>
-					<View style={styles.column}>
-						<Text style={styles.label}>Total Amount:</Text>
-						<Text style={styles.value}>${invoice.total_price.toFixed(2)}</Text>
-					</View>
-					<View style={styles.column}>
-						<Text style={styles.label}>Remaining Amount:</Text>
-						<Text style={styles.value}>
-							${invoice.remaining_amount.toFixed(2)}
+						<Text style={styles.receiptDetails}>
+							Invoice No: {receipt.invoice_id}
 						</Text>
 					</View>
 				</View>
-			</View>
 
-			{receipt.products && receipt.products.length > 0 && (
 				<View style={styles.section}>
-					<Text style={styles.sectionTitle}>Products</Text>
-					<View style={styles.table}>
-						<View style={styles.tableRow}>
-							<View style={styles.tableColHeader}>
-								<Text style={styles.tableCellHeader}>Product</Text>
-							</View>
-							<View style={styles.tableColHeader}>
-								<Text style={styles.tableCellHeader}>Details</Text>
-							</View>
-							<View style={styles.tableColHeader}>
-								<Text style={styles.tableCellHeader}>Quantity</Text>
-							</View>
-							<View style={styles.tableColHeader}>
-								<Text style={styles.tableCellHeader}>Price</Text>
-							</View>
+					<Text style={styles.sectionTitle}>
+						{isClient ? 'Client' : 'Supplier'} Information
+					</Text>
+					<View style={styles.row}>
+						<View style={styles.column}>
+							<Text style={styles.label}>Name:</Text>
+							<Text style={styles.value}>{entity.name}</Text>
 						</View>
-						{receipt.products.map((product: any, index: number) => (
-							<View
-								key={index}
-								style={[
-									styles.tableRow,
-									index % 2 === 0 ? styles.tableRowEven : {}
-								]}>
-								<View style={styles.tableCol}>
-									<Text style={styles.tableCell}>{product.name}</Text>
+						<View style={styles.column}>
+							<Text style={styles.label}>Address:</Text>
+							<Text style={styles.value}>
+								{isClient ? entity.address : entity.location}
+							</Text>
+						</View>
+						<View style={styles.column}>
+							<Text style={styles.label}>Contact:</Text>
+							<Text style={styles.value}>{entity.phone}</Text>
+							<Text style={styles.value}>{entity.email}</Text>
+						</View>
+						{isClient && (
+							<View style={styles.column}>
+								<Text style={styles.label}>Tax Number:</Text>
+								<Text style={styles.value}>{entity.tax_number}</Text>
+							</View>
+						)}
+					</View>
+				</View>
+
+				<View style={styles.section}>
+					<Text style={styles.sectionTitle}>Company Information</Text>
+					<View style={styles.row}>
+						<View style={styles.column}>
+							<Text style={styles.label}>Name:</Text>
+							<Text style={styles.value}>{company.name}</Text>
+						</View>
+						<View style={styles.column}>
+							<Text style={styles.label}>Address:</Text>
+							<Text style={styles.value}>{company.address}</Text>
+						</View>
+						<View style={styles.column}>
+							<Text style={styles.label}>Identification:</Text>
+							<Text style={styles.value}>{company.identification_type}</Text>
+							<Text style={styles.value}>{company.identification_number}</Text>
+						</View>
+					</View>
+				</View>
+
+				<View style={styles.section}>
+					<Text style={styles.sectionTitle}>Invoice Details</Text>
+					<View style={styles.row}>
+						<View style={styles.column}>
+							<Text style={styles.label}>Invoice Date:</Text>
+							<Text style={styles.value}>
+								{format(new Date(invoice.created_at), 'PPP')}
+							</Text>
+						</View>
+						<View style={styles.column}>
+							<Text style={styles.label}>Total Amount:</Text>
+							<Text style={styles.value}>{currencySymbol}{invoice.total_price.toFixed(2)}</Text>
+						</View>
+						<View style={styles.column}>
+							<Text style={styles.label}>Remaining Amount:</Text>
+							<Text style={styles.value}>
+								{currencySymbol}{invoice.remaining_amount.toFixed(2)}
+							</Text>
+						</View>
+					</View>
+				</View>
+
+				{receipt.products && receipt.products.length > 0 && (
+					<View style={styles.section}>
+						<Text style={styles.sectionTitle}>Products</Text>
+						<View style={styles.table}>
+							<View style={styles.tableRow}>
+								<View style={styles.tableColHeader}>
+									<Text style={styles.tableCellHeader}>Product</Text>
 								</View>
-								<View style={styles.tableCol}>
-									<Text style={styles.tableCell}>
-										{product.size} - {product.color}
-									</Text>
+								<View style={styles.tableColHeader}>
+									<Text style={styles.tableCellHeader}>Details</Text>
 								</View>
-								<View style={styles.tableCol}>
-									<Text style={styles.tableCell}>{product.quantity}</Text>
+								<View style={styles.tableColHeader}>
+									<Text style={styles.tableCellHeader}>Quantity</Text>
 								</View>
-								<View style={styles.tableCol}>
-									<Text style={styles.tableCell}>
-										${(product.quantity * product.unitPrice).toFixed(2)}
-									</Text>
+								<View style={styles.tableColHeader}>
+									<Text style={styles.tableCellHeader}>Price</Text>
 								</View>
 							</View>
-						))}
+							{receipt.products.map((product: any, index: number) => (
+								<View
+									key={index}
+									style={[
+										styles.tableRow,
+										index % 2 === 0 ? styles.tableRowEven : {}
+									]}>
+									<View style={styles.tableCol}>
+										<Text style={styles.tableCell}>{product.name}</Text>
+									</View>
+									<View style={styles.tableCol}>
+										<Text style={styles.tableCell}>
+											{product.size} - {product.color}
+										</Text>
+									</View>
+									<View style={styles.tableCol}>
+										<Text style={styles.tableCell}>{product.quantity}</Text>
+									</View>
+									<View style={styles.tableCol}>
+										<Text style={styles.tableCell}>
+											{currencySymbol}{(product.quantity * product.unitPrice).toFixed(2)}
+										</Text>
+									</View>
+								</View>
+							))}
+						</View>
+					</View>
+				)}
+
+				<Text style={styles.totalAmount}>
+					Total Paid: {currencySymbol}{receipt.amount.toFixed(2)} ({currency.toUpperCase()})
+				</Text>
+
+				<View style={styles.section}>
+					<Text style={styles.sectionTitle}>Payment Information</Text>
+					<View style={styles.row}>
+						<View style={styles.column}>
+							<Text style={styles.label}>Bank:</Text>
+							<Text style={styles.value}>{company.bank_name}</Text>
+						</View>
+						<View style={styles.column}>
+							<Text style={styles.label}>Account Number:</Text>
+							<Text style={styles.value}>{company.bank_account_number}</Text>
+						</View>
+						<View style={styles.column}>
+							<Text style={styles.label}>Routing Number:</Text>
+							<Text style={styles.value}>{company.bank_routing_number}</Text>
+						</View>
 					</View>
 				</View>
-			)}
 
-			<Text style={styles.totalAmount}>
-				Total Paid: ${receipt.amount.toFixed(2)}
-			</Text>
-
-			<View style={styles.section}>
-				<Text style={styles.sectionTitle}>Payment Information</Text>
-				<View style={styles.row}>
-					<View style={styles.column}>
-						<Text style={styles.label}>Bank:</Text>
-						<Text style={styles.value}>{company.bank_name}</Text>
-					</View>
-					<View style={styles.column}>
-						<Text style={styles.label}>Account Number:</Text>
-						<Text style={styles.value}>{company.bank_account_number}</Text>
-					</View>
-					<View style={styles.column}>
-						<Text style={styles.label}>Routing Number:</Text>
-						<Text style={styles.value}>{company.bank_routing_number}</Text>
-					</View>
-				</View>
-			</View>
-
-			<Text style={styles.footer}>
-				Thank you for your business! This receipt was generated on{' '}
-				{format(new Date(), 'PPP')} at {format(new Date(), 'pp')}.
-			</Text>
-		</Page>
-	</Document>
-)
+				<Text style={styles.footer}>
+					Thank you for your business! This receipt was generated on{' '}
+					{format(new Date(), 'PPP')} at {format(new Date(), 'pp')}.
+				</Text>
+			</Page>
+		</Document>
+	)
+}
 
 export default ReceiptPDF
