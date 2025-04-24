@@ -255,15 +255,15 @@ const QuotationsPage: React.FC = () => {
     includeVAT: boolean
   ) => {
     const subtotal = quotationProducts.reduce((total, quotationProduct) => {
-      const parentProduct = products.find(p => p.id === quotationProduct.product_id)
+      const parentProduct = products.find(p => p.id === quotationProduct?.product_id)
       if (!parentProduct) {
-        console.warn(`Product not found: ${quotationProduct.product_id}`)
+        console.warn(`Product not found: ${quotationProduct?.product_id}`)
         return total
       }
       const unitPrice = parentProduct.price
-      const discount = discounts[quotationProduct.product_id] || 0
+      const discount = discounts[quotationProduct?.product_id] || 0
       const discountedPrice = Math.max(0, unitPrice - discount)
-      return total + discountedPrice * quotationProduct.quantity
+      return total + discountedPrice * quotationProduct?.quantity
     }, 0)
     const vatAmount = includeVAT ? subtotal * 0.11 : 0
     const totalPrice = subtotal + vatAmount
@@ -342,7 +342,7 @@ const QuotationsPage: React.FC = () => {
     for (const product of products) {
       try {
         // For client invoices, we subtract from inventory (negative quantity change)
-        const quantityChange = -product.quantity;
+        const quantityChange = -product?.quantity;
         
         // Use the product utility function with proper source tracking
         await productFunctions.updateProductVariantQuantity(
@@ -353,7 +353,7 @@ const QuotationsPage: React.FC = () => {
           'Invoice created from quotation'
         );
       } catch (error: any) {
-        console.error(`Error updating product ${product.product_id} quantity:`, error);
+        console.error(`Error updating product ${product?.product_id} quantity:`, error);
         // Continue with other products even if one fails
       }
     }
@@ -1064,7 +1064,7 @@ const QuotationsPage: React.FC = () => {
                     <div key={index} className='mb-2 p-2 border rounded'>
                       <div className='flex justify-between items-center mb-2'>
                         <span className='font-bold'>
-                          {products.find(p => p.id === product.product_id)?.name || 'N/A'}
+                          {products.find(p => p.id === product?.product_id)?.name || 'N/A'}
                         </span>
                         <div className='space-x-2'>
                           <button
@@ -1096,19 +1096,19 @@ const QuotationsPage: React.FC = () => {
                       </div>
                       <p>
                         Variant:{' '}
-                        {products.find(p => p.id === product.product_id)
+                        {products.find(p => p.id === product?.product_id)
                           ?.variants.find(v => v.id === product.product_variant_id)
                           ?.size || 'N/A'}{' '}
                         -{' '}
-                        {products.find(p => p.id === product.product_id)
+                        {products.find(p => p.id === product?.product_id)
                           ?.variants.find(v => v.id === product.product_variant_id)
                           ?.color || 'N/A'}
                       </p>
-                      <p>Quantity: {product.quantity || 0}</p>
+                      <p>Quantity: {product?.quantity || 0}</p>
                       <p>
                         Discount per item: $
-                        {newQuotation.discounts?.[product.product_id]
-                          ? newQuotation.discounts[product.product_id].toFixed(2)
+                        {newQuotation.discounts?.[product?.product_id]
+                          ? newQuotation.discounts[product?.product_id].toFixed(2)
                           : '0.00'}
                       </p>
                       <p>Note: {product.note || '-'}</p>
@@ -1316,16 +1316,16 @@ const QuotationsPage: React.FC = () => {
 
     // Calculate totals matching PDF calculation logic
     const subtotal = selectedQuotation.products?.reduce((total, product) => {
-      const parentProduct = products.find(p => p.id === product.product_id);
+      const parentProduct = products.find(p => p.id === product?.product_id);
       if (!parentProduct) return total;
 
       const price = parentProduct.price || 0;
-      return total + (price * product.quantity);
+      return total + (price * product?.quantity);
     }, 0) || 0;
 
     const totalDiscount = selectedQuotation.products?.reduce((total, product) => {
-      const discount = selectedQuotation.discounts?.[product.product_id] || 0;
-      return total + (discount * product.quantity);
+      const discount = selectedQuotation.discounts?.[product?.product_id] || 0;
+      return total + (discount * product?.quantity);
     }, 0) || 0;
 
     const totalBeforeVAT = subtotal - totalDiscount;
@@ -1334,7 +1334,7 @@ const QuotationsPage: React.FC = () => {
     // Transform product data to match PDF format
     const productsByNameColor:any = {};
     selectedQuotation.products?.forEach(product => {
-      const parentProduct = products.find(p => p.id === product.product_id);
+      const parentProduct = products.find(p => p.id === product?.product_id);
       if (!parentProduct) return;
 
       const variant = allProductVariants.find(v => v.id === product.product_variant_id);
@@ -1357,10 +1357,10 @@ const QuotationsPage: React.FC = () => {
 
       // Add quantity to the specific size
       productsByNameColor[key].sizes[variant.size] =
-        (productsByNameColor[key].sizes[variant.size] || 0) + product.quantity;
+        (productsByNameColor[key].sizes[variant.size] || 0) + product?.quantity;
 
       // Update total quantity
-      productsByNameColor[key].totalQuantity += product.quantity;
+      productsByNameColor[key].totalQuantity += product?.quantity;
 
       // Add note if it exists
       if (product.note) {
