@@ -91,7 +91,7 @@ const SearchableSelect: React.FC<{
               </div>
             ))
           ) : (
-            <div className="px-4 py-2 text-sm text-gray-500 italic">No matching {label.toLowerCase()} found</div>
+            <div className="px-4 py-2 text-sm text-neutral-500 italic">No matching {label.toLowerCase()} found</div>
           )}
         </div>
       )}

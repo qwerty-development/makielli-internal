@@ -364,7 +364,7 @@ const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
 
   // Get sort icon based on current sort
   const getSortIcon = (field: SortField) => {
-    if (field !== sortField) return <FaSort className="ml-1 text-gray-400" />
+    if (field !== sortField) return <FaSort className="ml-1 text-neutral-400" />
     return sortDirection === 'asc' 
       ? <FaSortAmountUp className="ml-1 text-blue" /> 
       : <FaSortAmountDown className="ml-1 text-blue" />
@@ -385,13 +385,13 @@ const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
             <div className="flex">
               <button
                 onClick={() => setViewType('table')}
-                className={`px-3 py-1 rounded-l ${viewType === 'table' ? 'bg-blue text-white' : 'bg-gray-100 text-gray-600'}`}
+                className={`px-3 py-1 rounded-l ${viewType === 'table' ? 'bg-blue text-white' : 'bg-neutral-100 text-neutral-600'}`}
               >
                 Table
               </button>
               <button
                 onClick={() => setViewType('chart')}
-                className={`px-3 py-1 rounded-r ${viewType === 'chart' ? 'bg-blue text-white' : 'bg-gray-100 text-gray-600'}`}
+                className={`px-3 py-1 rounded-r ${viewType === 'chart' ? 'bg-blue text-white' : 'bg-neutral-100 text-neutral-600'}`}
               >
                 Chart
               </button>
@@ -399,7 +399,7 @@ const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
             
             <button
               onClick={exportToCSV}
-              className="flex items-center bg-gray-100 text-gray-600 hover:bg-gray-200 px-2 py-1 rounded"
+              className="flex items-center bg-neutral-100 text-neutral-600 hover:bg-neutral-200 px-2 py-1 rounded"
               title="Export to CSV"
             >
               <FaDownload className="mr-1" /> Export
@@ -407,14 +407,14 @@ const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
             
             <button
               onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 focus:outline-none"
+              className="text-neutral-500 hover:text-neutral-700 focus:outline-none"
             >
               <FaTimes size={20} />
             </button>
           </div>
         </div>
 
-        <div className="p-4 border-b bg-gray-50">
+        <div className="p-4 border-b bg-neutral-50">
           <div className="flex flex-wrap gap-3 justify-between items-center">
             {/* Search */}
             <div className="flex items-center relative">
@@ -425,7 +425,7 @@ const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-8 pr-4 py-1 border rounded text-sm focus:ring-1 focus:ring-blue focus:border-blue"
               />
-              <FaSearch className="absolute left-2 text-gray-400" />
+              <FaSearch className="absolute left-2 text-neutral-400" />
             </div>
             
             {/* Variant filters - only show when viewing overall product */}
@@ -434,7 +434,7 @@ const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
                 {variants.length > 0 && (
                   <div className="flex items-center">
                     <span className="flex items-center mr-2 text-sm">
-                      <FaTags className="mr-1 text-gray-400" /> Variant:
+                      <FaTags className="mr-1 text-neutral-400" /> Variant:
                     </span>
                     <select
                       value={selectedVariantId}
@@ -548,7 +548,7 @@ const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
               {error}
               <button 
                 onClick={fetchHistory}
-                className="ml-2 underline text-blue hover:text-blue-dark"
+                className="ml-2 underline text-blue hover:text-indigo-dark"
               >
                 Retry
               </button>
@@ -556,7 +556,7 @@ const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
           )}
           
           {loadingVariants && !variantId && (
-            <div className="text-center py-2 text-gray-500 bg-gray-50 rounded-lg mb-4">
+            <div className="text-center py-2 text-neutral-500 bg-neutral-50 rounded-lg mb-4">
               <FaSpinner className="animate-spin inline mr-2" />
               Loading variant information...
             </div>
@@ -573,11 +573,11 @@ const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
           ) : viewType === 'table' ? (
             // Table View
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-neutral-200">
+                <thead className="bg-neutral-50">
                   <tr>
                     <th 
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer hover:bg-neutral-100"
                       onClick={() => handleSort('created_at')}
                     >
                       <div className="flex items-center">
@@ -586,12 +586,12 @@ const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
                     </th>
                     {/* Show variant column only when viewing overall product */}
                     {!variantId && (
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
                         Variant
                       </th>
                     )}
                     <th 
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer hover:bg-neutral-100"
                       onClick={() => handleSort('quantity_change')}
                     >
                       <div className="flex items-center">
@@ -599,7 +599,7 @@ const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
                       </div>
                     </th>
                     <th 
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer hover:bg-neutral-100"
                       onClick={() => handleSort('previous_quantity')}
                     >
                       <div className="flex items-center">
@@ -607,40 +607,40 @@ const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
                       </div>
                     </th>
                     <th 
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider cursor-pointer hover:bg-neutral-100"
                       onClick={() => handleSort('new_quantity')}
                     >
                       <div className="flex items-center">
                         New Qty {getSortIcon('new_quantity')}
                       </div>
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
                       Source
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
                       Notes
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white divide-y divide-neutral-200">
                   {currentPageItems.map((entry) => {
                     // Get variant details
                     const variant = !variantId && variantMap.get(entry.variant_id)
                     
                     return (
-                      <tr key={entry.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <tr key={entry.id} className="hover:bg-neutral-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
                           {new Date(entry.created_at).toLocaleString()}
                         </td>
                         {/* Show variant column only when viewing overall product */}
                         {!variantId && (
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             {variant ? (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
                                 {variant.size} - {variant.color}
                               </span>
                             ) : (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-800">
                                 Unknown
                               </span>
                             )}
@@ -653,20 +653,20 @@ const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
                                 ? 'bg-green-100 text-green-800'
                                 : entry.quantity_change < 0
                                 ? 'bg-red-100 text-red-800'
-                                : 'bg-gray-100 text-gray-800'
+                                : 'bg-neutral-100 text-neutral-800'
                             }`}
                           >
                             {entry.quantity_change > 0 ? '+' : ''}
                             {entry.quantity_change}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
                           {entry.previous_quantity}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
                           {entry.new_quantity}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
                           {formatSourceType(entry.source_type)}
                           {entry.source_id && (
                             <span className="ml-1 text-blue cursor-pointer hover:underline" title="View source details">
@@ -674,7 +674,7 @@ const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
                             </span>
                           )}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-500 max-w-xs">
+                        <td className="px-6 py-4 text-sm text-neutral-500 max-w-xs">
                           <div className="truncate" title={entry.notes || '-'}>
                             {entry.notes || '-'}
                           </div>
@@ -686,13 +686,13 @@ const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
               </table>
               
               {/* Pagination */}
-              <div className="flex items-center justify-between mt-4 px-6 py-3 bg-gray-50 border-t rounded-b-lg">
+              <div className="flex items-center justify-between mt-4 px-6 py-3 bg-neutral-50 border-t rounded-b-lg">
                 <div className="flex-1 flex justify-between sm:hidden">
                   <button
                     onClick={() => setPage(Math.max(1, page - 1))}
                     disabled={page === 1}
-                    className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${
-                      page === 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 hover:bg-gray-50'
+                    className={`relative inline-flex items-center px-4 py-2 border border-neutral-300 text-sm font-medium rounded-md ${
+                      page === 1 ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed' : 'bg-white text-neutral-700 hover:bg-neutral-50'
                     }`}
                   >
                     Previous
@@ -700,10 +700,10 @@ const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
                   <button
                     onClick={() => setPage(Math.min(Math.ceil(filteredAndSortedHistory.length / itemsPerPage), page + 1))}
                     disabled={page >= Math.ceil(filteredAndSortedHistory.length / itemsPerPage)}
-                    className={`ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${
+                    className={`ml-3 relative inline-flex items-center px-4 py-2 border border-neutral-300 text-sm font-medium rounded-md ${
                       page >= Math.ceil(filteredAndSortedHistory.length / itemsPerPage)
-                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                        ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
+                        : 'bg-white text-neutral-700 hover:bg-neutral-50'
                     }`}
                   >
                     Next
@@ -711,7 +711,7 @@ const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
                 </div>
                 <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-sm text-gray-700">
+                    <p className="text-sm text-neutral-700">
                       Showing <span className="font-medium">{Math.min((page - 1) * itemsPerPage + 1, filteredAndSortedHistory.length)}</span> to{' '}
                       <span className="font-medium">{Math.min(page * itemsPerPage, filteredAndSortedHistory.length)}</span> of{' '}
                       <span className="font-medium">{filteredAndSortedHistory.length}</span> results
@@ -722,8 +722,8 @@ const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
                       <button
                         onClick={() => setPage(Math.max(1, page - 1))}
                         disabled={page === 1}
-                        className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 ${
-                          page === 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-500 hover:bg-gray-50'
+                        className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-neutral-300 ${
+                          page === 1 ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed' : 'bg-white text-neutral-500 hover:bg-neutral-50'
                         }`}
                       >
                         <span className="sr-only">Previous</span>
@@ -739,7 +739,7 @@ const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
                             className={`relative inline-flex items-center px-4 py-2 border ${
                               page === pageNumber
                                 ? 'z-10 bg-blue text-white border-blue'
-                                : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                                : 'bg-white border-neutral-300 text-neutral-500 hover:bg-neutral-50'
                             }`}
                           >
                             {pageNumber}
@@ -750,10 +750,10 @@ const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
                       <button
                         onClick={() => setPage(Math.min(Math.ceil(filteredAndSortedHistory.length / itemsPerPage), page + 1))}
                         disabled={page >= Math.ceil(filteredAndSortedHistory.length / itemsPerPage)}
-                        className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 ${
+                        className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-neutral-300 ${
                           page >= Math.ceil(filteredAndSortedHistory.length / itemsPerPage)
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : 'bg-white text-gray-500 hover:bg-gray-50'
+                            ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
+                            : 'bg-white text-neutral-500 hover:bg-neutral-50'
                         }`}
                       >
                         <span className="sr-only">Next</span>
@@ -815,7 +815,7 @@ const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
                   </LineChart>
                 </ResponsiveContainer>
               </div>
-              <div className="mt-4 text-sm text-gray-500">
+              <div className="mt-4 text-sm text-neutral-500">
                 <p>The chart shows the quantity level (solid line) and quantity changes (dashed line) over time.</p>
                 <p>Note: Changes are aggregated by day.</p>
                 {!variantId && selectedVariantId === 'all' && variants.length > 0 && (
@@ -837,7 +837,7 @@ const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
             Close
           </button>
           
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-neutral-500">
             {filteredAndSortedHistory.length} {filteredAndSortedHistory.length === 1 ? 'record' : 'records'} found
             {!variantId && selectedVariantId !== 'all' && (
               <span className="ml-1">

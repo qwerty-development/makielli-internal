@@ -29,26 +29,26 @@ const MetricCardSkeleton = () => (
   <div className="bg-white rounded-lg shadow-md p-4 animate-pulse">
     <div className="flex items-center justify-between">
       <div>
-        <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
-        <div className="h-8 bg-gray-200 rounded w-16"></div>
+        <div className="h-4 bg-neutral-200 rounded w-24 mb-2"></div>
+        <div className="h-8 bg-neutral-200 rounded w-16"></div>
       </div>
-      <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
+      <div className="w-8 h-8 bg-neutral-200 rounded-full"></div>
     </div>
   </div>
 )
 
 const TableSkeleton = () => (
   <div className="animate-pulse">
-    <div className="h-8 bg-gray-200 rounded mb-4"></div>
-    <div className="h-16 bg-gray-200 rounded mb-2"></div>
-    <div className="h-16 bg-gray-200 rounded mb-2"></div>
-    <div className="h-16 bg-gray-200 rounded mb-2"></div>
+    <div className="h-8 bg-neutral-200 rounded mb-4"></div>
+    <div className="h-16 bg-neutral-200 rounded mb-2"></div>
+    <div className="h-16 bg-neutral-200 rounded mb-2"></div>
+    <div className="h-16 bg-neutral-200 rounded mb-2"></div>
   </div>
 )
 
 const ChartSkeleton = () => (
   <div className="animate-pulse h-80">
-    <div className="h-full bg-gray-200 rounded"></div>
+    <div className="h-full bg-neutral-200 rounded"></div>
   </div>
 )
 
@@ -88,7 +88,7 @@ const MetricCard = React.memo(({
     trendColor = trendValue < 0 ? 'text-green-500' : 'text-red-500';
   } else if (trend === 'neutral') {
     trendIcon = <FaEquals className="mr-1" />;
-    trendColor = 'text-gray-500';
+    trendColor = 'text-neutral-500';
   }
   
   return (
@@ -96,17 +96,17 @@ const MetricCard = React.memo(({
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center">
-            <p className="text-sm text-gray-400">{title}</p>
+            <p className="text-sm text-neutral-400">{title}</p>
             {info && (
               <div className="relative ml-1">
                 <FaInfoCircle 
-                  className="text-gray-400 hover:text-blue cursor-pointer" 
+                  className="text-neutral-400 hover:text-blue cursor-pointer" 
                   onMouseEnter={() => setShowInfo(true)}
                   onMouseLeave={() => setShowInfo(false)}
                   onClick={() => setShowInfo(!showInfo)}
                 />
                 {showInfo && (
-                  <div className="absolute z-10 bg-white p-2 rounded shadow-lg text-xs w-48 left-0 top-6 text-gray-800">
+                  <div className="absolute z-10 bg-white p-2 rounded shadow-lg text-xs w-48 left-0 top-6 text-neutral-800">
                     {info}
                   </div>
                 )}
@@ -145,7 +145,7 @@ const DataTable = React.memo(({
   
   if (!data || data.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+      <div className="bg-white rounded-lg shadow p-8 text-center text-neutral-500">
         {emptyMessage}
       </div>
     );
@@ -153,24 +153,24 @@ const DataTable = React.memo(({
   
   return (
     <div className="overflow-x-auto bg-white rounded-lg shadow">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
+      <table className="min-w-full divide-y divide-neutral-200">
+        <thead className="bg-neutral-50">
           <tr>
             {columns.map((column, index) => (
               <th
                 key={index}
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider"
               >
                 {column.header}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
+        <tbody className="bg-white divide-y divide-neutral-200">
           {data.map((row, rowIndex) => (
-            <tr key={rowIndex} className="hover:bg-gray-50">
+            <tr key={rowIndex} className="hover:bg-neutral-50">
               {columns.map((column, colIndex) => (
-                <td key={colIndex} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td key={colIndex} className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
                   {column.render ? column.render(row) : row[column.accessor]}
                 </td>
               ))}
@@ -186,7 +186,7 @@ const DataTable = React.memo(({
 const CustomTooltip = ({ active, payload, label, valuePrefix = '', valueSuffix = '' }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-white p-3 border border-gray-200 shadow-md rounded">
+      <div className="bg-white p-3 border border-neutral-200 shadow-md rounded">
         <p className="font-medium text-sm">{label}</p>
         {payload.map((entry: any, index: number) => (
           <p key={index} style={{ color: entry.color }} className="text-sm">
@@ -564,7 +564,7 @@ export default function AnalyticsDashboard() {
               loading="lazy"
             />
           ) : (
-            <div className="h-10 w-10 bg-gray-200 rounded-md mr-2 flex items-center justify-center">
+            <div className="h-10 w-10 bg-neutral-200 rounded-md mr-2 flex items-center justify-center">
               <FaBoxOpen className="text-gray" />
             </div>
           )}
@@ -663,7 +663,7 @@ export default function AnalyticsDashboard() {
                 isSameDay(preset.startDate(), startDate) && 
                 isSameDay(preset.endDate(), endDate)
                   ? 'bg-blue text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
               }`}
               onClick={() => handleDatePresetSelect(preset)}
             >
@@ -674,7 +674,7 @@ export default function AnalyticsDashboard() {
             className={`px-3 py-1 text-sm rounded ${
               customRange
                 ? 'bg-blue text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
             }`}
             onClick={() => setCustomRange(true)}
           >
@@ -737,19 +737,19 @@ export default function AnalyticsDashboard() {
               className="border border-gray rounded p-2"
             />
           </div>
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-neutral-500">
             Previous period: {format(prevStartDate, 'MMM d, yyyy')} - {format(prevEndDate, 'MMM d, yyyy')}
           </div>
         </div>
       )}
       
       <div className="flex justify-between items-center mt-4">
-        <div className="text-sm text-gray-500">
+        <div className="text-sm text-neutral-500">
           {format(startDate, 'MMM d, yyyy')} - {format(endDate, 'MMM d, yyyy')}
           <span className="ml-2">({differenceInDays(endDate, startDate) + 1} days)</span>
         </div>
         <button 
-          className="flex items-center px-3 py-2 bg-blue text-white rounded hover:bg-blue-700"
+          className="flex items-center px-3 py-2 bg-blue text-white rounded hover:bg-indigo-700"
           onClick={refreshAllData}
           disabled={refreshing}
         >
@@ -849,7 +849,7 @@ export default function AnalyticsDashboard() {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">Sales and Purchases Over Time</h2>
             <button
-              className="text-blue hover:text-blue-700 text-sm flex items-center"
+              className="text-blue hover:text-indigo-700 text-sm flex items-center"
               onClick={() => exportToCSV(timeSeriesData, 'sales_purchases_time_series.csv')}
               disabled={loadingTimeSeries || timeSeriesData.length === 0}
             >
@@ -905,7 +905,7 @@ export default function AnalyticsDashboard() {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">Inventory Distribution</h2>
             <button
-              className="text-blue hover:text-blue-700 text-sm flex items-center"
+              className="text-blue hover:text-indigo-700 text-sm flex items-center"
               onClick={() => 
                 exportToCSV(
                   inventoryValue?.by_product.map(p => ({
@@ -954,7 +954,7 @@ export default function AnalyticsDashboard() {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">Top Selling Products</h2>
             <button
-              className="text-blue hover:text-blue-700 text-sm flex items-center"
+              className="text-blue hover:text-indigo-700 text-sm flex items-center"
               onClick={() => exportToCSV(topSellers, 'top_selling_products.csv')}
               disabled={loadingTopSellers || topSellers.length === 0}
             >
@@ -973,7 +973,7 @@ export default function AnalyticsDashboard() {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">Low Stock Alert</h2>
             <button
-              className="text-blue hover:text-blue-700 text-sm flex items-center"
+              className="text-blue hover:text-indigo-700 text-sm flex items-center"
               onClick={() => exportToCSV(lowStockProducts, 'low_stock_products.csv')}
               disabled={loadingLowStock || lowStockProducts.length === 0}
             >
@@ -1046,7 +1046,7 @@ export default function AnalyticsDashboard() {
         <div className="bg-white rounded-lg shadow-md p-4">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">Period Comparison</h2>
-            <div className="text-sm text-gray-500">
+            <div className="text-sm text-neutral-500">
               Current: {format(startDate, 'MMM d')} - {format(endDate, 'MMM d')} vs. 
               Previous: {format(prevStartDate, 'MMM d')} - {format(prevEndDate, 'MMM d')}
             </div>
@@ -1122,7 +1122,7 @@ export default function AnalyticsDashboard() {
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold">Top Selling Products</h2>
           <button
-            className="text-blue hover:text-blue-700 text-sm flex items-center"
+            className="text-blue hover:text-indigo-700 text-sm flex items-center"
             onClick={() => exportToCSV(topSellers, 'top_selling_products.csv')}
             disabled={loadingTopSellers || topSellers.length === 0}
           >
@@ -1220,7 +1220,7 @@ export default function AnalyticsDashboard() {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">Inventory Distribution</h2>
             <button
-              className="text-blue hover:text-blue-700 text-sm flex items-center"
+              className="text-blue hover:text-indigo-700 text-sm flex items-center"
               onClick={() => 
                 exportToCSV(
                   inventoryValue?.by_product.map(p => ({
@@ -1267,11 +1267,11 @@ export default function AnalyticsDashboard() {
             <div className="space-y-2">
               {loadingInventoryValue ? (
                 <div className="animate-pulse space-y-2">
-                  <div className="h-4 bg-gray-200 rounded"></div>
-                  <div className="h-4 bg-gray-200 rounded"></div>
-                  <div className="h-4 bg-gray-200 rounded"></div>
-                  <div className="h-4 bg-gray-200 rounded"></div>
-                  <div className="h-4 bg-gray-200 rounded"></div>
+                  <div className="h-4 bg-neutral-200 rounded"></div>
+                  <div className="h-4 bg-neutral-200 rounded"></div>
+                  <div className="h-4 bg-neutral-200 rounded"></div>
+                  <div className="h-4 bg-neutral-200 rounded"></div>
+                  <div className="h-4 bg-neutral-200 rounded"></div>
                 </div>
               ) : (
                 inventoryValue?.by_product
@@ -1343,8 +1343,8 @@ export default function AnalyticsDashboard() {
             <h3 className="font-semibold text-sm mb-2">Inventory Movement Summary</h3>
             {loadingTimeSeries ? (
               <div className="animate-pulse space-y-2">
-                <div className="h-4 bg-gray-200 rounded"></div>
-                <div className="h-4 bg-gray-200 rounded"></div>
+                <div className="h-4 bg-neutral-200 rounded"></div>
+                <div className="h-4 bg-neutral-200 rounded"></div>
               </div>
             ) : (
               <div className="space-y-2 text-sm">
@@ -1378,7 +1378,7 @@ export default function AnalyticsDashboard() {
             Low Stock Products
           </h2>
           <button
-            className="text-blue hover:text-blue-700 text-sm flex items-center"
+            className="text-blue hover:text-indigo-700 text-sm flex items-center"
             onClick={() => exportToCSV(lowStockProducts, 'low_stock_products.csv')}
             disabled={loadingLowStock || lowStockProducts.length === 0}
           >

@@ -15,6 +15,7 @@ import {
 	FaDownload
 } from 'react-icons/fa'
 import { generatePDF } from '@/utils/pdfGenerator'
+import SearchableSelect from '@/components/SearchableSelect'
 
 interface Receipt {
 	id: number
@@ -48,6 +49,7 @@ const ReceiptsPage: React.FC = () => {
 	const [receipts, setReceipts] = useState<Receipt[]>([])
 	const [entities, setEntities] = useState<Entity[]>([])
 	const [invoices, setInvoices] = useState<Invoice[]>([])
+	const [filteredInvoices, setFilteredInvoices] = useState<any>([])
 	const [showModal, setShowModal] = useState(false)
 	const [currentPage, setCurrentPage] = useState(1)
 	const [itemsPerPage] = useState(10)
@@ -66,6 +68,7 @@ const ReceiptsPage: React.FC = () => {
 	const [uploadingFile, setUploadingFile] = useState(false)
 	const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null)
 	const [isEditing, setIsEditing] = useState(false)
+	const [selectedEntityId, setSelectedEntityId] = useState<any>(null)
 
 	useEffect(() => {
 		fetchReceipts()
@@ -80,6 +83,18 @@ const ReceiptsPage: React.FC = () => {
 		filterEndDate,
 		filterEntity
 	])
+
+	// Add this new function to update filtered invoices when an entity is selected
+	const updateFilteredInvoices = (entityId: number | string | null) => {
+		if (!entityId) {
+			setFilteredInvoices(invoices)
+			return
+		}
+
+		const idField = activeTab === 'client' ? 'client_id' : 'supplier_id'
+		const filtered = invoices.filter(invoice => invoice[idField as keyof Invoice] === entityId)
+		setFilteredInvoices(filtered)
+	}
 
 	const fetchReceipts = async () => {
 		const table = activeTab === 'client' ? 'ClientReceipts' : 'SupplierReceipts'
@@ -136,8 +151,9 @@ const ReceiptsPage: React.FC = () => {
 		  toast.error(`Error fetching invoices: ${error.message}`)
 		} else {
 		  setInvoices(data || [])
+		  setFilteredInvoices(data || [])
 		}
-	  }
+	}
 
 	const getCurrencySymbol = (currency: 'usd' | 'euro' | undefined): string => {
 		return currency === 'euro' ? '€' : '$'
@@ -172,6 +188,7 @@ const ReceiptsPage: React.FC = () => {
 		} else {
 			toast.success(`Receipt ${isEditing ? 'updated' : 'created'} successfully`)
 			setShowModal(false)
+			setSelectedEntityId(null)
 			fetchReceipts()
 			await updateInvoiceAndEntityBalance(newReceipt)
 		}
@@ -419,7 +436,7 @@ const ReceiptsPage: React.FC = () => {
 						<th className='py-3 px-6 text-center'>Actions</th>
 					</tr>
 				</thead>
-				<tbody className='text-gray-600 text-sm font-light'>
+				<tbody className='text-neutral-600 text-sm font-light'>
 					{receipts.map(receipt => {
 						const currency = getInvoiceCurrency(receipt.invoice_id)
 						const currencySymbol = getCurrencySymbol(currency)
@@ -427,7 +444,7 @@ const ReceiptsPage: React.FC = () => {
 						return (
 							<tr
 								key={receipt.id}
-								className='border-b border-gray hover:bg-gray'
+								className='border-b border-gray hover:bg-indigo-200'
 								onClick={() => setSelectedReceipt(receipt)}>
 								<td className='py-3 px-6 text-left whitespace-nowrap'>
 									{receipt.id}
@@ -503,7 +520,7 @@ const ReceiptsPage: React.FC = () => {
 					<button
 						onClick={() => setCurrentPage(1)}
 						disabled={currentPage === 1}
-						className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray bg-white text-sm font-medium text-gray hover:bg-gray ${
+						className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray bg-white text-sm font-medium text-gray hover:bg-indigo-200 ${
 							currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>First</span>⟪
@@ -511,7 +528,7 @@ const ReceiptsPage: React.FC = () => {
 					<button
 						onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
 						disabled={currentPage === 1}
-						className={`relative inline-flex items-center px-2 py-2 border border-gray bg-white text-sm font-medium text-gray hover:bg-gray ${
+						className={`relative inline-flex items-center px-2 py-2 border border-gray bg-white text-sm font-medium text-gray hover:bg-indigo-200 ${
 							currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>Previous</span>⟨
@@ -524,7 +541,7 @@ const ReceiptsPage: React.FC = () => {
 							setCurrentPage(Math.min(totalPages, currentPage + 1))
 						}
 						disabled={currentPage === totalPages}
-						className={`relative inline-flex items-center px-2 py-2 border border-gray bg-white text-sm font-medium text-gray hover:bg-gray ${
+						className={`relative inline-flex items-center px-2 py-2 border border-gray bg-white text-sm font-medium text-gray hover:bg-indigo-200 ${
 							currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>Next</span>⟩
@@ -532,7 +549,7 @@ const ReceiptsPage: React.FC = () => {
 					<button
 						onClick={() => setCurrentPage(totalPages)}
 						disabled={currentPage === totalPages}
-						className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray bg-white text-sm font-medium text-gray hover:bg-gray ${
+						className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray bg-white text-sm font-medium text-gray hover:bg-indigo-200 ${
 							currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>Last</span>⟫
@@ -598,6 +615,9 @@ const ReceiptsPage: React.FC = () => {
 			: null;
 		const currency = selectedInvoice?.currency || 'usd';
 		const currencySymbol = getCurrencySymbol(currency);
+		
+		const entityField = activeTab === 'client' ? 'client_id' : 'supplier_id';
+		const entityLabel = activeTab === 'client' ? 'Client' : 'Supplier';
 
 		return (
 			<div
@@ -615,13 +635,13 @@ const ReceiptsPage: React.FC = () => {
 					</span>
 					<div className='inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full'>
 						<div className='bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4'>
-							<h3 className='text-lg leading-6 font-medium text-gray-900 mb-4'>
+							<h3 className='text-lg leading-6 font-medium text-neutral-900 mb-4'>
 								{isEditing ? 'Edit Receipt' : 'Create New Receipt'}
 							</h3>
 							<form>
 								<div className='mb-4'>
 									<label
-										className='block text-gray-700 text-sm font-bold mb-2'
+										className='block text-neutral-700 text-sm font-bold mb-2'
 										htmlFor='date'>
 										Date
 									</label>
@@ -635,60 +655,97 @@ const ReceiptsPage: React.FC = () => {
 												paid_at: date ? date.toISOString() : ''
 											})
 										}
-										className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+										className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none focus:shadow-outline'
 									/>
 								</div>
+								
+								{/* Step 1: Select entity (client or supplier) */}
 								<div className='mb-4'>
 									<label
-										className='block text-gray-700 text-sm font-bold mb-2'
+										className='block text-neutral-700 text-sm font-bold mb-2'
+										htmlFor='entity'>
+										{entityLabel}
+									</label>
+									<SearchableSelect
+										options={entities}
+										value={selectedEntityId}
+										onChange={(value) => {
+											setSelectedEntityId(value);
+											updateFilteredInvoices(value);
+											// Clear the invoice selection when entity changes
+											setNewReceipt({
+												...newReceipt,
+												invoice_id: undefined,
+												[entityField]: value
+											});
+										}}
+										placeholder={`Select ${entityLabel}`}
+										label={entityLabel}
+										idField={activeTab === 'client' ? 'client_id' : 'id'}
+										className='w-full'
+									/>
+								</div>
+								
+								{/* Step 2: Select invoice (filtered by entity) */}
+								<div className='mb-4'>
+									<label
+										className='block text-neutral-700 text-sm font-bold mb-2'
 										htmlFor='invoice'>
 										Invoice
 									</label>
-									<select
-										id='invoice'
-										className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
-										value={newReceipt.invoice_id}
-										onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-											const selectedInvoice = invoices.find(
-												invoice => invoice.id === Number(e.target.value)
-											)
-											if (selectedInvoice) {
-												setNewReceipt({
-													...newReceipt,
-													invoice_id: selectedInvoice.id,
-													[activeTab === 'client' ? 'client_id' : 'supplier_id']:
-														selectedInvoice[
-															activeTab === 'client' ? 'client_id' : 'supplier_id'
-														]
+									{selectedEntityId ? (
+										// Show filtered invoices with nice formatting
+										<div className='max-h-40 overflow-y-auto border border-neutral-300 rounded'>
+											{filteredInvoices.length > 0 ? (
+												filteredInvoices.map((invoice:any) => {
+													const invCurrencySymbol = getCurrencySymbol(invoice.currency);
+													return (
+														<div 
+															key={invoice.id}
+															className={`p-2 cursor-pointer hover:bg-indigo-100 ${newReceipt.invoice_id === invoice.id ? 'bg-indigo-200' : ''}`}
+															onClick={() => {
+																setNewReceipt({
+																	...newReceipt,
+																	invoice_id: invoice.id
+																})
+															}}
+														>
+															<div className='font-medium'>Invoice #{invoice.id}</div>
+															<div className='text-sm text-neutral-600'>
+																Remaining: {invCurrencySymbol}
+																{invoice.remaining_amount.toFixed(2)} ({invoice?.currency?.toUpperCase()})
+															</div>
+														</div>
+													);
 												})
-											}
-										}}>
-										<option value=''>Select Invoice</option>
-										{invoices.map(invoice => {
-											const invCurrencySymbol = getCurrencySymbol(invoice.currency)
-											return (
-												<option key={invoice.id} value={invoice.id}>
-													Invoice #{invoice.id} - Remaining: {invCurrencySymbol}
-													{invoice.remaining_amount.toFixed(2)} ({invoice?.currency?.toUpperCase()})
-												</option>
-											)
-										})}
-									</select>
+											) : (
+												<div className='p-3 text-neutral-500 italic'>
+													No invoices found for this {entityLabel.toLowerCase()}
+												</div>
+											)}
+										</div>
+									) : (
+										<div className='p-3 border border-neutral-300 rounded text-neutral-500 italic'>
+											Please select a {entityLabel.toLowerCase()} first
+										</div>
+									)}
 								</div>
+								
+								{/* Amount input */}
 								<div className='mb-4'>
 									<label
-										className='block text-gray-700 text-sm font-bold mb-2'
+										className='block text-neutral-700 text-sm font-bold mb-2'
 										htmlFor='amount'>
 										Amount {selectedInvoice ? `(${currency?.toUpperCase()})` : ''}
 									</label>
 									<div className='relative'>
-										<span className='absolute left-3 top-2 text-gray-700'>
+										<span className='absolute left-3 top-2 text-neutral-700'>
 											{currencySymbol}
 										</span>
 										<input
 											type='number'
 											id='amount'
-											className='shadow appearance-none border rounded w-full py-2 pl-8 pr-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+											className='shadow appearance-none border rounded w-full py-2 pl-8 pr-3 text-neutral-700 leading-tight focus:outline-none focus:shadow-outline'
 											value={newReceipt.amount || ''}
 											onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
 												setNewReceipt({
@@ -699,14 +756,16 @@ const ReceiptsPage: React.FC = () => {
 										/>
 									</div>
 								</div>
+								
+								{/* Files section */}
 								<div className='mb-4'>
-									<label className='block text-gray-700 text-sm font-bold mb-2'>
+									<label className='block text-neutral-700 text-sm font-bold mb-2'>
 										Files
 									</label>
 									<input
 										type='file'
 										onChange={handleFileChange}
-										className='shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+										className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none focus:shadow-outline'
 									/>
 									{selectedFile && (
 										<button
@@ -741,12 +800,13 @@ const ReceiptsPage: React.FC = () => {
 							<button
 								type='button'
 								className='w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue text-base font-medium text-white hover:bg-blue focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue sm:ml-3 sm:w-auto sm:text-sm'
-								onClick={handleCreateOrUpdateReceipt}>
+								onClick={handleCreateOrUpdateReceipt}
+								disabled={!newReceipt.invoice_id}>
 								{isEditing ? 'Update Receipt' : 'Create Receipt'}
 							</button>
 							<button
 								type='button'
-								className='mt-3 w-full inline-flex justify-center rounded-md border border-gray shadow-sm px-4 py-2 bg-white text-base font-medium text-gray hover:bg-gray focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
+								className='mt-3 w-full inline-flex justify-center rounded-md border border-gray shadow-sm px-4 py-2 bg-white text-base font-medium text-gray hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
 								onClick={() => {
 									setShowModal(false)
 									setNewReceipt({
@@ -754,6 +814,7 @@ const ReceiptsPage: React.FC = () => {
 										amount: 0,
 										files: []
 									})
+									setSelectedEntityId(null)
 									setIsEditing(false)
 								}}>
 								Cancel
@@ -775,24 +836,24 @@ const ReceiptsPage: React.FC = () => {
 			<div className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'>
 				<div className='relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white'>
 					<div className='mt-3 text-center'>
-						<h3 className='text-lg leading-6 font-medium text-gray-900'>
+						<h3 className='text-lg leading-6 font-medium text-neutral-900'>
 							Receipt Details
 						</h3>
 						<div className='mt-2 px-7 py-3'>
-							<p className='text-sm text-gray-500'>ID: {selectedReceipt.id}</p>
-							<p className='text-sm text-gray-500'>
+							<p className='text-sm text-neutral-500'>ID: {selectedReceipt.id}</p>
+							<p className='text-sm text-neutral-500'>
 								Date: {new Date(selectedReceipt.paid_at).toLocaleDateString()}
 							</p>
-							<p className='text-sm text-gray-500'>
+							<p className='text-sm text-neutral-500'>
 								Invoice ID: {selectedReceipt.invoice_id}
 							</p>
-							<p className='text-sm text-gray-500'>
+							<p className='text-sm text-neutral-500'>
 								Amount: {currencySymbol}{selectedReceipt.amount.toFixed(2)} ({currency?.toUpperCase()})
 							</p>
-							<h4 className='text-sm font-medium text-gray-900 mt-4'>Files:</h4>
+							<h4 className='text-sm font-medium text-neutral-900 mt-4'>Files:</h4>
 							<ul className='list-disc list-inside'>
 								{selectedReceipt.files.map((file, index) => (
-									<li key={index} className='text-sm text-gray-500'>
+									<li key={index} className='text-sm text-neutral-500'>
 										<a
 											href={file}
 											target='_blank'
@@ -806,7 +867,7 @@ const ReceiptsPage: React.FC = () => {
 						</div>
 						<div className='items-center px-4 py-3'>
 							<button
-								className='px-4 py-2 bg-blue text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 mb-2'
+								className='px-4 py-2 bg-blue text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 mb-2'
 								onClick={() => {
 									// Pass currency information to PDF generator
 									generatePDF('receipt', {
@@ -817,7 +878,7 @@ const ReceiptsPage: React.FC = () => {
 								Download PDF
 							</button>
 							<button
-								className='px-4 py-2 bg-gray text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300'
+								className='px-4 py-2 bg-gray text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-300'
 								onClick={() => setSelectedReceipt(null)}>
 								Close
 							</button>
@@ -833,8 +894,10 @@ const ReceiptsPage: React.FC = () => {
 		setCurrentPage(1)
 	}
 
-	const handleEditReceipt = (receipt: Receipt) => {
+	const handleEditReceipt = (receipt: any) => {
 		setNewReceipt(receipt)
+		setSelectedEntityId(receipt[activeTab === 'client' ? 'client_id' : 'supplier_id'])
+		updateFilteredInvoices(receipt[activeTab === 'client' ? 'client_id' : 'supplier_id'])
 		setIsEditing(true)
 		setShowModal(true)
 	}
@@ -844,7 +907,7 @@ const ReceiptsPage: React.FC = () => {
 			<div className='flex flex-row justify-between items-center align-middle mb-5'>
 				<h1 className='text-3xl font-bold text-gray'>Receipt Management</h1>
 				<button
-					className=' bg-blue hover:bg-gray text-white font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110'
+					className=' bg-blue hover:bg-indigo-200 text-white font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110'
 					onClick={() => {
 						setNewReceipt({
 							paid_at: new Date().toISOString(),

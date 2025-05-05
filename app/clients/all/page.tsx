@@ -99,7 +99,7 @@ export default function AllClientsPage() {
 					{filteredClients.map(client => (
 						<li key={client.client_id}>
 							<Link href={`/clients/details/${client.client_id}`}>
-								<div className='block hover:bg-gray-600 p-4 transition duration-300'>
+								<div className='block hover:bg-neutral-600 p-4 transition duration-300'>
 									<div className='flex items-center space-x-4'>
 										<div className='flex-1 min-w-0'>
 											<p className='text-lg font-medium text-white truncate'>

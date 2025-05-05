@@ -540,29 +540,29 @@ export default function SupplierDetailsPage({
 						className='relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white'
 						onClick={e => e.stopPropagation()}>
 						<div className='mt-3 text-center'>
-							<h3 className='text-lg leading-6 font-medium text-gray-900'>
+							<h3 className='text-lg leading-6 font-medium text-neutral-900'>
 								Invoice Details
 							</h3>
 							<div className='mt-2 px-7 py-3'>
-								<p className='text-sm text-gray-500'>
+								<p className='text-sm text-neutral-500'>
 									ID: {selectedInvoice.id}
 								</p>
-								<p className='text-sm text-gray-500'>
+								<p className='text-sm text-neutral-500'>
 									Date: {format(new Date(selectedInvoice.created_at), 'PPP')}
 								</p>
-								<p className='text-sm text-gray-500'>
+								<p className='text-sm text-neutral-500'>
 									Total Price: ${selectedInvoice.total_price.toFixed(2)}
 								</p>
-								<p className='text-sm text-gray-500'>
+								<p className='text-sm text-neutral-500'>
 									Remaining Amount: $
 									{selectedInvoice.remaining_amount.toFixed(2)}
 								</p>
-								<h4 className='text-sm font-medium text-gray-900 mt-4'>
+								<h4 className='text-sm font-medium text-neutral-900 mt-4'>
 									Products:
 								</h4>
 								<ul className='list-disc list-inside'>
 									{selectedInvoice.products.map((product, index) => (
-										<li key={index} className='text-sm text-gray-500'>
+										<li key={index} className='text-sm text-neutral-500'>
 											<div>
 												ID: {product.product_variant_id}, Quantity:{' '}
 												{product.quantity}
@@ -575,12 +575,12 @@ export default function SupplierDetailsPage({
 										</li>
 									))}
 								</ul>
-								<h4 className='text-sm font-medium text-gray-900 mt-4'>
+								<h4 className='text-sm font-medium text-neutral-900 mt-4'>
 									Files:
 								</h4>
 								<ul className='list-disc list-inside'>
 									{selectedInvoice.files.map((file, index) => (
-										<li key={index} className='text-sm text-gray-500'>
+										<li key={index} className='text-sm text-neutral-500'>
 											<a
 												href={file}
 												target='_blank'
@@ -596,7 +596,7 @@ export default function SupplierDetailsPage({
 							<div className='items-center px-4 py-3'>
 								<button
 									id='ok-btn'
-									className='px-4 py-2 bg-blue text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-black focus:outline-none focus:ring-2 focus:ring-blue-300'
+									className='px-4 py-2 bg-blue text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-black focus:outline-none focus:ring-2 focus:ring-indigo-300'
 									onClick={() => setSelectedInvoice(null)}>
 									Close
 								</button>
@@ -614,28 +614,28 @@ export default function SupplierDetailsPage({
 						className='relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white'
 						onClick={e => e.stopPropagation()}>
 						<div className='mt-3 text-center'>
-							<h3 className='text-lg leading-6 font-medium text-gray-900'>
+							<h3 className='text-lg leading-6 font-medium text-neutral-900'>
 								Receipt Details
 							</h3>
 							<div className='mt-2 px-7 py-3'>
-								<p className='text-sm text-gray-500'>
+								<p className='text-sm text-neutral-500'>
 									ID: {selectedReceipt.id}
 								</p>
-								<p className='text-sm text-gray-500'>
+								<p className='text-sm text-neutral-500'>
 									Date: {format(new Date(selectedReceipt.paid_at), 'PPP')}
 								</p>
-								<p className='text-sm text-gray-500'>
+								<p className='text-sm text-neutral-500'>
 									Amount: ${selectedReceipt.amount.toFixed(2)}
 								</p>
-								<p className='text-sm text-gray-500'>
+								<p className='text-sm text-neutral-500'>
 									Invoice ID: {selectedReceipt.invoice_id}
 								</p>
-								<h4 className='text-sm font-medium text-gray-900 mt-4'>
+								<h4 className='text-sm font-medium text-neutral-900 mt-4'>
 									Files:
 								</h4>
 								<ul className='list-disc list-inside'>
 									{selectedReceipt.files.map((file, index) => (
-										<li key={index} className='text-sm text-gray-500'>
+										<li key={index} className='text-sm text-neutral-500'>
 											<a
 												href={file}
 												target='_blank'
@@ -651,7 +651,7 @@ export default function SupplierDetailsPage({
 							<div className='items-center px-4 py-3'>
 								<button
 									id='ok-btn'
-									className='px-4 py-2 bg-blue text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-black focus:outline-none focus:ring-2 focus:ring-blue-300'
+									className='px-4 py-2 bg-blue text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-black focus:outline-none focus:ring-2 focus:ring-indigo-300'
 									onClick={() => setSelectedReceipt(null)}>
 									Close
 								</button>

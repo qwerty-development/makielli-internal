@@ -488,7 +488,7 @@ const handleFileUpload = async (): Promise<string> => {
     disabled={isCompressing}
   />
   {isCompressing && (
-    <div className="absolute inset-0 flex items-center justify-center bg-gray-700 bg-opacity-50 rounded">
+    <div className="absolute inset-0 flex items-center justify-center bg-neutral-700 bg-opacity-50 rounded">
       <p className="text-white">Compressing image...</p>
     </div>
   )}
@@ -673,10 +673,10 @@ const handleFileUpload = async (): Promise<string> => {
 
       {editingProduct && (
         <div
-          className='fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full'
+          className='fixed inset-0 bg-neutral-600 bg-opacity-50 overflow-y-auto h-full w-full'
           id='edit-modal'>
           <div className='relative top-20 mx-auto p-5 border w-3/4 shadow-lg rounded-md bg-white'>
-            <h3 className='text-lg font-medium leading-6 text-gray-900 mb-4'>Edit Product</h3>
+            <h3 className='text-lg font-medium leading-6 text-neutral-900 mb-4'>Edit Product</h3>
             <form onSubmit={handleUpdateProduct} className='mb-8 p-4 bg-gray border border-white rounded-lg'>
               <input
                 type='text'
@@ -711,7 +711,7 @@ const handleFileUpload = async (): Promise<string> => {
     disabled={isCompressing}
   />
   {isCompressing && (
-    <div className="absolute inset-0 flex items-center justify-center bg-gray-700 bg-opacity-50 rounded">
+    <div className="absolute inset-0 flex items-center justify-center bg-neutral-700 bg-opacity-50 rounded">
       <p className="text-white">Compressing image...</p>
     </div>
   )}
@@ -825,7 +825,7 @@ const handleFileUpload = async (): Promise<string> => {
                     setSelectedFile(null)
                     setColorVariantGroups([])
                   }}
-                  className='bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded mr-2'>
+                  className='bg-neutral-500 hover:bg-neutral-600 text-white font-bold py-2 px-4 rounded mr-2'>
                   Cancel
                 </button>
                 <button type='submit' className='bg-blue hover:bg-black text-white font-bold py-2 px-4 rounded'>

@@ -100,7 +100,7 @@ export default function GroupDetailsPage({ params }: { params: { groupId: string
             </button>
             <button
               onClick={handleCancelEdit}
-              className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-1 px-2 rounded"
+              className="bg-neutral-500 hover:bg-neutral-700 text-white font-bold py-1 px-2 rounded"
             >
               Cancel
             </button>
@@ -112,7 +112,7 @@ export default function GroupDetailsPage({ params }: { params: { groupId: string
           {!isEditing && (
             <button
               onClick={handleEdit}
-              className="bg-blue hover:bg-blue-700 text-white font-bold  px-4 rounded mr-2"
+              className="bg-blue hover:bg-indigo-700 text-white font-bold  px-4 rounded mr-2"
             >
               Edit Group
             </button>
@@ -130,7 +130,7 @@ export default function GroupDetailsPage({ params }: { params: { groupId: string
           {clients.map((client) => (
             <li key={client.client_id}>
               <Link href={`/clients/details/${client.client_id}`}>
-                <div className="block hover:bg-gray-50 p-4">
+                <div className="block hover:bg-neutral-50 p-4">
                   <div className="flex items-center space-x-4">
                     <div className="flex-1 min-w-0">
                       <p className="text-l font-medium text-white truncate">
