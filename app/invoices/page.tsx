@@ -71,6 +71,7 @@ interface Invoice {
 		| '100% after delivery' | '100% prepayment'
 	delivery_date: string
 	payment_info: PaymentInfoOption
+	shipping_fee: number // New field for shipping fee
 }
 type PaymentInfoOption = 'frisson_llc' | 'frisson_sarl_chf' | 'frisson_sarl_usd'
 
@@ -235,7 +236,8 @@ const [orderNumberSearch, setOrderNumberSearch] = useState<string>('');
 		currency: 'usd',
 		payment_term: '30% deposit 70% before shipping',
 		delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(),
-		payment_info: 'frisson_llc'
+		payment_info: 'frisson_llc',
+        shipping_fee: 0 // Initialize shipping fee with 0
 	})
 	const [selectedFile, setSelectedFile] = useState<File | null>(null)
 	const [uploadingFile, setUploadingFile] = useState(false)
@@ -435,7 +437,8 @@ const fetchInvoices = async () => {
 		invoiceProducts: InvoiceProduct[],
 		discounts: { [productId: string]: number },
 		isClientInvoice: boolean,
-		includeVAT: boolean
+		includeVAT: boolean,
+        shippingFee: number = 0
 	) => {
 		const subtotal = invoiceProducts.reduce((total, invoiceProduct) => {
 			const product = products.find(p => p.id === invoiceProduct.product_id)
@@ -451,7 +454,8 @@ const fetchInvoices = async () => {
 		}, 0)
 
 		const vatAmount = includeVAT ? subtotal * 0.11 : 0
-		const totalPrice = subtotal + vatAmount
+		// Add shipping fee to total price calculation
+		const totalPrice = subtotal + vatAmount + shippingFee
 
 		return { subtotal, vatAmount, totalPrice }
 	}
@@ -492,11 +496,15 @@ const handleCreateInvoice = async () => {
       }))
     }
 
+    // Ensure shipping_fee is a number
+    const shippingFee = Number(newInvoice.shipping_fee) || 0
+
     const { subtotal, vatAmount, totalPrice } = calculateTotalPrice(
       newInvoice.products || [],
       newInvoice.discounts || {},
       isClientInvoice,
-      newInvoice.include_vat || false
+      newInvoice.include_vat || false,
+      shippingFee
     )
 
     // For supplier invoices, always treat as regular (not return)
@@ -513,6 +521,7 @@ const handleCreateInvoice = async () => {
     // Create base invoice data
     let invoiceData: any = {
       ...newInvoice,
+      shipping_fee: shippingFee, // Ensure shipping_fee is included
       total_price: finalTotalPrice,
       remaining_amount: finalTotalPrice,
       vat_amount: finalVatAmount,
@@ -528,76 +537,76 @@ const handleCreateInvoice = async () => {
       delete invoiceData.type;
     }
 
-			if (newInvoice.id && originalInvoiceData) {
-				// Update existing invoice
-				const { error: updateError } = await supabase
-					.from(table)
-					.update(invoiceData)
-					.eq('id', newInvoice.id)
+    if (newInvoice.id && originalInvoiceData) {
+        // Update existing invoice
+        const { error: updateError } = await supabase
+            .from(table)
+            .update(invoiceData)
+            .eq('id', newInvoice.id)
 
-				if (updateError) throw updateError
+        if (updateError) throw updateError
 
-				// Update quantities and balance
-await updateProductQuantities(
-  originalInvoiceData.products,
-  isClientInvoice,
-  originalInvoiceData.type === 'return',
-  true,
-  newInvoice.id
-)
-		await updateProductQuantities(
-  newInvoice.products || [],
-  isClientInvoice,
-  newInvoice.type === 'return',
-  false,
-  newInvoice.id
-)
+        // Update quantities and balance
+        await updateProductQuantities(
+            originalInvoiceData.products,
+            isClientInvoice,
+            originalInvoiceData.type === 'return',
+            true,
+            newInvoice.id
+        )
+        await updateProductQuantities(
+            newInvoice.products || [],
+            isClientInvoice,
+            newInvoice.type === 'return',
+            false,
+            newInvoice.id
+        )
 
-				const oldAmount = originalInvoiceData.total_price || 0
-				const balanceChange = finalTotalPrice - oldAmount
-				await updateEntityBalance(balanceChange, entityId)
+        const oldAmount = originalInvoiceData.total_price || 0
+        const balanceChange = finalTotalPrice - oldAmount
+        await updateEntityBalance(balanceChange, entityId)
 
-				toast.success('Invoice updated successfully')
-				setShowModal(false)
-				resetInvoiceState()
-				window.location.reload()
-				return
-			}
-			const { error: createError } = await supabase
-				.from(table)
-				.insert(invoiceData)
-				.single()
+        toast.success('Invoice updated successfully')
+        setShowModal(false)
+        resetInvoiceState()
+        window.location.reload()
+        return
+    }
+    const { error: createError } = await supabase
+        .from(table)
+        .insert(invoiceData)
+        .single()
 
-			if (createError) throw createError
+    if (createError) throw createError
 
 
 
-await updateProductQuantities(
-  newInvoice.products || [],
-  isClientInvoice,
-  newInvoice.type === 'return',
-  false,
-  invoiceData.id
-)
-			await updateEntityBalance(finalTotalPrice, entityId)
+    await updateProductQuantities(
+        newInvoice.products || [],
+        isClientInvoice,
+        newInvoice.type === 'return',
+        false,
+        invoiceData.id
+    )
+    await updateEntityBalance(finalTotalPrice, entityId)
 
-			toast.success(`Invoice ${isUpdate ? 'updated' : 'created'} successfully`)
-			setShowModal(false)
-			resetInvoiceState()
-			if (isUpdate) {
-				window.location.reload()
-			} else {
-				fetchInvoices()
-			}
-		} catch (error) {
-			handleError(error, isUpdate ? 'update invoice' : 'create invoice')
-		} finally {
-			updateLoadingState(
-				isUpdate ? 'isInvoiceUpdating' : 'isInvoiceCreating',
-				false
-			)
-		}
-	}
+    toast.success(`Invoice ${isUpdate ? 'updated' : 'created'} successfully`)
+    setShowModal(false)
+    resetInvoiceState()
+    if (isUpdate) {
+        window.location.reload()
+    } else {
+        fetchInvoices()
+    }
+  } catch (error) {
+    handleError(error, isUpdate ? 'update invoice' : 'create invoice')
+  } finally {
+    updateLoadingState(
+        isUpdate ? 'isInvoiceUpdating' : 'isInvoiceCreating',
+        false
+    )
+  }
+}
 
 const updateProductQuantities = async (
   products: InvoiceProduct[],
@@ -782,7 +791,8 @@ await Promise.all(
 				products: [...(currentInvoice.products || [])],
 				discounts: { ...(currentInvoice.discounts || {}) },
 				type: currentInvoice.type,
-				payment_info: currentInvoice.payment_info || 'frisson_llc'
+				payment_info: currentInvoice.payment_info || 'frisson_llc',
+                shipping_fee: currentInvoice.shipping_fee || 0 // Set to 0 if undefined
 			})
 
 			const updatedInvoice = {
@@ -804,7 +814,8 @@ await Promise.all(
 					new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(),
 				payment_info: currentInvoice.payment_info || 'frisson_llc',
 				client_id: isClientInvoice ? entityId : undefined,
-				supplier_id: !isClientInvoice ? entityId : undefined
+				supplier_id: !isClientInvoice ? entityId : undefined,
+                shipping_fee: currentInvoice.shipping_fee || 0 // Set to 0 if undefined
 			}
 
 			setNewInvoice(updatedInvoice)
@@ -897,7 +908,8 @@ await Promise.all(
 			newInvoice.products || [],
 			{ ...newInvoice.discounts, [productId]: discount },
 			isClientInvoice,
-			newInvoice.include_vat || false
+			newInvoice.include_vat || false,
+            newInvoice.shipping_fee || 0
 		)
 		setNewInvoice(prev => ({
 			...prev,
@@ -906,6 +918,32 @@ await Promise.all(
 		}))
 	}
 
+    // Handler for shipping fee changes
+    const handleShippingFeeChange = (value: number) => {
+        // Ensure value is valid
+        const fee = value >= 0 ? value : 0;
+        
+        // Update the invoice state
+        setNewInvoice(prev => {
+            // Recalculate total with the new shipping fee
+            const isClientInvoice = activeTab === 'client';
+            const { totalPrice, vatAmount } = calculateTotalPrice(
+                prev.products || [],
+                prev.discounts || {},
+                isClientInvoice,
+                prev.include_vat || false,
+                fee
+            );
+            
+            return {
+                ...prev,
+                shipping_fee: fee,
+                total_price: totalPrice,
+                vat_amount: vatAmount
+            };
+        });
+    }
+
 	const handleRemoveProduct = (index: number) => {
 		const updatedProducts = newInvoice.products?.filter((_, i) => i !== index)
 		const isClientInvoice = activeTab === 'client'
@@ -913,7 +951,8 @@ await Promise.all(
 			updatedProducts || [],
 			newInvoice.discounts || {},
 			isClientInvoice,
-			newInvoice.include_vat || false
+			newInvoice.include_vat || false,
+            newInvoice.shipping_fee || 0
 		)
 		setNewInvoice({
 			...newInvoice,
@@ -1110,7 +1149,8 @@ const handleEditExistingProduct = (index: number) => {
 				updatedProducts,
 				newInvoice.discounts || {},
 				isClientInvoice,
-				newInvoice.include_vat || false
+				newInvoice.include_vat || false,
+                newInvoice.shipping_fee || 0
 			)
 
 			setNewInvoice({
@@ -1143,7 +1183,8 @@ const handleEditExistingProduct = (index: number) => {
 			delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(),
 			client_id: undefined,
 			supplier_id: undefined,
-			payment_info: 'frisson_llc'
+			payment_info: 'frisson_llc',
+            shipping_fee: 0 // Reset shipping fee
 		})
 		setSelectedProduct(null)
 		setSelectedVariants([])
@@ -1723,6 +1764,23 @@ const renderFilters = () => (
 									required
 								/>
 							</div>
+                            {/* New Shipping Fee Field */}
+                            <div className='mb-4'>
+                                <label className='block text-gray text-sm font-bold mb-2' htmlFor='shipping_fee'>
+                                    Shipping Fee
+                                </label>
+                                <input
+                                    id='shipping_fee'
+                                    type='number'
+                                    min='0'
+                                    className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+                                    value={newInvoice.shipping_fee || 0}
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                        handleShippingFeeChange(Number(e.target.value))
+                                    }
+                                    placeholder='Enter shipping fee'
+                                />
+                            </div>
 							<div className='mb-4'>
 								<label className='flex items-center'>
 									<input
@@ -1734,7 +1792,8 @@ const renderFilters = () => (
 												newInvoice.products || [],
 												newInvoice.discounts || {},
 												activeTab === 'client',
-												includeVAT
+												includeVAT,
+                                                newInvoice.shipping_fee || 0
 											)
 											setNewInvoice({
 												...newInvoice,
@@ -1750,7 +1809,7 @@ const renderFilters = () => (
 							</div>
 							<div className='mb-4'>
 								<label className='block text-gray text-sm font-bold mb-2'>
-									Total Price (including VAT if applicable)
+									Total Price (including VAT and shipping if applicable)
 								</label>
 								<input
 									type='number'
@@ -1884,6 +1943,7 @@ const renderInvoiceDetails = () => {
 
   const totalBeforeVAT = subtotal - totalDiscount;
   const vatAmount = selectedInvoice.include_vat ? totalBeforeVAT * 0.11 : 0;
+  const shippingFee = selectedInvoice.shipping_fee || 0;
 
   // Updated size options to match PDF - added sizes 50, 52, 54, 56, 58
   const sizeOptions = [
@@ -2102,6 +2162,16 @@ const renderInvoiceDetails = () => {
               </>
             )}
 
+            {/* Display Shipping Fee */}
+            {shippingFee > 0 && (
+              <div className='flex justify-end mb-1 w-1/3'>
+                <div className='w-1/2 font-bold text-right pr-4'>Shipping Fee:</div>
+                <div className='w-1/2 text-right'>
+                  {currencySymbol}{Math.abs(shippingFee).toFixed(2)}
+                </div>
+              </div>
+            )}
+
             <div className='flex justify-end mb-1 w-1/3'>
               <div className='w-1/2 font-bold text-right pr-4'>Total:</div>
               <div className='w-1/2 text-right font-bold'>
@@ -2219,7 +2289,8 @@ const renderInvoiceDetails = () => {
 						delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(),
 						client_id: undefined,
 						supplier_id: undefined,
-						payment_info: 'frisson_llc'
+						payment_info: 'frisson_llc',
+						shipping_fee:0
 					})
 					setShowModal(true)
 				}}>

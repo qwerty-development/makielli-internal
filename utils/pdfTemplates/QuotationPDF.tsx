@@ -459,6 +459,18 @@ const QuotationPDF: React.FC<{
           </>
         )}
 
+          {/* Display shipping fee if present */}
+          {safeQuotation.shipping_fee > 0 && (
+                    <View style={styles.subtotal}>
+                        <Text style={styles.subtotalLabel}>Shipping Fee:</Text>
+                        <Text style={styles.subtotalValue}>
+                            {currencySymbol}
+                            {Math.abs(safeQuotation.shipping_fee).toFixed(2)}
+                            
+                        </Text>
+                    </View>
+                )}
+
         <View style={styles.subtotal}>
           <Text style={styles.subtotalLabel}>Total:</Text>
           <Text style={styles.subtotalValue}>

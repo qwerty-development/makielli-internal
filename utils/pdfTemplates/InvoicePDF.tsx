@@ -469,6 +469,7 @@ const InvoicePDF: React.FC<{
 
 	const totalBeforeVAT = subtotal - totalDiscount
 	const vatAmount = safeInvoice.include_vat ? totalBeforeVAT * 0.11 : 0
+	const shippingFee = safeInvoice.shipping_fee || 0
 
 	return (
 		<Document>
@@ -712,6 +713,18 @@ const InvoicePDF: React.FC<{
 						</View>
 					</>
 				)}
+
+                {/* Display shipping fee if present */}
+                {safeInvoice.shipping_fee > 0 && (
+                    <View style={styles.subtotal}>
+                        <Text style={styles.subtotalLabel}>Shipping Fee:</Text>
+                        <Text style={styles.subtotalValue}>
+                            {currencySymbol}
+                            {Math.abs(safeInvoice.shipping_fee).toFixed(2)}
+                            {isReturn && ' (Return)'}
+                        </Text>
+                    </View>
+                )}
 
 				<View style={styles.subtotal}>
 					<Text style={styles.subtotalLabel}>Total:</Text>

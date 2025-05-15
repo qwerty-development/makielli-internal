@@ -48,6 +48,7 @@ interface Quotation {
     | '60 days after shipping'
     | '100% after delivery'| '100% prepayment'
   delivery_date: string
+  shipping_fee: number // New field for shipping fee
 }
 
 interface LoadingStates {
@@ -112,7 +113,8 @@ const QuotationsPage: React.FC = () => {
     currency: 'usd',
     payment_term: '30% deposit 70% before shipping',
     // Default delivery date set to one month ahead
-    delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString()
+    delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(),
+    shipping_fee: 0 // Initialize shipping fee with 0
   })
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [selectedVariants, setSelectedVariants] = useState<QuotationProduct[]>([])
@@ -252,7 +254,8 @@ const QuotationsPage: React.FC = () => {
   const calculateTotalPrice = (
     quotationProducts: QuotationProduct[],
     discounts: { [productId: string]: number },
-    includeVAT: boolean
+    includeVAT: boolean,
+    shippingFee: number = 0 // Add shipping fee parameter with default value
   ) => {
     const subtotal = quotationProducts.reduce((total, quotationProduct) => {
       const parentProduct = products.find(p => p.id === quotationProduct?.product_id)
@@ -266,8 +269,33 @@ const QuotationsPage: React.FC = () => {
       return total + discountedPrice * quotationProduct?.quantity
     }, 0)
     const vatAmount = includeVAT ? subtotal * 0.11 : 0
-    const totalPrice = subtotal + vatAmount
+    // Include shipping fee in total price calculation
+    const totalPrice = subtotal + vatAmount + shippingFee
     return { subtotal, vatAmount, totalPrice }
+  }
+
+  // Handler for shipping fee changes
+  const handleShippingFeeChange = (value: number) => {
+    // Ensure value is valid
+    const fee = value >= 0 ? value : 0;
+    
+    // Update the quotation state
+    setNewQuotation(prev => {
+      // Recalculate total with the new shipping fee
+      const { totalPrice, vatAmount } = calculateTotalPrice(
+        prev.products || [],
+        prev.discounts || {},
+        prev.include_vat || false,
+        fee
+      );
+      
+      return {
+        ...prev,
+        shipping_fee: fee,
+        total_price: totalPrice,
+        vat_amount: vatAmount
+      };
+    });
   }
 
   const handleDiscountChange = (productId: string, discount: number) => {
@@ -282,7 +310,8 @@ const QuotationsPage: React.FC = () => {
     const { totalPrice, vatAmount } = calculateTotalPrice(
       newQuotation.products || [],
       { ...newQuotation.discounts, [productId]: discount },
-      newQuotation.include_vat || false
+      newQuotation.include_vat || false,
+      newQuotation.shipping_fee || 0 // Include shipping fee in calculation
     )
     setNewQuotation(prev => ({
       ...prev,
@@ -319,7 +348,8 @@ const QuotationsPage: React.FC = () => {
       currency: quotation.currency,
       payment_term: quotation.payment_term,
       delivery_date: quotation.delivery_date,
-      payment_info: 'frisson_llc' // Default payment info
+      payment_info: 'frisson_llc', // Default payment info
+      shipping_fee: quotation.shipping_fee || 0 // Include shipping fee
     };
   
     // Insert the invoice and get the created invoice data
@@ -393,7 +423,8 @@ const QuotationsPage: React.FC = () => {
         discounts: quotation.discounts,
         currency: quotation.currency,
         payment_term: quotation.payment_term,
-        delivery_date: quotation.delivery_date
+        delivery_date: quotation.delivery_date,
+        shipping_fee: quotation.shipping_fee || 0 // Include shipping fee
       };
 
       const { error: updateError } = await supabase
@@ -417,14 +448,19 @@ const QuotationsPage: React.FC = () => {
     updateLoadingState(isUpdate ? 'isOrderUpdating' : 'isOrderCreating', true);
 
     try {
+      // Ensure shipping_fee is a number
+      const shippingFee = Number(newQuotation.shipping_fee) || 0;
+
       const { subtotal, vatAmount, totalPrice } = calculateTotalPrice(
         newQuotation.products || [],
         newQuotation.discounts || {},
-        newQuotation.include_vat || false
+        newQuotation.include_vat || false,
+        shippingFee
       );
 
       const quotationData = {
         ...newQuotation,
+        shipping_fee: shippingFee, // Ensure shipping_fee is included
         total_price: totalPrice,
         vat_amount: vatAmount
       };
@@ -574,7 +610,10 @@ const QuotationsPage: React.FC = () => {
 
   const handleEditQuotation = (quotation: Quotation) => {
     // Set newQuotation state to the quotation being edited
-    setNewQuotation(quotation)
+    setNewQuotation({
+      ...quotation,
+      shipping_fee: quotation.shipping_fee || 0 // Ensure shipping fee is set
+    })
     setShowModal(true)
   }
 
@@ -634,7 +673,8 @@ const QuotationsPage: React.FC = () => {
       const { totalPrice, vatAmount } = calculateTotalPrice(
         updatedProducts,
         newQuotation.discounts || {},
-        newQuotation.include_vat || false
+        newQuotation.include_vat || false,
+        newQuotation.shipping_fee || 0 // Include shipping fee
       )
       setNewQuotation({
         ...newQuotation,
@@ -683,7 +723,8 @@ const QuotationsPage: React.FC = () => {
       payment_term: '30% deposit 70% before shipping',
       // Default delivery date set to current date (adjust if needed)
       delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(),
-      client_id: undefined
+      client_id: undefined,
+      shipping_fee: 0 // Reset shipping fee
     })
     resetProductEditingState()
   }
@@ -1081,7 +1122,8 @@ const QuotationsPage: React.FC = () => {
                               const { totalPrice, vatAmount } = calculateTotalPrice(
                                 updatedProducts || [],
                                 newQuotation.discounts || {},
-                                newQuotation.include_vat || false
+                                newQuotation.include_vat || false,
+                                newQuotation.shipping_fee || 0
                               )
                               setNewQuotation({
                                 ...newQuotation,
@@ -1201,6 +1243,23 @@ const QuotationsPage: React.FC = () => {
                     required
                   />
                 </div>
+                {/* New Shipping Fee Field */}
+                <div className='mb-4'>
+                  <label className='block text-gray text-sm font-bold mb-2' htmlFor='shipping_fee'>
+                    Shipping Fee
+                  </label>
+                  <input
+                    id='shipping_fee'
+                    type='number'
+                    min='0'
+                    className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+                    value={newQuotation.shipping_fee || 0}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      handleShippingFeeChange(Number(e.target.value))
+                    }
+                    placeholder='Enter shipping fee'
+                  />
+                </div>
                 <div className='mb-4'>
                   <label className='flex items-center'>
                     <input
@@ -1211,7 +1270,8 @@ const QuotationsPage: React.FC = () => {
                         const { totalPrice, vatAmount } = calculateTotalPrice(
                           newQuotation.products || [],
                           newQuotation.discounts || {},
-                          includeVAT
+                          includeVAT,
+                          newQuotation.shipping_fee || 0
                         )
                         setNewQuotation({
                           ...newQuotation,
@@ -1227,7 +1287,7 @@ const QuotationsPage: React.FC = () => {
                 </div>
                 <div className='mb-4'>
                   <label className='block text-gray text-sm font-bold mb-2'>
-                    Total Price (including VAT if applicable)
+                    Total Price (including VAT and shipping if applicable)
                   </label>
                   <input
                     type='number'
@@ -1330,6 +1390,7 @@ const QuotationsPage: React.FC = () => {
 
     const totalBeforeVAT = subtotal - totalDiscount;
     const vatAmount = selectedQuotation.include_vat ? totalBeforeVAT * 0.11 : 0;
+    const shippingFee = selectedQuotation.shipping_fee || 0;
 
     // Transform product data to match PDF format
     const productsByNameColor:any = {};
@@ -1536,6 +1597,16 @@ const QuotationsPage: React.FC = () => {
                 </>
               )}
 
+              {/* Display shipping fee if present */}
+              {shippingFee > 0 && (
+                <div className='flex justify-end mb-1 w-1/3'>
+                  <div className='w-1/2 font-bold text-right pr-4'>Shipping Fee:</div>
+                  <div className='w-1/2 text-right'>
+                    {currencySymbol}{shippingFee.toFixed(2)}
+                  </div>
+                </div>
+              )}
+
               <div className='flex justify-end mb-1 w-1/3'>
                 <div className='w-1/2 font-bold text-right pr-4'>Total:</div>
                 <div className='w-1/2 text-right font-bold'>
@@ -1547,8 +1618,6 @@ const QuotationsPage: React.FC = () => {
                 Amount in words: [Amount in words would appear here]
               </div>
             </div>
-
-            {/* Payment Information Section */}
 
             {/* Note Section */}
             {selectedQuotation.note && (
@@ -1616,7 +1685,8 @@ const QuotationsPage: React.FC = () => {
             currency: 'usd',
             payment_term: '30% deposit 70% before shipping',
             delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(),
-            client_id: undefined
+            client_id: undefined,
+            shipping_fee: 0 // Initialize shipping fee
           })
           setShowModal(true)
         }}>
