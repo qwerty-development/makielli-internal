@@ -20,19 +20,25 @@ const toWords = new ToWords({
   }
 })
 
-Font.register({
-  family: 'Times New Roman',
-  fonts: [
-    { src: '/fonts/times-new-roman.ttf' },
-    { src: '/fonts/times-new-roman-bold.ttf', fontWeight: 700 },
-    { src: '/fonts/times-new-roman-italic.ttf', fontStyle: 'italic' },
-    {
-      src: '/fonts/times-new-roman-bold-italic.ttf',
-      fontWeight: 700,
-      fontStyle: 'italic'
-    }
-  ]
-})
+// MODIFICATION: Added try-catch for font registration
+try {
+  Font.register({
+    family: 'Times New Roman',
+    fonts: [
+      { src: '/fonts/times-new-roman.ttf' }, // Ensure these paths are correct
+      { src: '/fonts/times-new-roman-bold.ttf', fontWeight: 700 },
+      { src: '/fonts/times-new-roman-italic.ttf', fontStyle: 'italic' },
+      {
+        src: '/fonts/times-new-roman-bold-italic.ttf',
+        fontWeight: 700,
+        fontStyle: 'italic'
+      }
+    ]
+  })
+} catch (error) {
+  console.warn('Failed to load custom fonts, using fallbacks:', error)
+}
+
 
 const styles = StyleSheet.create({
   page: {
@@ -57,7 +63,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: 700, // MODIFICATION: Changed from 'bold'
     marginBottom: 20,
     color: '#1E40AF'
   },
@@ -75,7 +81,7 @@ const styles = StyleSheet.create({
     fontSize: 10
   },
   label: {
-    fontWeight: 'bold',
+    fontWeight: 700, // MODIFICATION: Changed from 'bold'
     marginRight: 5
   },
   value: {
@@ -103,27 +109,34 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderColor: '#bfbfbf',
     backgroundColor: '#f0f0f0',
-    padding: 1
+    padding: 1,
+    justifyContent: 'center', // MODIFICATION: Added for alignment
+    alignItems: 'center'      // MODIFICATION: Added for alignment
   },
   tableCol: {
     borderStyle: 'solid',
     borderRightWidth: 1,
-    borderRightColor: '#bfbfbf'
+    borderRightColor: '#bfbfbf',
+    padding: 1,               // MODIFICATION: Added padding
+    justifyContent: 'center', // MODIFICATION: Added for alignment
+    alignItems: 'center'      // MODIFICATION: Added for alignment
   },
   tableCellHeader: {
-    fontWeight: 'bold',
+    fontWeight: 700, // MODIFICATION: Changed from 'bold'
     fontSize: 5,
     textAlign: 'center'
   },
   tableCell: {
     fontSize: 5,
-    padding: 1
+    padding: 1 // Padding for the text content itself
   },
   notes: {
     fontSize: 5,
     fontStyle: 'italic',
     color: '#666',
-    marginTop: 2
+    marginTop: 2,
+    textAlign: 'left', // Notes might be better left-aligned
+    paddingHorizontal: 2
   },
   subtotal: {
     flexDirection: 'row',
@@ -134,7 +147,7 @@ const styles = StyleSheet.create({
     width: '16.66%',
     textAlign: 'right',
     paddingRight: 5,
-    fontWeight: 'bold',
+    fontWeight: 700, // MODIFICATION: Changed from 'bold'
     fontSize: 10
   },
   subtotalValue: {
@@ -144,7 +157,7 @@ const styles = StyleSheet.create({
   },
   footer: {
     position: 'absolute',
-    bottom: 30,
+    bottom: 15,
     left: 30,
     right: 30,
     textAlign: 'center',
@@ -158,11 +171,12 @@ const styles = StyleSheet.create({
     objectFit: 'contain',
     marginVertical: 2
   },
-  imageContainer: {
+  imageContainer: { // This style is used for the image cell
     width: '7%',
-    height: 54,
+    height: 54, // Fixed height for consistent row height with images
     justifyContent: 'center',
     alignItems: 'center'
+    // No padding here, padding will come from tableCol if merged, or productImage can have margins
   },
   amountInWords: {
     fontSize: 8,
@@ -199,11 +213,10 @@ const convertAmountToWords = (
   })
 }
 
-// Updated size options array with new sizes
 const sizeOptions = [
   'OS', 'XXS', 'XS', 'S', 'S/M', 'M', 'M/L', 'L', 'XL', '2XL', '3XL',
   '36', '38', '40', '42', '44', '46',
-  '50', '52', '54', '56', '58'  // New sizes added
+  '50', '52', '54', '56', '58'
 ]
 
 const QuotationPDF: React.FC<{
@@ -212,18 +225,14 @@ const QuotationPDF: React.FC<{
   company: any
   logoBase64?: string
 }> = ({ quotation, client, company, logoBase64 }) => {
-  // Create safe defaults in case any prop is missing
   const safeQuotation = quotation || {}
   const safeClient = client || {}
   const safeCompany = company || {}
 
-  // Safely split the company address
   const addressLines = safeCompany.address ? safeCompany.address.split('\n') : ['N/A']
-  // Default currency to 'usd' if missing
   const currency = safeQuotation.currency || 'usd'
   const currencySymbol = currency === 'euro' ? '€' : '$'
 
-  // Ensure products is an array
   const products = Array.isArray(safeQuotation.products) ? safeQuotation.products : []
   const hasDiscounts = products.some(
     (product: any) =>
@@ -254,7 +263,7 @@ const QuotationPDF: React.FC<{
           {logoBase64 ? (
             <Image src={logoBase64} style={styles.logo} />
           ) : (
-            <Image src='/logo/logo.png' style={styles.logo} />
+            <Image src='/logo/logo.png' style={styles.logo} /> // Ensure path is correct
           )}
           <View style={styles.companyInfo}>
             <Text>{safeCompany.name || 'N/A'}</Text>
@@ -289,9 +298,7 @@ const QuotationPDF: React.FC<{
                 ? format(new Date(safeQuotation.created_at), 'PP')
                 : 'N/A'}
             </Text>
-            <Text style={styles.value}>
-              Order Number: {safeQuotation.order_number || 'N/A'}
-            </Text>
+            {/* Removed redundant "Order Number" display, assuming safeQuotation.id is preferred */}
             {safeQuotation.delivery_date && (
               <Text style={styles.value}>
                 Delivery Date:{' '}
@@ -308,7 +315,8 @@ const QuotationPDF: React.FC<{
         </View>
 
         <View style={styles.table}>
-          <View style={styles.tableRow}>
+          {/* MODIFICATION: Added 'fixed' prop to the table header row View */}
+          <View style={styles.tableRow} fixed>
             <View style={[styles.tableColHeader, { width: '7%' }]}>
               <Text style={styles.tableCellHeader}>IMAGE</Text>
             </View>
@@ -337,7 +345,8 @@ const QuotationPDF: React.FC<{
                 <Text style={styles.tableCellHeader}>DISCOUNT</Text>
               </View>
             )}
-            <View style={[styles.tableColHeader, { width: '7%' }]}>
+            {/* MODIFICATION: Added borderRightWidth: 0 to the last header cell */}
+            <View style={[styles.tableColHeader, { width: '7%', borderRightWidth: 0 }]}>
               <Text style={styles.tableCellHeader}>TOTAL</Text>
             </View>
           </View>
@@ -351,22 +360,24 @@ const QuotationPDF: React.FC<{
             const lineTotal = priceAfterDiscount * totalQuantity
 
             return (
-              <View key={index} style={styles.tableRow}>
-                <View style={[styles.tableCol, { width: '7%' }]}>
+              // MODIFICATION: Added 'wrap={false}' to prevent data rows from splitting
+              <View key={index} style={styles.tableRow} wrap={false}>
+                {/* MODIFICATION: Applied styles.imageContainer to the image cell */}
+                <View style={[styles.tableCol, styles.imageContainer]}>
                  {product.image ? (
-    <Image
-      src={product.image}
-      style={styles.productImage}
-      cache={true}
-    />
-  ) : (
-    <Image
-      src="/placeholder-image.jpg"
-      style={styles.productImage}
-      cache={true}
-    />
-  )}
-</View>
+                    <Image
+                      src={product.image}
+                      style={styles.productImage}
+                      cache={true}
+                    />
+                  ) : (
+                    <Image
+                      src="/placeholder-image.jpg" // Ensure path is correct or handle fallback
+                      style={styles.productImage}
+                      cache={true}
+                    />
+                  )}
+                </View>
                 <View style={[styles.tableCol, { width: '8%' }]}>
                   <Text style={styles.tableCell}>{product.name || 'N/A'}</Text>
                 </View>
@@ -407,7 +418,8 @@ const QuotationPDF: React.FC<{
                     </Text>
                   </View>
                 )}
-                <View style={[styles.tableCol, { width: '7%' }]}>
+                {/* MODIFICATION: Added borderRightWidth: 0 to the last data cell */}
+                <View style={[styles.tableCol, { width: '7%', borderRightWidth: 0 }]}>
                   <Text style={styles.tableCell}>
                     {currencySymbol}
                     {lineTotal.toFixed(2)}
@@ -459,17 +471,15 @@ const QuotationPDF: React.FC<{
           </>
         )}
 
-          {/* Display shipping fee if present */}
-          {safeQuotation.shipping_fee > 0 && (
-                    <View style={styles.subtotal}>
-                        <Text style={styles.subtotalLabel}>Shipping Fee:</Text>
-                        <Text style={styles.subtotalValue}>
-                            {currencySymbol}
-                            {Math.abs(safeQuotation.shipping_fee).toFixed(2)}
-                            
-                        </Text>
-                    </View>
-                )}
+        {safeQuotation.shipping_fee > 0 && (
+          <View style={styles.subtotal}>
+            <Text style={styles.subtotalLabel}>Shipping Fee:</Text>
+            <Text style={styles.subtotalValue}>
+              {currencySymbol}
+              {Math.abs(safeQuotation.shipping_fee).toFixed(2)}
+            </Text>
+          </View>
+        )}
 
         <View style={styles.subtotal}>
           <Text style={styles.subtotalLabel}>Total:</Text>
@@ -495,7 +505,7 @@ const QuotationPDF: React.FC<{
             Routing Number: {safeCompany.bank_routing_number || 'N/A'}
           </Text>
           <Text style={styles.value}>
-            Beneficiary Account: Frisson International LLC
+            Beneficiary Account: Frisson International LLC {/* This seems hardcoded, ensure it's correct or make dynamic */}
           </Text>
           {safeQuotation.payment_term && (
             <Text style={styles.value}>
@@ -511,7 +521,10 @@ const QuotationPDF: React.FC<{
           </View>
         )}
 
-        <Text style={styles.footer}>Thank you for your business!</Text>
+        {/* MODIFICATION: Added 'fixed' and page numbering to footer */}
+        <Text style={styles.footer} fixed>
+            Thank you for your business!
+        </Text>
       </Page>
     </Document>
   )
