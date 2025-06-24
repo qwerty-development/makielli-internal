@@ -24,7 +24,8 @@ import {
 	FaDownload,
 	FaInfoCircle,
 	FaSearch,
-	FaSpinner
+	FaSpinner,
+	FaExclamationTriangle
 } from 'react-icons/fa'
 import { generatePDF } from '@/utils/pdfGenerator'
 import { debounce } from 'lodash'
@@ -32,6 +33,7 @@ import { format } from 'date-fns'
 import SearchableSelect from '@/components/SearchableSelect'
 import { productFunctions } from '../../utils/functions/products'
 import { analyticsFunctions } from '../../utils/functions/analytics'
+
 interface LoadingStates {
 	isMainLoading: boolean
 	isPDFGenerating: boolean
@@ -71,8 +73,9 @@ interface Invoice {
 		| '100% after delivery' | '100% prepayment'
 	delivery_date: string
 	payment_info: PaymentInfoOption
-	shipping_fee: number // New field for shipping fee
+	shipping_fee: number
 }
+
 type PaymentInfoOption = 'frisson_llc' | 'frisson_sarl_chf' | 'frisson_sarl_usd'
 
 const PAYMENT_INFO_CONFIG = {
@@ -121,6 +124,152 @@ const PAYMENT_INFO_CONFIG = {
 	}
 }
 
+// Enhanced error handling for missing data
+interface ValidationResult {
+	isValid: boolean
+	errors: string[]
+	warnings: string[]
+}
+
+// Safe data access helpers
+const SafeDataAccess = {
+	getProduct: (products: Product[], productId: string): Product | null => {
+		try {
+			if (!productId || !products || !Array.isArray(products)) return null
+			return products.find(p => p?.id === productId) || null
+		} catch (error) {
+			console.error('Error finding product:', error)
+			return null
+		}
+	},
+
+	getVariant: (product: Product | null, variantId: string): ProductVariant | null => {
+		try {
+			if (!product || !variantId || !product.variants || !Array.isArray(product.variants)) return null
+			return product.variants.find(v => v?.id === variantId) || null
+		} catch (error) {
+			console.error('Error finding variant:', error)
+			return null
+		}
+	},
+
+	getClient: (clients: Client[], clientId: number): Client | null => {
+		try {
+			if (!clientId || !clients || !Array.isArray(clients)) return null
+			return clients.find(c => c?.client_id === clientId) || null
+		} catch (error) {
+			console.error('Error finding client:', error)
+			return null
+		}
+	},
+
+	getSupplier: (suppliers: Supplier[], supplierId: string): Supplier | null => {
+		try {
+			if (!supplierId || !suppliers || !Array.isArray(suppliers)) return null
+			return suppliers.find(s => s?.id === supplierId) || null
+		} catch (error) {
+			console.error('Error finding supplier:', error)
+			return null
+		}
+	},
+
+	formatVariantDisplay: (variant: ProductVariant | null): string => {
+		if (!variant) return 'Variant Not Found'
+		try {
+			const size = variant.size || 'Unknown Size'
+			const color = variant.color || 'Unknown Color'
+			return `${size} - ${color}`
+		} catch (error) {
+			console.error('Error formatting variant:', error)
+			return 'Invalid Variant Data'
+		}
+	}
+}
+
+// Enhanced validation functions
+const ValidationUtils = {
+	validateInvoiceProducts: (products: InvoiceProduct[], allProducts: Product[]): ValidationResult => {
+		const errors: string[] = []
+		const warnings: string[] = []
+
+		if (!products || !Array.isArray(products) || products.length === 0) {
+			errors.push('At least one product is required')
+			return { isValid: false, errors, warnings }
+		}
+
+		products.forEach((product, index) => {
+			if (!product.product_id) {
+				errors.push(`Product ${index + 1}: Missing product selection`)
+				return
+			}
+
+			if (!product.product_variant_id) {
+				errors.push(`Product ${index + 1}: Missing variant selection`)
+				return
+			}
+
+			if (!product.quantity || product.quantity <= 0) {
+				errors.push(`Product ${index + 1}: Quantity must be greater than 0`)
+				return
+			}
+
+			const parentProduct = SafeDataAccess.getProduct(allProducts, product.product_id)
+			if (!parentProduct) {
+				errors.push(`Product ${index + 1}: Product no longer exists (${product.product_id})`)
+				return
+			}
+
+			const variant = SafeDataAccess.getVariant(parentProduct, product.product_variant_id)
+			if (!variant) {
+				errors.push(`Product ${index + 1}: Selected variant no longer exists for "${parentProduct.name}" (${product.product_variant_id})`)
+				return
+			}
+
+			// Check if variant has sufficient stock for client invoices
+			if (variant.quantity < product.quantity) {
+				warnings.push(`Product ${index + 1}: "${parentProduct.name}" (${SafeDataAccess.formatVariantDisplay(variant)}) - Requested quantity (${product.quantity}) exceeds available stock (${variant.quantity})`)
+			}
+		})
+
+		return { isValid: errors.length === 0, errors, warnings }
+	},
+
+	validateInvoiceData: (invoice: Partial<Invoice>, isUpdate: boolean = false): ValidationResult => {
+		const errors: string[] = []
+		const warnings: string[] = []
+
+		if (!invoice.order_number?.trim()) {
+			errors.push('Order number is required')
+		}
+
+		if (!invoice.currency) {
+			errors.push('Currency is required')
+		}
+
+		if (!invoice.payment_term) {
+			errors.push('Payment terms are required')
+		}
+
+		if (!invoice.delivery_date) {
+			errors.push('Delivery date is required')
+		}
+
+		if (!invoice.payment_info) {
+			errors.push('Payment information is required')
+		}
+
+		if (invoice.shipping_fee && invoice.shipping_fee < 0) {
+			errors.push('Shipping fee cannot be negative')
+		}
+
+		if (!isUpdate && (!invoice.created_at)) {
+			errors.push('Invoice date is required')
+		}
+
+		return { isValid: errors.length === 0, errors, warnings }
+	}
+}
+
 const PaymentInfoDisplay: React.FC<{ option: PaymentInfoOption }> = ({ option }) => {
 	const config = PAYMENT_INFO_CONFIG[option]
 	const details: any = config.details
@@ -128,66 +277,85 @@ const PaymentInfoDisplay: React.FC<{ option: PaymentInfoOption }> = ({ option })
 	if (option === 'frisson_sarl_chf') {
 		return (
 			<div className='mt-4 text-sm'>
-				<p>
-					<strong>Intermediary Bank:</strong> {details.intermediaryBank || 'N/A'}
-				</p>
-				<p>
-					<strong>Intermediary SWIFT:</strong> {details.intermediarySwift || 'N/A'}
-				</p>
-				<p>
-					<strong>IBAN:</strong> {details.iban || 'N/A'} {details.ibanDetails || ''}
-				</p>
-				<p>
-					<strong>Beneficiary Bank:</strong> {details.beneficiaryBank || 'N/A'}
-				</p>
-				<p>
-					<strong>Beneficiary Account:</strong> {details.beneficiaryAccount || 'N/A'}{' '}
-					{details.beneficiaryAccountDetails || ''}
-				</p>
-				<p>
-					<strong>Beneficiary:</strong> {details.beneficiary || 'N/A'}
-				</p>
-				<p>
-					<strong>Account Number:</strong> {details.accountNumber || 'N/A'}
-				</p>
-				<p>
-					<strong>Routing Number:</strong> {details.routingNumber || 'N/A'}
-				</p>
+				<p><strong>Intermediary Bank:</strong> {details.intermediaryBank || 'N/A'}</p>
+				<p><strong>Intermediary SWIFT:</strong> {details.intermediarySwift || 'N/A'}</p>
+				<p><strong>IBAN:</strong> {details.iban || 'N/A'} {details.ibanDetails || ''}</p>
+				<p><strong>Beneficiary Bank:</strong> {details.beneficiaryBank || 'N/A'}</p>
+				<p><strong>Beneficiary Account:</strong> {details.beneficiaryAccount || 'N/A'} {details.beneficiaryAccountDetails || ''}</p>
+				<p><strong>Beneficiary:</strong> {details.beneficiary || 'N/A'}</p>
+				<p><strong>Account Number:</strong> {details.accountNumber || 'N/A'}</p>
+				<p><strong>Routing Number:</strong> {details.routingNumber || 'N/A'}</p>
 			</div>
 		)
 	}
 
 	return (
 		<div className='mt-4 text-sm'>
-			<p>
-				<strong>Bank:</strong> {details.bank || 'N/A'}
-			</p>
-			<p>
-				<strong>Bank Address:</strong>{' '}
+			<p><strong>Bank:</strong> {details.bank || 'N/A'}</p>
+			<p><strong>Bank Address:</strong>{' '}
 				{details.bankAddress
-					? details.bankAddress.split('\n').map((line: string | number | bigint | boolean | React.ReactElement<any, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | Promise<React.AwaitedReactNode> | null | undefined, i: React.Key | null | undefined) => (
-							<React.Fragment key={i}>
-								{line}
-								<br />
-							</React.Fragment>
+					? details.bankAddress.split('\n').map((line: string, i: number) => (
+							<React.Fragment key={i}>{line}<br /></React.Fragment>
 					  ))
 					: 'N/A'}
 			</p>
-			<p>
-				<strong>ABA:</strong> {details.aba || 'N/A'}
-			</p>
-			<p>
-				<strong>SWIFT:</strong> {details.swift || 'N/A'}
-			</p>
-			<p>
-				<strong>Account Name:</strong> {details.accountName || 'N/A'}
-			</p>
-			<p>
-				<strong>Account Number:</strong> {details.accountNumber || 'N/A'}
-			</p>
-			<p>
-				<strong>Routing Number:</strong> {details.routingNumber || 'N/A'}
-			</p>
+			<p><strong>ABA:</strong> {details.aba || 'N/A'}</p>
+			<p><strong>SWIFT:</strong> {details.swift || 'N/A'}</p>
+			<p><strong>Account Name:</strong> {details.accountName || 'N/A'}</p>
+			<p><strong>Account Number:</strong> {details.accountNumber || 'N/A'}</p>
+			<p><strong>Routing Number:</strong> {details.routingNumber || 'N/A'}</p>
+		</div>
+	)
+}
+
+// Enhanced Error Display Component
+const ErrorDisplay: React.FC<{ 
+	errors: string[]
+	warnings: string[]
+	onDismiss?: () => void
+}> = ({ errors, warnings, onDismiss }) => {
+	if (errors.length === 0 && warnings.length === 0) return null
+
+	return (
+		<div className="mb-4 space-y-2">
+			{errors.length > 0 && (
+				<div className="bg-red-50 border border-red-200 rounded-md p-4">
+					<div className="flex justify-between items-start">
+						<div className="flex">
+							<FaExclamationTriangle className="text-red-400 mt-1 mr-2" />
+							<div>
+								<h3 className="text-sm font-medium text-red-800">Please fix the following errors:</h3>
+								<ul className="list-disc list-inside text-sm text-red-700 mt-1 space-y-1">
+									{errors.map((error, index) => (
+										<li key={index}>{error}</li>
+									))}
+								</ul>
+							</div>
+						</div>
+						{onDismiss && (
+							<button onClick={onDismiss} className="text-red-400 hover:text-red-600">
+								<FaTrash className="h-4 w-4" />
+							</button>
+						)}
+					</div>
+				</div>
+			)}
+			
+			{warnings.length > 0 && (
+				<div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+					<div className="flex">
+						<FaInfoCircle className="text-yellow-400 mt-1 mr-2" />
+						<div>
+							<h3 className="text-sm font-medium text-yellow-800">Warnings:</h3>
+							<ul className="list-disc list-inside text-sm text-yellow-700 mt-1 space-y-1">
+								{warnings.map((warning, index) => (
+									<li key={index}>{warning}</li>
+								))}
+							</ul>
+						</div>
+					</div>
+				</div>
+			)}
 		</div>
 	)
 }
@@ -220,7 +388,12 @@ const InvoicesPage: React.FC = () => {
 		isInvoiceDeleting: false,
 		isFileUploading: false
 	})
-const [orderNumberSearch, setOrderNumberSearch] = useState<string>('');
+
+	// Enhanced state for validation
+	const [validationErrors, setValidationErrors] = useState<string[]>([])
+	const [validationWarnings, setValidationWarnings] = useState<string[]>([])
+	
+	const [orderNumberSearch, setOrderNumberSearch] = useState<string>('')
 	const [editingProductIndex, setEditingProductIndex] = useState<number | null>(null)
 	const [newInvoice, setNewInvoice] = useState<Partial<Invoice>>({
 		created_at: new Date().toISOString(),
@@ -237,7 +410,7 @@ const [orderNumberSearch, setOrderNumberSearch] = useState<string>('');
 		payment_term: '30% deposit 70% before shipping',
 		delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(),
 		payment_info: 'frisson_llc',
-        shipping_fee: 0 // Initialize shipping fee with 0
+		shipping_fee: 0
 	})
 	const [selectedFile, setSelectedFile] = useState<File | null>(null)
 	const [uploadingFile, setUploadingFile] = useState(false)
@@ -276,7 +449,7 @@ const [orderNumberSearch, setOrderNumberSearch] = useState<string>('');
 		filterStartDate,
 		filterEndDate,
 		filterEntity,
-    orderNumberSearch
+		orderNumberSearch
 	])
 
 	useEffect(() => {
@@ -291,16 +464,33 @@ const [orderNumberSearch, setOrderNumberSearch] = useState<string>('');
 	}, [showModal])
 
 	useEffect(() => {
-		const filtered = products.filter(product =>
-			product.name.toLowerCase().includes(productSearch.toLowerCase())
-		)
-		setFilteredProducts(filtered)
+		try {
+			const filtered = products.filter(product =>
+				product?.name?.toLowerCase().includes(productSearch.toLowerCase())
+			)
+			setFilteredProducts(filtered)
+		} catch (error) {
+			console.error('Error filtering products:', error)
+			setFilteredProducts([])
+		}
 	}, [productSearch, products])
 
-  const handleOrderNumberSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-  setOrderNumberSearch(e.target.value);
-  setCurrentPage(1); // Reset to first page when searching
-};
+	// Enhanced validation when products change
+	useEffect(() => {
+		if (newInvoice.products && newInvoice.products.length > 0) {
+			const validation = ValidationUtils.validateInvoiceProducts(newInvoice.products, products)
+			setValidationErrors(validation.errors)
+			setValidationWarnings(validation.warnings)
+		} else {
+			setValidationErrors([])
+			setValidationWarnings([])
+		}
+	}, [newInvoice.products, products])
+
+	const handleOrderNumberSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+		setOrderNumberSearch(e.target.value)
+		setCurrentPage(1)
+	}
 
 	const handleError = (error: any, context: string) => {
 		console.error(`Error in ${context}:`, error)
@@ -308,7 +498,6 @@ const [orderNumberSearch, setOrderNumberSearch] = useState<string>('');
 		toast.error(errorMessage)
 	}
 
-	// Loading state helper
 	const updateLoadingState = (key: keyof LoadingStates, value: boolean) => {
 		setLoadingStates(prev => ({ ...prev, [key]: value }))
 	}
@@ -345,91 +534,91 @@ const [orderNumberSearch, setOrderNumberSearch] = useState<string>('');
 		return id
 	}
 
-const fetchInvoices = async () => {
-  updateLoadingState('isMainLoading', true)
-  const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
-  try {
-    let query = supabase.from(table).select('*', { count: 'exact' })
+	const fetchInvoices = async () => {
+		updateLoadingState('isMainLoading', true)
+		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
+		try {
+			let query = supabase.from(table).select('*', { count: 'exact' })
 
-    if (filterStartDate) {
-      query = query.gte('created_at', filterStartDate.toISOString())
-    }
-    if (filterEndDate) {
-      query = query.lte('created_at', filterEndDate.toISOString())
-    }
-    if (filterEntity) {
-      const idField = activeTab === 'client' ? 'client_id' : 'supplier_id'
-      query = query.eq(idField, filterEntity)
-    }
-    if (orderNumberSearch) {
-      query = query.ilike('order_number', `%${orderNumberSearch}%`);
-    }
+			if (filterStartDate) {
+				query = query.gte('created_at', filterStartDate.toISOString())
+			}
+			if (filterEndDate) {
+				query = query.lte('created_at', filterEndDate.toISOString())
+			}
+			if (filterEntity) {
+				const idField = activeTab === 'client' ? 'client_id' : 'supplier_id'
+				query = query.eq(idField, filterEntity)
+			}
+			if (orderNumberSearch) {
+				query = query.ilike('order_number', `%${orderNumberSearch}%`)
+			}
 
-    // Handle sorting by order_number or normal fields
-    if (sortField !== 'entity_name') {
-      query = query.order(sortField, { ascending: sortOrder === 'asc' })
-    }
+			if (sortField !== 'entity_name') {
+				query = query.order(sortField, { ascending: sortOrder === 'asc' })
+			}
 
-    const { data, error, count } = await query.range(
-      (currentPage - 1) * itemsPerPage,
-      currentPage * itemsPerPage - 1
-    )
+			const { data, error, count } = await query.range(
+				(currentPage - 1) * itemsPerPage,
+				currentPage * itemsPerPage - 1
+			)
 
-    // If sorting by entity_name, we need to do a post-query sort
-    let sortedData = data || []
-    if (sortField === 'entity_name') {
-      sortedData = sortedData.sort((a, b) => {
-        const entityA = activeTab === 'client'
-          ? clients.find(client => client.client_id === a.client_id)?.name || ''
-          : suppliers.find(supplier => supplier.id === a.supplier_id)?.name || ''
+			let sortedData = data || []
+			if (sortField === 'entity_name') {
+				sortedData = sortedData.sort((a, b) => {
+					const entityA = activeTab === 'client'
+						? SafeDataAccess.getClient(clients, a.client_id)?.name || ''
+						: SafeDataAccess.getSupplier(suppliers, a.supplier_id)?.name || ''
 
-        const entityB = activeTab === 'client'
-          ? clients.find(client => client.client_id === b.client_id)?.name || ''
-          : suppliers.find(supplier => supplier.id === b.supplier_id)?.name || ''
+					const entityB = activeTab === 'client'
+						? SafeDataAccess.getClient(clients, b.client_id)?.name || ''
+						: SafeDataAccess.getSupplier(suppliers, b.supplier_id)?.name || ''
 
-        return sortOrder === 'asc'
-          ? entityA.localeCompare(entityB)
-          : entityB.localeCompare(entityA)
-      })
-    }
+					return sortOrder === 'asc'
+						? entityA.localeCompare(entityB)
+						: entityB.localeCompare(entityA)
+				})
+			}
 
-    setInvoices(sortedData)
-    setTotalInvoices(count || 0)
-  } catch (error) {
-    handleError(error, 'fetch invoices')
-  } finally {
-    updateLoadingState('isMainLoading', false)
-  }
-}
+			setInvoices(sortedData)
+			setTotalInvoices(count || 0)
+		} catch (error) {
+			handleError(error, 'fetch invoices')
+		} finally {
+			updateLoadingState('isMainLoading', false)
+		}
+	}
 
 	const fetchClients = async () => {
-		const { data, error } = await supabase.from('Clients').select('*').order('name', { ascending: true })
-		if (error) {
-			toast.error(`Error fetching clients: ${error.message}`)
-		} else {
+		try {
+			const { data, error } = await supabase.from('Clients').select('*').order('name', { ascending: true })
+			if (error) throw error
 			setClients(data || [])
+		} catch (error) {
+			handleError(error, 'fetch clients')
 		}
 	}
 
 	const fetchSuppliers = async () => {
-		const { data, error } = await supabase.from('Suppliers').select('*')
-		if (error) {
-			toast.error(`Error fetching suppliers: ${error.message}`)
-		} else {
+		try {
+			const { data, error } = await supabase.from('Suppliers').select('*')
+			if (error) throw error
 			setSuppliers(data || [])
+		} catch (error) {
+			handleError(error, 'fetch suppliers')
 		}
 	}
 
 	const fetchProducts = async () => {
-		const { data, error } = await supabase.from('Products').select(`
-      *,
-      variants:ProductVariants(*)
-    `)
-
-		if (error) {
-			toast.error(`Error fetching products: ${error.message}`)
-		} else {
+		try {
+			const { data, error } = await supabase.from('Products').select(`
+				*,
+				variants:ProductVariants(*)
+			`)
+			if (error) throw error
 			setProducts(data || [])
+		} catch (error) {
+			handleError(error, 'fetch products')
 		}
 	}
 
@@ -438,219 +627,206 @@ const fetchInvoices = async () => {
 		discounts: { [productId: string]: number },
 		isClientInvoice: boolean,
 		includeVAT: boolean,
-        shippingFee: number = 0
+		shippingFee: number = 0
 	) => {
 		const subtotal = invoiceProducts.reduce((total, invoiceProduct) => {
-			const product = products.find(p => p.id === invoiceProduct.product_id)
-			if (!product) {
-				console.warn(`Product not found: ${invoiceProduct.product_id}`)
+			try {
+				const product = SafeDataAccess.getProduct(products, invoiceProduct.product_id)
+				if (!product) {
+					console.warn(`Product not found: ${invoiceProduct.product_id}`)
+					return total
+				}
+
+				const unitPrice = isClientInvoice ? (product.price || 0) : (product.cost || 0)
+				const discount = discounts[invoiceProduct.product_id] || 0
+				const discountedPrice = Math.max(0, unitPrice - discount)
+				return total + discountedPrice * (invoiceProduct.quantity || 0)
+			} catch (error) {
+				console.error('Error calculating product total:', error)
 				return total
 			}
-
-			const unitPrice = isClientInvoice ? product.price : product.cost
-			const discount = discounts[invoiceProduct.product_id] || 0
-			const discountedPrice = Math.max(0, unitPrice - discount) // Prevent negative prices
-			return total + discountedPrice * invoiceProduct.quantity
 		}, 0)
 
 		const vatAmount = includeVAT ? subtotal * 0.11 : 0
-		// Add shipping fee to total price calculation
 		const totalPrice = subtotal + vatAmount + shippingFee
 
 		return { subtotal, vatAmount, totalPrice }
 	}
 
-const handleCreateInvoice = async () => {
-  const isUpdate = Boolean(newInvoice.id)
-  updateLoadingState(
-    isUpdate ? 'isInvoiceUpdating' : 'isInvoiceCreating',
-    true
-  )
+	const handleCreateInvoice = async () => {
+		const isUpdate = Boolean(newInvoice.id)
+		updateLoadingState(
+			isUpdate ? 'isInvoiceUpdating' : 'isInvoiceCreating',
+			true
+		)
 
-  const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
-  const isClientInvoice = activeTab === 'client'
+		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
+		const isClientInvoice = activeTab === 'client'
 
-  try {
-    // Validate entity ID
-    const entityId: any = getEntityId(newInvoice)
+		try {
+			// Enhanced validation
+			const productValidation = ValidationUtils.validateInvoiceProducts(newInvoice.products || [], products)
+			const invoiceValidation = ValidationUtils.validateInvoiceData(newInvoice, isUpdate)
 
-    // Ensure all products have valid variant IDs
-    if (newInvoice.products?.some(p => !p.product_variant_id)) {
-      toast.error("All products must have a valid variant selected.")
-      return
-    }
+			const allErrors = [...productValidation.errors, ...invoiceValidation.errors]
+			const allWarnings = [...productValidation.warnings, ...invoiceValidation.warnings]
 
-    // If delivery_date is missing, default to one month from now
-    if (!newInvoice.delivery_date) {
-      setNewInvoice(prev => ({
-        ...prev,
-        delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString()
-      }))
-    }
+			if (allErrors.length > 0) {
+				setValidationErrors(allErrors)
+				setValidationWarnings(allWarnings)
+				toast.error('Please fix all errors before creating the invoice')
+				return
+			}
 
-    // Validate payment_info field
-    if (!newInvoice.payment_info) {
-      setNewInvoice(prev => ({
-        ...prev,
-        payment_info: 'frisson_llc'
-      }))
-    }
+			// Show warnings but allow creation
+			if (allWarnings.length > 0) {
+				const proceed = window.confirm(
+					`There are warnings with this invoice:\n\n${allWarnings.join('\n')}\n\nDo you want to continue?`
+				)
+				if (!proceed) return
+			}
 
-    // Ensure shipping_fee is a number
-    const shippingFee = Number(newInvoice.shipping_fee) || 0
+			const entityId: any = getEntityId(newInvoice)
+			const shippingFee = Number(newInvoice.shipping_fee) || 0
 
-    const { subtotal, vatAmount, totalPrice } = calculateTotalPrice(
-      newInvoice.products || [],
-      newInvoice.discounts || {},
-      isClientInvoice,
-      newInvoice.include_vat || false,
-      shippingFee
-    )
+			const { subtotal, vatAmount, totalPrice } = calculateTotalPrice(
+				newInvoice.products || [],
+				newInvoice.discounts || {},
+				isClientInvoice,
+				newInvoice.include_vat || false,
+				shippingFee
+			)
 
-    // For supplier invoices, always treat as regular (not return)
-    const isReturnInvoice = isClientInvoice ? (newInvoice.type === 'return') : false;
+			const isReturnInvoice = isClientInvoice ? (newInvoice.type === 'return') : false
+			const finalTotalPrice = isReturnInvoice ? -Math.abs(totalPrice) : Math.abs(totalPrice)
+			const finalVatAmount = isReturnInvoice ? -Math.abs(vatAmount) : Math.abs(vatAmount)
 
-    const finalTotalPrice = isReturnInvoice
-      ? -Math.abs(totalPrice)
-      : Math.abs(totalPrice);
+			let invoiceData: any = {
+				...newInvoice,
+				shipping_fee: shippingFee,
+				total_price: finalTotalPrice,
+				remaining_amount: finalTotalPrice,
+				vat_amount: finalVatAmount,
+				[isClientInvoice ? 'client_id' : 'supplier_id']: entityId,
+				currency: newInvoice.currency || 'usd',
+				payment_term: newInvoice.payment_term,
+				delivery_date: newInvoice.delivery_date,
+				payment_info: newInvoice.payment_info || 'frisson_llc'
+			}
 
-    const finalVatAmount = isReturnInvoice
-      ? -Math.abs(vatAmount)
-      : Math.abs(vatAmount);
+			if (!isClientInvoice) {
+				delete invoiceData.type
+			}
 
-    // Create base invoice data
-    let invoiceData: any = {
-      ...newInvoice,
-      shipping_fee: shippingFee, // Ensure shipping_fee is included
-      total_price: finalTotalPrice,
-      remaining_amount: finalTotalPrice,
-      vat_amount: finalVatAmount,
-      [isClientInvoice ? 'client_id' : 'supplier_id']: entityId,
-      currency: newInvoice.currency || 'usd',
-      payment_term: newInvoice.payment_term,
-      delivery_date: newInvoice.delivery_date,
-      payment_info: newInvoice.payment_info || 'frisson_llc'
-    };
+			if (newInvoice.id && originalInvoiceData) {
+				const { error: updateError } = await supabase
+					.from(table)
+					.update(invoiceData)
+					.eq('id', newInvoice.id)
 
-    // Remove type field for supplier invoices
-    if (!isClientInvoice) {
-      delete invoiceData.type;
-    }
+				if (updateError) throw updateError
 
-    if (newInvoice.id && originalInvoiceData) {
-        // Update existing invoice
-        const { error: updateError } = await supabase
-            .from(table)
-            .update(invoiceData)
-            .eq('id', newInvoice.id)
+				await updateProductQuantities(
+					originalInvoiceData.products,
+					isClientInvoice,
+					originalInvoiceData.type === 'return',
+					true,
+					newInvoice.id
+				)
+				await updateProductQuantities(
+					newInvoice.products || [],
+					isClientInvoice,
+					newInvoice.type === 'return',
+					false,
+					newInvoice.id
+				)
 
-        if (updateError) throw updateError
+				const oldAmount = originalInvoiceData.total_price || 0
+				const balanceChange = finalTotalPrice - oldAmount
+				await updateEntityBalance(balanceChange, entityId)
 
-        // Update quantities and balance
-        await updateProductQuantities(
-            originalInvoiceData.products,
-            isClientInvoice,
-            originalInvoiceData.type === 'return',
-            true,
-            newInvoice.id
-        )
-        await updateProductQuantities(
-            newInvoice.products || [],
-            isClientInvoice,
-            newInvoice.type === 'return',
-            false,
-            newInvoice.id
-        )
+				toast.success('Invoice updated successfully')
+				setShowModal(false)
+				resetInvoiceState()
+				window.location.reload()
+				return
+			}
 
-        const oldAmount = originalInvoiceData.total_price || 0
-        const balanceChange = finalTotalPrice - oldAmount
-        await updateEntityBalance(balanceChange, entityId)
+			const { error: createError } = await supabase
+				.from(table)
+				.insert(invoiceData)
+				.single()
 
-        toast.success('Invoice updated successfully')
-        setShowModal(false)
-        resetInvoiceState()
-        window.location.reload()
-        return
-    }
-    const { error: createError } = await supabase
-        .from(table)
-        .insert(invoiceData)
-        .single()
+			if (createError) throw createError
 
-    if (createError) throw createError
+			await updateProductQuantities(
+				newInvoice.products || [],
+				isClientInvoice,
+				newInvoice.type === 'return',
+				false,
+				invoiceData.id
+			)
+			await updateEntityBalance(finalTotalPrice, entityId)
 
+			toast.success(`Invoice ${isUpdate ? 'updated' : 'created'} successfully`)
+			setShowModal(false)
+			resetInvoiceState()
+			if (isUpdate) {
+				window.location.reload()
+			} else {
+				fetchInvoices()
+			}
+		} catch (error) {
+			handleError(error, isUpdate ? 'update invoice' : 'create invoice')
+		} finally {
+			updateLoadingState(
+				isUpdate ? 'isInvoiceUpdating' : 'isInvoiceCreating',
+				false
+			)
+		}
+	}
 
+	const updateProductQuantities = async (
+		products: any,
+		isClientInvoice: boolean,
+		isReturn: boolean,
+		isReversal: boolean = false,
+		invoiceId: number = 0
+	) => {
+		const isReturnInvoice = isClientInvoice ? isReturn : false
 
-    await updateProductQuantities(
-        newInvoice.products || [],
-        isClientInvoice,
-        newInvoice.type === 'return',
-        false,
-        invoiceData.id
-    )
-    await updateEntityBalance(finalTotalPrice, entityId)
+		for (const product of products) {
+			try {
+				let quantityChange = isClientInvoice ? -product.quantity : product.quantity
 
-    toast.success(`Invoice ${isUpdate ? 'updated' : 'created'} successfully`)
-    setShowModal(false)
-    resetInvoiceState()
-    if (isUpdate) {
-        window.location.reload()
-    } else {
-        fetchInvoices()
-    }
-  } catch (error) {
-    handleError(error, isUpdate ? 'update invoice' : 'create invoice')
-  } finally {
-    updateLoadingState(
-        isUpdate ? 'isInvoiceUpdating' : 'isInvoiceCreating',
-        false
-    )
-  }
-}
+				if (isReturnInvoice) {
+					quantityChange = -quantityChange
+				}
 
-const updateProductQuantities = async (
-  products: InvoiceProduct[],
-  isClientInvoice: boolean,
-  isReturn: boolean,
-  isReversal: boolean = false,
-  invoiceId: number = 0
-) => {
-  // For supplier invoices, always treat as regular (not return)
-  const isReturnInvoice = isClientInvoice ? isReturn : false;
+				if (isReversal) {
+					quantityChange = -quantityChange
+				}
 
-  for (const product of products) {
-    try {
-      let quantityChange = isClientInvoice
-        ? -product.quantity
-        : product.quantity
-
-      if (isReturnInvoice) {
-        quantityChange = -quantityChange
-      }
-
-      if (isReversal) {
-        quantityChange = -quantityChange
-      }
-
-      // Use the product utility function instead of direct RPC call
-      await productFunctions.updateProductVariantQuantity(
-        product.product_variant_id,
-        quantityChange,
-        isClientInvoice ? 'client_invoice' : 'supplier_invoice',
-        invoiceId.toString(),
-        isReturnInvoice
-          ? 'Return invoice adjustment'
-          : isReversal
-            ? 'Invoice reversal adjustment'
-            : 'Regular invoice adjustment'
-      )
-    } catch (error: any) {
-      throw new Error(
-        `Error updating quantity for product ${product.product_id}: ${error.message}`
-      )
-    }
-  }
-}
+				await productFunctions.updateProductVariantQuantity(
+					product.product_variant_id,
+					quantityChange,
+					isClientInvoice ? 'client_invoice' : 'supplier_invoice',
+					invoiceId.toString(),
+					isReturnInvoice
+						? 'Return invoice adjustment'
+						: isReversal
+							? 'Invoice reversal adjustment'
+							: 'Regular invoice adjustment'
+				)
+			} catch (error: any) {
+				const parentProduct = SafeDataAccess.getProduct(products, product.product_id)
+				const productName = parentProduct?.name || 'Unknown Product'
+				throw new Error(
+					`Error updating quantity for product "${productName}": ${error.message}`
+				)
+			}
+		}
+	}
 
 	const updateEntityBalance = async (
 		amount: number,
@@ -726,18 +902,19 @@ const updateProductQuantities = async (
 
 			const isReturn = invoiceData.type === 'return'
 			const quantityMultiplier = isReturn ? -1 : 1
-await Promise.all(
-  (invoiceData.products || []).map(
-    (product: { product_variant_id: any; quantity: number }) =>
-      productFunctions.updateProductVariantQuantity(
-        product.product_variant_id,
-        quantityMultiplier * product.quantity,
-        isClientInvoice ? 'client_invoice' : 'supplier_invoice',
-        id.toString(),
-        'Invoice deletion - inventory adjustment'
-      )
-  )
-)
+			
+			await Promise.all(
+				(invoiceData.products || []).map(
+					(product: { product_variant_id: any; quantity: number }) =>
+						productFunctions.updateProductVariantQuantity(
+							product.product_variant_id,
+							quantityMultiplier * product.quantity,
+							isClientInvoice ? 'client_invoice' : 'supplier_invoice',
+							id.toString(),
+							'Invoice deletion - inventory adjustment'
+						)
+				)
+			)
 
 			const { error: deleteError } = await supabase
 				.from(table)
@@ -792,7 +969,7 @@ await Promise.all(
 				discounts: { ...(currentInvoice.discounts || {}) },
 				type: currentInvoice.type,
 				payment_info: currentInvoice.payment_info || 'frisson_llc',
-                shipping_fee: currentInvoice.shipping_fee || 0 // Set to 0 if undefined
+				shipping_fee: currentInvoice.shipping_fee || 0
 			})
 
 			const updatedInvoice = {
@@ -815,7 +992,7 @@ await Promise.all(
 				payment_info: currentInvoice.payment_info || 'frisson_llc',
 				client_id: isClientInvoice ? entityId : undefined,
 				supplier_id: !isClientInvoice ? entityId : undefined,
-                shipping_fee: currentInvoice.shipping_fee || 0 // Set to 0 if undefined
+				shipping_fee: currentInvoice.shipping_fee || 0
 			}
 
 			setNewInvoice(updatedInvoice)
@@ -837,42 +1014,68 @@ await Promise.all(
 	}
 
 	const handleAddProduct = (product: Product) => {
-		if (!product.variants || product.variants.length === 0) {
-			toast.error("This product has no available variants.")
-			return
-		}
-		setSelectedProduct(product)
-		setSelectedVariants([
-			{
-				product_id: product.id,
-				product_variant_id: product.variants[0].id,
-				quantity: 1,
-		 note: product.description || ''
+		try {
+			if (!product.variants || product.variants.length === 0) {
+				toast.error(`Product "${product.name}" has no available variants.`)
+				return
 			}
-		])
-		if (!newInvoice.discounts?.[product.id]) {
-			setNewInvoice(prev => ({
-				...prev,
-				discounts: { ...prev.discounts, [product.id]: 0 }
-			}))
+
+			// Check if product has valid variants
+			const activeVariants = product.variants.filter(v => v && v.id)
+			if (activeVariants.length === 0) {
+				toast.error(`Product "${product.name}" has no valid variants available.`)
+				return
+			}
+
+			setSelectedProduct(product)
+			setSelectedVariants([
+				{
+					product_id: product.id,
+					product_variant_id: activeVariants[0].id,
+					quantity: 1,
+					note: product.description || ''
+				}
+			])
+
+			if (!newInvoice.discounts?.[product.id]) {
+				setNewInvoice(prev => ({
+					...prev,
+					discounts: { ...prev.discounts, [product.id]: 0 }
+				}))
+			}
+		} catch (error) {
+			console.error('Error adding product:', error)
+			toast.error('Failed to add product. Please try again.')
 		}
 	}
 
 	const handleAddVariant = () => {
-		if (selectedProduct) {
-			if (!selectedProduct.variants || selectedProduct.variants.length === 0) {
-				toast.error("This product has no available variants.")
-				return
-			}
-			setSelectedVariants([
-				...selectedVariants,
-				{
-					product_id: selectedProduct.id,
-					product_variant_id: selectedProduct.variants[0].id,
-					quantity: 1,
-					note: selectedProduct.description || ''
+		try {
+			if (selectedProduct) {
+				if (!selectedProduct.variants || selectedProduct.variants.length === 0) {
+					toast.error(`Product "${selectedProduct.name}" has no available variants.`)
+					return
 				}
-			])
+
+				const activeVariants = selectedProduct.variants.filter(v => v && v.id)
+				if (activeVariants.length === 0) {
+					toast.error(`Product "${selectedProduct.name}" has no valid variants available.`)
+					return
+				}
+
+				setSelectedVariants([
+					...selectedVariants,
+					{
+						product_id: selectedProduct.id,
+						product_variant_id: activeVariants[0].id,
+						quantity: 1,
+						note: selectedProduct.description || ''
+					}
+				])
+			}
+		} catch (error) {
+			console.error('Error adding variant:', error)
+			toast.error('Failed to add variant. Please try again.')
 		}
 	}
 
@@ -886,80 +1089,96 @@ await Promise.all(
 		field: keyof InvoiceProduct,
 		value: string | number
 	) => {
-		const updatedVariants = [...selectedVariants]
-		updatedVariants[index] = { ...updatedVariants[index], [field]: value }
-		setSelectedVariants(updatedVariants)
+		try {
+			const updatedVariants = [...selectedVariants]
+			updatedVariants[index] = { ...updatedVariants[index], [field]: value }
+			setSelectedVariants(updatedVariants)
+		} catch (error) {
+			console.error('Error updating variant:', error)
+			toast.error('Failed to update variant. Please try again.')
+		}
 	}
 
 	const handleDiscountChange = (productId: string, discount: number) => {
-		const product = products.find(p => p.id === productId)
-		const maxDiscount = activeTab === 'client' ? product?.price : product?.cost
+		try {
+			const product = SafeDataAccess.getProduct(products, productId)
+			const maxDiscount = activeTab === 'client' ? (product?.price || 0) : (product?.cost || 0)
 
-		if (discount < 0) discount = 0
-		if (maxDiscount !== undefined && discount > maxDiscount)
-			discount = maxDiscount
-		setNewInvoice(prev => ({
-			...prev,
-			discounts: { ...prev.discounts, [productId]: discount }
-		}))
+			if (discount < 0) discount = 0
+			if (maxDiscount && discount > maxDiscount) discount = maxDiscount
 
-		const isClientInvoice = activeTab === 'client'
-		const { totalPrice, vatAmount } = calculateTotalPrice(
-			newInvoice.products || [],
-			{ ...newInvoice.discounts, [productId]: discount },
-			isClientInvoice,
-			newInvoice.include_vat || false,
-            newInvoice.shipping_fee || 0
-		)
-		setNewInvoice(prev => ({
-			...prev,
-			total_price: totalPrice,
-			vat_amount: vatAmount
-		}))
+			setNewInvoice(prev => ({
+				...prev,
+				discounts: { ...prev.discounts, [productId]: discount }
+			}))
+
+			const isClientInvoice = activeTab === 'client'
+			const { totalPrice, vatAmount } = calculateTotalPrice(
+				newInvoice.products || [],
+				{ ...newInvoice.discounts, [productId]: discount },
+				isClientInvoice,
+				newInvoice.include_vat || false,
+				newInvoice.shipping_fee || 0
+			)
+			setNewInvoice(prev => ({
+				...prev,
+				total_price: totalPrice,
+				vat_amount: vatAmount
+			}))
+		} catch (error) {
+			console.error('Error updating discount:', error)
+			toast.error('Failed to update discount. Please try again.')
+		}
 	}
 
-    // Handler for shipping fee changes
-    const handleShippingFeeChange = (value: number) => {
-        // Ensure value is valid
-        const fee = value >= 0 ? value : 0;
-        
-        // Update the invoice state
-        setNewInvoice(prev => {
-            // Recalculate total with the new shipping fee
-            const isClientInvoice = activeTab === 'client';
-            const { totalPrice, vatAmount } = calculateTotalPrice(
-                prev.products || [],
-                prev.discounts || {},
-                isClientInvoice,
-                prev.include_vat || false,
-                fee
-            );
-            
-            return {
-                ...prev,
-                shipping_fee: fee,
-                total_price: totalPrice,
-                vat_amount: vatAmount
-            };
-        });
-    }
+	const handleShippingFeeChange = (value: number) => {
+		try {
+			const fee = value >= 0 ? value : 0
+			
+			setNewInvoice(prev => {
+				const isClientInvoice = activeTab === 'client'
+				const { totalPrice, vatAmount } = calculateTotalPrice(
+					prev.products || [],
+					prev.discounts || {},
+					isClientInvoice,
+					prev.include_vat || false,
+					fee
+				)
+				
+				return {
+					...prev,
+					shipping_fee: fee,
+					total_price: totalPrice,
+					vat_amount: vatAmount
+				}
+			})
+		} catch (error) {
+			console.error('Error updating shipping fee:', error)
+			toast.error('Failed to update shipping fee. Please try again.')
+		}
+	}
 
 	const handleRemoveProduct = (index: number) => {
-		const updatedProducts = newInvoice.products?.filter((_, i) => i !== index)
-		const isClientInvoice = activeTab === 'client'
-		const { totalPrice, vatAmount } = calculateTotalPrice(
-			updatedProducts || [],
-			newInvoice.discounts || {},
-			isClientInvoice,
-			newInvoice.include_vat || false,
-            newInvoice.shipping_fee || 0
-		)
-		setNewInvoice({
-			...newInvoice,
-			products: updatedProducts,
-			total_price: totalPrice,
-			vat_amount: vatAmount
-		})
+		try {
+			const updatedProducts = newInvoice.products?.filter((_, i) => i !== index)
+			const isClientInvoice = activeTab === 'client'
+			const { totalPrice, vatAmount } = calculateTotalPrice(
+				updatedProducts || [],
+				newInvoice.discounts || {},
+				isClientInvoice,
+				newInvoice.include_vat || false,
+				newInvoice.shipping_fee || 0
+			)
+			setNewInvoice({
+				...newInvoice,
+				products: updatedProducts,
+				total_price: totalPrice,
+				vat_amount: vatAmount
+			})
+		} catch (error) {
+			console.error('Error removing product:', error)
+			toast.error('Failed to remove product. Please try again.')
+		}
 	}
 
 	const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -972,72 +1191,48 @@ await Promise.all(
 		updateLoadingState('isEmailSending', true)
 
 		try {
-			const recipientEmail =
-				activeTab === 'client'
-					? clients.find(client => client.client_id === invoice.client_id)?.email
-					: suppliers.find(supplier => supplier.id === invoice.supplier_id)?.email
+			const entity = activeTab === 'client'
+				? SafeDataAccess.getClient(clients, invoice.client_id || 0)
+				: SafeDataAccess.getSupplier(suppliers, invoice.supplier_id || '')
 
-			const recipientName =
-				activeTab === 'client'
-					? clients.find(client => client.client_id === invoice.client_id)?.name
-					: suppliers.find(supplier => supplier.id === invoice.supplier_id)?.name
-
-			if (!recipientEmail || !recipientName) {
+			if (!entity?.email || !entity?.name) {
 				throw new Error('Recipient information not found')
 			}
 
 			const productsWithDetails = invoice.products?.map(product => {
-				const parentProduct = products.find(p => p.id === product.product_id)
-				const variant = parentProduct?.variants.find(
-					v => v.id === product.product_variant_id
-				)
-		const sizeOptions = [
-  'OS',
-  'XXS',
-  'XS',
-  'S',
-  'S/M',
-  'M',
-  'M/L',
-  'L',
-  'XL',
-  '2XL',
-  '3XL',
-  '36',
-  '38',
-  '40',
-  '42',
-  '44',
-  '46',
-  '48',
-  '50',
-  '52',
-  '54',
-  '56',
-  '58'
-]
+				const parentProduct = SafeDataAccess.getProduct(products, product.product_id)
+				const variant = SafeDataAccess.getVariant(parentProduct, product.product_variant_id)
+				
+				const sizeOptions = [
+					'OS', 'XXS', 'XS', 'S', 'S/M', 'M', 'M/L', 'L', 'XL', '2XL', '3XL',
+					'36', '38', '40', '42', '44', '46', '48', '50', '52', '54', '56', '58'
+				]
+				
 				const sizes = sizeOptions.reduce((acc: any, size: any) => {
 					acc[size] = 0
 					return acc
 				}, {})
+				
 				if (variant) {
 					sizes[variant.size] = product.quantity
 				}
+				
 				return {
 					product_variant_id: product.product_variant_id,
 					quantity: product.quantity,
 					note: product.note,
-					name: parentProduct?.name || 'N/A',
-					color: variant?.color || 'N/A',
+					name: parentProduct?.name || 'Product Not Found',
+					color: variant?.color || 'Variant Not Found',
 					sizes: sizes,
-					unitPrice: activeTab === 'client' ? parentProduct?.price : parentProduct?.cost,
+					unitPrice: activeTab === 'client' ? (parentProduct?.price || 0) : (parentProduct?.cost || 0),
 					image: parentProduct?.photo || ''
 				}
 			}) || []
+
 			const invoiceData = {
 				...invoice,
 				products: productsWithDetails,
-				[activeTab === 'client' ? 'client_name' : 'supplier_name']: recipientName
+				[activeTab === 'client' ? 'client_name' : 'supplier_name']: entity.name
 			}
 
 			const response = await fetch('/api/send-invoice-email', {
@@ -1045,13 +1240,15 @@ await Promise.all(
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					invoice: invoiceData,
-					recipientEmail,
+					recipientEmail: entity.email,
 					activeTab
 				})
 			})
 
 			if (response.ok) {
 				toast.success('Email sent successfully')
+			} else {
+				throw new Error('Failed to send email')
 			}
 		} catch (error) {
 			handleError(error, 'send email')
@@ -1119,50 +1316,73 @@ await Promise.all(
 		}
 	}
 
+	const handleEditExistingProduct = (index: number) => {
+		try {
+			if (!newInvoice.products) return
 
-const handleEditExistingProduct = (index: number) => {
-  if (!newInvoice.products) return
+			const productToEdit = newInvoice.products[index]
+			const parentProduct = SafeDataAccess.getProduct(products, productToEdit.product_id)
 
-  const productToEdit = newInvoice.products[index]
-  const parentProduct = products.find(p => p.id === productToEdit.product_id)
-
-  if (parentProduct) {
-    setSelectedProduct(parentProduct)
-    // Keep the existing note when editing
-    setSelectedVariants([productToEdit])
-    setEditingProductIndex(index)
-  }
-}
+			if (parentProduct) {
+				setSelectedProduct(parentProduct)
+				setSelectedVariants([productToEdit])
+				setEditingProductIndex(index)
+			} else {
+				toast.error('Selected product no longer exists')
+			}
+		} catch (error) {
+			console.error('Error editing product:', error)
+			toast.error('Failed to edit product. Please try again.')
+		}
+	}
 
 	const handleAddSelectedProductToInvoice = () => {
-		if (selectedProduct && selectedVariants.length > 0) {
-			let updatedProducts = [...(newInvoice.products || [])]
+		try {
+			if (selectedProduct && selectedVariants.length > 0) {
+				// Validate all selected variants exist
+				const invalidVariants = selectedVariants.filter(variant => {
+					const variantExists = SafeDataAccess.getVariant(selectedProduct, variant.product_variant_id)
+					return !variantExists
+				})
 
-			if (editingProductIndex !== null) {
-				updatedProducts[editingProductIndex] = selectedVariants[0]
-			} else {
-				updatedProducts = [...updatedProducts, ...selectedVariants]
+				if (invalidVariants.length > 0) {
+					toast.error('Some selected variants are no longer available. Please reselect variants.')
+					return
+				}
+
+				let updatedProducts = [...(newInvoice.products || [])]
+
+				if (editingProductIndex !== null) {
+					updatedProducts[editingProductIndex] = selectedVariants[0]
+				} else {
+					updatedProducts = [...updatedProducts, ...selectedVariants]
+				}
+
+				const isClientInvoice = activeTab === 'client'
+				const { totalPrice, vatAmount } = calculateTotalPrice(
+					updatedProducts,
+					newInvoice.discounts || {},
+					isClientInvoice,
+					newInvoice.include_vat || false,
+					newInvoice.shipping_fee || 0
+				)
+
+				setNewInvoice({
+					...newInvoice,
+					products: updatedProducts,
+					total_price: totalPrice,
+					vat_amount: vatAmount
+				})
+
+				setSelectedProduct(null)
+				setSelectedVariants([])
+				setEditingProductIndex(null)
+
+				toast.success('Product added to invoice successfully')
 			}
-
-			const isClientInvoice = activeTab === 'client'
-			const { totalPrice, vatAmount } = calculateTotalPrice(
-				updatedProducts,
-				newInvoice.discounts || {},
-				isClientInvoice,
-				newInvoice.include_vat || false,
-                newInvoice.shipping_fee || 0
-			)
-
-			setNewInvoice({
-				...newInvoice,
-				products: updatedProducts,
-				total_price: totalPrice,
-				vat_amount: vatAmount
-			})
-
-			setSelectedProduct(null)
-			setSelectedVariants([])
-			setEditingProductIndex(null)
+		} catch (error) {
+			console.error('Error adding product to invoice:', error)
+			toast.error('Failed to add product to invoice. Please try again.')
 		}
 	}
 
@@ -1184,12 +1404,14 @@ const handleEditExistingProduct = (index: number) => {
 			client_id: undefined,
 			supplier_id: undefined,
 			payment_info: 'frisson_llc',
-            shipping_fee: 0 // Reset shipping fee
+			shipping_fee: 0
 		})
 		setSelectedProduct(null)
 		setSelectedVariants([])
 		setEditingProductIndex(null)
 		setOriginalInvoiceData(null)
+		setValidationErrors([])
+		setValidationWarnings([])
 	}
 
 	const LoadingOverlay = ({
@@ -1221,134 +1443,136 @@ const handleEditExistingProduct = (index: number) => {
 		</div>
 	)
 
-const renderInvoiceTable = () => (
-  <div className='overflow-x-auto bg-white rounded-lg shadow'>
-    {loadingStates.isMainLoading ? (
-      <div className='flex justify-center items-center p-8'>
-        <FaSpinner className='animate-spin text-4xl text-blue' />
-      </div>
-    ) : (
-      <table className='w-full table-auto'>
-        <thead>
-          <tr className='bg-gray text-white uppercase text-sm leading-normal'>
-            <th
-              className='py-3 px-6 text-left cursor-pointer'
-              onClick={() => handleSort('entity_name')}>
-              {activeTab === 'client' ? 'Client' : 'Supplier'} {sortField === 'entity_name' && <FaSort className='inline' />}
-            </th>
-            <th
-              className='py-3 px-6 text-left cursor-pointer'
-              onClick={() => handleSort('created_at')}>
-              Date {sortField === 'created_at' && <FaSort className='inline' />}
-            </th>
-            <th
-              className='py-3 px-6 text-left cursor-pointer'
-              onClick={() => handleSort('total_price')}>
-              Total Price {sortField === 'total_price' && <FaSort className='inline' />}
-            </th>
-            <th
-              className='py-3 px-6 text-left cursor-pointer'
-              onClick={() => handleSort('remaining_amount')}>
-              Remaining Amount {sortField === 'remaining_amount' && <FaSort className='inline' />}
-            </th>
-            <th
-              className='py-3 px-6 text-left cursor-pointer'
-              onClick={() => handleSort('order_number')}>
-              Order Number {sortField === 'order_number' && <FaSort className='inline' />}
-            </th>
-            <th className='py-3 px-6 text-center'>Files</th>
-            <th className='py-3 px-6 text-center'>Actions</th>
-            <th className='py-3 px-6 text-center'>Type</th>
-          </tr>
-        </thead>
-        <tbody className='text-gray text-sm font-light'>
-          {invoices.map(invoice => (
-            <tr
-              key={invoice.id}
-              className={`border-b border-gray cursor-pointer ${
-                invoice.type === 'return' ? 'bg-red-50' : ''
-              }`}
-              onClick={() => handleInvoiceClick(invoice)}>
-              <td className='py-3 px-6 text-left whitespace-nowrap'>
-                {activeTab === 'client'
-                  ? clients.find(client => client.client_id === invoice.client_id)
-                      ?.name
-                  : suppliers.find(supplier => supplier.id === invoice.supplier_id)
-                      ?.name || '-'}
-              </td>
-              <td className='py-3 px-6 text-left'>
-                {new Date(invoice.created_at).toLocaleDateString() || 'N/A'}
-              </td>
-              <td
-                className={`py-3 px-6 text-left ${
-                  invoice.type === 'return'
-                    ? 'text-red-600'
-                    : 'text-green-600'
-                }`}>
-                ${(invoice.total_price || 0).toFixed(2)}
-                {invoice.type === 'return' && ' (Return)'}
-              </td>
-              <td
-                className={`py-3 px-6 text-left ${
-                  invoice.remaining_amount > 0
-                    ? 'text-orange-600'
-                    : 'text-green-600'
-                }`}>
-                ${(invoice.remaining_amount || 0).toFixed(2)}
-              </td>
-              <td className='py-3 px-6 text-left'>{invoice.order_number || '-'}</td>
-              <td className='py-3 px-6 text-center'>
-                {invoice.files && invoice.files.length > 0 ? (
-                  <FaFile className='inline text-blue' />
-                ) : (
-                  '-'
-                )}
-              </td>
-              <td className='py-3 px-6 text-center'>
-                <div className='flex item-center justify-center'>
-                  <button
-                    className='mr-2 bg-blue text-white p-1 rounded-lg text-nowrap transform hover:scale-110'
-                    onClick={e => {
-                      e.stopPropagation()
-                      handleSendEmail(invoice)
-                    }}>
-                    Send Email
-                  </button>
-                  <button
-                    className='w-4 mr-2 transform text-blue hover:text-purple-500 hover:scale-110'
-                    onClick={e => {
-                      e.stopPropagation()
-                      handleEditInvoice(invoice)
-                    }}>
-                    <FaEdit />
-                  </button>
-                  <button
-                    className='w-4 mr-2 transform text-blue hover:text-red-500 hover:scale-110'
-                    onClick={e => {
-                      e.stopPropagation()
-                      handleDeleteInvoice(invoice.id)
-                    }}>
-                    <FaTrash />
-                  </button>
-                </div>
-              </td>
-              <td className='py-3 px-6 text-center'>
-                <span
-                  className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    invoice.type === 'return'
-                      ? 'bg-red-100 text-red-800'
-                      : 'bg-green-100 text-green-800'
-                  }`}>
-                  {invoice.type === 'return' ? 'Return' : 'Regular'}
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    )}
-  </div>
-)
+	const renderInvoiceTable = () => (
+		<div className='overflow-x-auto bg-white rounded-lg shadow'>
+			{loadingStates.isMainLoading ? (
+				<div className='flex justify-center items-center p-8'>
+					<FaSpinner className='animate-spin text-4xl text-blue' />
+				</div>
+			) : (
+				<table className='w-full table-auto'>
+					<thead>
+						<tr className='bg-gray text-white uppercase text-sm leading-normal'>
+							<th
+								className='py-3 px-6 text-left cursor-pointer'
+								onClick={() => handleSort('entity_name')}>
+								{activeTab === 'client' ? 'Client' : 'Supplier'} {sortField === 'entity_name' && <FaSort className='inline' />}
+							</th>
+							<th
+								className='py-3 px-6 text-left cursor-pointer'
+								onClick={() => handleSort('created_at')}>
+								Date {sortField === 'created_at' && <FaSort className='inline' />}
+							</th>
+							<th
+								className='py-3 px-6 text-left cursor-pointer'
+								onClick={() => handleSort('total_price')}>
+								Total Price {sortField === 'total_price' && <FaSort className='inline' />}
+							</th>
+							<th
+								className='py-3 px-6 text-left cursor-pointer'
+								onClick={() => handleSort('remaining_amount')}>
+								Remaining Amount {sortField === 'remaining_amount' && <FaSort className='inline' />}
+							</th>
+							<th
+								className='py-3 px-6 text-left cursor-pointer'
+								onClick={() => handleSort('order_number')}>
+								Order Number {sortField === 'order_number' && <FaSort className='inline' />}
+							</th>
+							<th className='py-3 px-6 text-center'>Files</th>
+							<th className='py-3 px-6 text-center'>Actions</th>
+							<th className='py-3 px-6 text-center'>Type</th>
+						</tr>
+					</thead>
+					<tbody className='text-gray text-sm font-light'>
+						{invoices.map(invoice => {
+							const entity = activeTab === 'client'
+								? SafeDataAccess.getClient(clients, invoice.client_id || 0)
+								: SafeDataAccess.getSupplier(suppliers, invoice.supplier_id || '')
+
+							return (
+								<tr
+									key={invoice.id}
+									className={`border-b border-gray cursor-pointer ${
+										invoice.type === 'return' ? 'bg-red-50' : ''
+									}`}
+									onClick={() => handleInvoiceClick(invoice)}>
+									<td className='py-3 px-6 text-left whitespace-nowrap'>
+										{entity?.name || 'Entity Not Found'}
+									</td>
+									<td className='py-3 px-6 text-left'>
+										{invoice.created_at ? new Date(invoice.created_at).toLocaleDateString() : 'N/A'}
+									</td>
+									<td
+										className={`py-3 px-6 text-left ${
+											invoice.type === 'return'
+												? 'text-red-600'
+												: 'text-green-600'
+										}`}>
+										${(invoice.total_price || 0).toFixed(2)}
+										{invoice.type === 'return' && ' (Return)'}
+									</td>
+									<td
+										className={`py-3 px-6 text-left ${
+											invoice.remaining_amount > 0
+												? 'text-orange-600'
+												: 'text-green-600'
+										}`}>
+										${(invoice.remaining_amount || 0).toFixed(2)}
+									</td>
+									<td className='py-3 px-6 text-left'>{invoice.order_number || '-'}</td>
+									<td className='py-3 px-6 text-center'>
+										{invoice.files && invoice.files.length > 0 ? (
+											<FaFile className='inline text-blue' />
+										) : (
+											'-'
+										)}
+									</td>
+									<td className='py-3 px-6 text-center'>
+										<div className='flex item-center justify-center'>
+											<button
+												className='mr-2 bg-blue text-white p-1 rounded-lg text-nowrap transform hover:scale-110'
+												onClick={e => {
+													e.stopPropagation()
+													handleSendEmail(invoice)
+												}}>
+												Send Email
+											</button>
+											<button
+												className='w-4 mr-2 transform text-blue hover:text-purple-500 hover:scale-110'
+												onClick={e => {
+													e.stopPropagation()
+													handleEditInvoice(invoice)
+												}}>
+												<FaEdit />
+											</button>
+											<button
+												className='w-4 mr-2 transform text-blue hover:text-red-500 hover:scale-110'
+												onClick={e => {
+													e.stopPropagation()
+													handleDeleteInvoice(invoice.id)
+												}}>
+												<FaTrash />
+											</button>
+										</div>
+									</td>
+									<td className='py-3 px-6 text-center'>
+										<span
+											className={`px-2 py-1 rounded-full text-xs font-medium ${
+												invoice.type === 'return'
+													? 'bg-red-100 text-red-800'
+													: 'bg-green-100 text-green-800'
+											}`}>
+											{invoice.type === 'return' ? 'Return' : 'Regular'}
+										</span>
+									</td>
+								</tr>
+							)
+						})}
+					</tbody>
+				</table>
+			)}
+		</div>
+	)
 
 	const renderPagination = () => {
 		const totalPages = Math.ceil(totalInvoices / itemsPerPage)
@@ -1391,64 +1615,63 @@ const renderInvoiceTable = () => (
 		)
 	}
 
-const renderFilters = () => (
-  <div className='mb-6 flex flex-wrap items-center gap-4'>
-    <div className='relative min-w-[200px]'>
-      <DatePicker
-        selected={filterStartDate}
-        onChange={(date: Date | null) => setFilterStartDate(date)}
-        selectsStart
-        startDate={filterStartDate}
-        endDate={filterEndDate}
-        placeholderText='Start Date'
-        className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
-      />
-      <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-        <FaFilter className='h-5 w-5 text-gray' />
-      </div>
-    </div>
+	const renderFilters = () => (
+		<div className='mb-6 flex flex-wrap items-center gap-4'>
+			<div className='relative min-w-[200px]'>
+				<DatePicker
+					selected={filterStartDate}
+					onChange={(date: Date | null) => setFilterStartDate(date)}
+					selectsStart
+					startDate={filterStartDate}
+					endDate={filterEndDate}
+					placeholderText='Start Date'
+					className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
+				/>
+				<div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
+					<FaFilter className='h-5 w-5 text-gray' />
+				</div>
+			</div>
 
-    <div className='relative min-w-[200px]'>
-      <DatePicker
-        selected={filterEndDate}
-        onChange={(date: Date | null) => setFilterEndDate(date)}
-        selectsEnd
-        startDate={filterStartDate}
-        endDate={filterEndDate}
-        minDate={filterStartDate}
-        placeholderText='End Date'
-        className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
-      />
-      <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-        <FaFilter className='h-5 w-5 text-gray' />
-      </div>
-    </div>
+			<div className='relative min-w-[200px]'>
+				<DatePicker
+					selected={filterEndDate}
+					onChange={(date: Date | null) => setFilterEndDate(date)}
+					selectsEnd
+					startDate={filterStartDate}
+					endDate={filterEndDate}
+					minDate={filterStartDate}
+					placeholderText='End Date'
+					className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
+				/>
+				<div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
+					<FaFilter className='h-5 w-5 text-gray' />
+				</div>
+			</div>
 
-    {/* Add Order Number search input */}
-    <div className='relative min-w-[200px]'>
-      <input
-        type='text'
-        value={orderNumberSearch}
-        onChange={handleOrderNumberSearch}
-        placeholder='Search by Order Number'
-        className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
-      />
-      <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-        <FaSearch className='h-5 w-5 text-gray' />
-      </div>
-    </div>
+			<div className='relative min-w-[200px]'>
+				<input
+					type='text'
+					value={orderNumberSearch}
+					onChange={handleOrderNumberSearch}
+					placeholder='Search by Order Number'
+					className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
+				/>
+				<div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
+					<FaSearch className='h-5 w-5 text-gray' />
+				</div>
+			</div>
 
-    <SearchableSelect
-      options={activeTab === 'client' ? clients : suppliers}
-      value={filterEntity}
-      onChange={(value) => handleFilterEntityChange(value)}
-      placeholder={`Filter by ${activeTab === 'client' ? 'Client' : 'Supplier'}`}
-      label={activeTab === 'client' ? 'Filter Client' : 'Filter Supplier'}
-      idField={activeTab === 'client' ? 'client_id' : 'id'}
-      className="flex-grow"
-    />
-  </div>
-)
+			<SearchableSelect
+				options={activeTab === 'client' ? clients : suppliers}
+				value={filterEntity}
+				onChange={(value) => handleFilterEntityChange(value)}
+				placeholder={`Filter by ${activeTab === 'client' ? 'Client' : 'Supplier'}`}
+				label={activeTab === 'client' ? 'Filter Client' : 'Filter Supplier'}
+				idField={activeTab === 'client' ? 'client_id' : 'id'}
+				className="flex-grow"
+			/>
+		</div>
+	)
 
 	const renderInvoiceModal = () => (
 		<div
@@ -1467,6 +1690,17 @@ const renderFilters = () => (
 						<h3 className='text-lg leading-6 font-medium text-gray mb-4'>
 							{newInvoice.id ? 'Edit Invoice' : 'Create New Invoice'}
 						</h3>
+
+						{/* Enhanced Error Display */}
+						<ErrorDisplay 
+							errors={validationErrors} 
+							warnings={validationWarnings}
+							onDismiss={() => {
+								setValidationErrors([])
+								setValidationWarnings([])
+							}}
+						/>
+
 						<form
 							ref={formRef}
 							onScroll={saveScrollPosition}
@@ -1477,7 +1711,7 @@ const renderFilters = () => (
 									<div className='mb-4 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700'>
 										<p className='font-medium'>Return Invoice Notice</p>
 										<p className='text-sm'>
-											This is a return invoice. The total amount will be deducted from the client balance and products will be added back to inventory.
+											This is a return invoice. The total amount will be deducted from the entity balance and products will be added back to inventory.
 										</p>
 									</div>
 								)}
@@ -1495,39 +1729,42 @@ const renderFilters = () => (
 									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
 								/>
 							</div>
-				{activeTab === 'client' && (
-  <div className='mb-4'>
-    <label className='block text-gray text-sm font-bold mb-2'>
-      Invoice Type
-    </label>
-    <select
-      className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
-      value={newInvoice.type || 'regular'}
-      onChange={e =>
-        setNewInvoice({
-          ...newInvoice,
-          type: e.target.value as 'regular' | 'return'
-        })
-      }>
-      <option value='regular'>Regular Invoice</option>
-      <option value='return'>Return Invoice</option>
-    </select>
-  </div>
-)}
-<div className='mb-4'>
-  <SearchableSelect
-    options={activeTab === 'client' ? clients : suppliers}
-    value={activeTab === 'client' ? newInvoice.client_id : newInvoice.supplier_id}
-    onChange={(value) => {
-      const idField = activeTab === 'client' ? 'client_id' : 'supplier_id';
-      setNewInvoice({ ...newInvoice, [idField]: value });
-    }}
-    placeholder={`Select ${activeTab === 'client' ? 'Client' : 'Supplier'}`}
-    label={activeTab === 'client' ? 'Client' : 'Supplier'}
-    idField={activeTab === 'client' ? 'client_id' : 'id'}
-    required
-  />
-</div>
+
+							{activeTab === 'client' && (
+								<div className='mb-4'>
+									<label className='block text-gray text-sm font-bold mb-2'>
+										Invoice Type
+									</label>
+									<select
+										className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+										value={newInvoice.type || 'regular'}
+										onChange={e =>
+											setNewInvoice({
+												...newInvoice,
+												type: e.target.value as 'regular' | 'return'
+											})
+										}>
+										<option value='regular'>Regular Invoice</option>
+										<option value='return'>Return Invoice</option>
+									</select>
+								</div>
+							)}
+
+							<div className='mb-4'>
+								<SearchableSelect
+									options={activeTab === 'client' ? clients : suppliers}
+									value={activeTab === 'client' ? newInvoice.client_id : newInvoice.supplier_id}
+									onChange={(value) => {
+										const idField = activeTab === 'client' ? 'client_id' : 'supplier_id'
+										setNewInvoice({ ...newInvoice, [idField]: value })
+									}}
+									placeholder={`Select ${activeTab === 'client' ? 'Client' : 'Supplier'}`}
+									label={activeTab === 'client' ? 'Client' : 'Supplier'}
+									idField={activeTab === 'client' ? 'client_id' : 'id'}
+									required
+								/>
+							</div>
+
 							<div className='mb-4'>
 								<label className='block text-gray text-sm font-bold mb-2'>Products</label>
 								<div className='flex mb-2'>
@@ -1544,20 +1781,36 @@ const renderFilters = () => (
 										<FaSearch />
 									</button>
 								</div>
+
 								<div className='max-h-40 overflow-y-auto mb-2'>
-									{filteredProducts.map(product => (
-										<div
-											key={product.id}
-											className='flex justify-between items-center p-2 cursor-pointer'
-											onClick={() => handleAddProduct(product)}>
-											<span>{product.name}</span>
-											<button
-												type='button'
-												className='bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-xs'>
-												Select
-											</button>
-										</div>
-									))}
+									{filteredProducts.map(product => {
+										const hasValidVariants = product.variants && product.variants.length > 0 && 
+											product.variants.some(v => v && v.id)
+
+										return (
+											<div
+												key={product.id}
+												className={`flex justify-between items-center p-2 cursor-pointer ${
+													hasValidVariants ? 'hover:bg-neutral-100' : 'bg-neutral-100 cursor-not-allowed'
+												}`}
+												onClick={() => hasValidVariants && handleAddProduct(product)}>
+												<span className={hasValidVariants ? '' : 'text-neutral-400'}>
+													{product.name}
+													{!hasValidVariants && ' (No Valid Variants)'}
+												</span>
+												<button
+													type='button'
+													disabled={!hasValidVariants}
+													className={`font-bold py-1 px-2 rounded text-xs ${
+														hasValidVariants 
+															? 'bg-green-500 hover:bg-green-700 text-white'
+															: 'bg-neutral-300 text-neutral-500 cursor-not-allowed'
+													}`}>
+													{hasValidVariants ? 'Select' : 'Unavailable'}
+												</button>
+											</div>
+										)
+									})}
 								</div>
 
 								{selectedProduct && (
@@ -1579,54 +1832,60 @@ const renderFilters = () => (
 											}
 											placeholder='Discount per item'
 										/>
-										{selectedVariants.map((variant, index) => (
-											<div key={index} className='mb-2 p-2 border rounded'>
-												<select
-													className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
-													value={variant.product_variant_id}
-													onChange={e =>
-														handleVariantChange(
-															index,
-															'product_variant_id',
-															e.target.value
-														)
-													}>
-													<option value=''>Select Variant</option>
-													{selectedProduct.variants.map(v => (
-														<option key={v.id} value={v.id}>
-															{v.size} - {v.color}
-														</option>
-													))}
-												</select>
-												<input
-													type='number'
-													className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
-													value={variant.quantity}
-													onChange={e =>
-														handleVariantChange(
-															index,
-															'quantity',
-															Number(e.target.value)
-														)
-													}
-													placeholder='Quantity'
-												/>
-												<textarea
-													className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
-													value={variant.note}
-													onChange={e =>
-														handleVariantChange(index, 'note', e.target.value)
-													}
-													placeholder='Product Note'
-												/>
-												<button
-													type='button'
-													className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
-													onClick={() => handleRemoveVariant(index)}>
-													Remove Variant
-												</button>
-											</div>
-										))}
+										{selectedVariants.map((variant, index) => {
+											const availableVariants = selectedProduct.variants?.filter(v => v && v.id) || []
+
+											return (
+												<div key={index} className='mb-2 p-2 border rounded'>
+													<select
+														className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
+														value={variant.product_variant_id}
+														onChange={e =>
+															handleVariantChange(
+																index,
+																'product_variant_id',
+																e.target.value
+															)
+														}>
+														<option value=''>Select Variant</option>
+														{availableVariants.map(v => (
+															<option key={v.id} value={v.id}>
+																{SafeDataAccess.formatVariantDisplay(v)} 
+																{v.quantity <= 5 && ` (Low Stock: ${v.quantity})`}
+															</option>
+														))}
+													</select>
+													<input
+														type='number'
+														min='1'
+														className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
+														value={variant.quantity}
+														onChange={e =>
+															handleVariantChange(
+																index,
+																'quantity',
+																Number(e.target.value)
+															)
+														}
+														placeholder='Quantity'
+													/>
+													<textarea
+														className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
+														value={variant.note}
+														onChange={e =>
+															handleVariantChange(index, 'note', e.target.value)
+														}
+														placeholder='Product Note'
+													/>
+													<button
+														type='button'
+														className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
+														onClick={() => handleRemoveVariant(index)}>
+														Remove Variant
+													</button>
+												</div>
+											)
+										})}
 										<button
 											type='button'
 											className='bg-blue hover:bg-blue text-white font-bold py-1 px-2 rounded text-xs mr-2'
@@ -1642,48 +1901,52 @@ const renderFilters = () => (
 									</div>
 								)}
 
-								{newInvoice.products?.map((product, index) => (
-									<div key={index} className='mb-2 p-2 border rounded'>
-										<div className='flex justify-between items-center mb-2'>
-											<span className='font-bold'>
-												{products.find(p => p.id === product.product_id)?.name || 'N/A'}
-											</span>
-											<div className='space-x-2'>
-												<button
-													type='button'
-													className='bg-blue hover:bg-indigo-700 text-white font-bold py-1 px-2 rounded text-xs'
-													onClick={() => handleEditExistingProduct(index)}>
-													Edit
-												</button>
-												<button
-													type='button'
-													className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
-													onClick={() => handleRemoveProduct(index)}>
-													Remove
-												</button>
+								{newInvoice.products?.map((product, index) => {
+									const parentProduct = SafeDataAccess.getProduct(products, product.product_id)
+									const variant = SafeDataAccess.getVariant(parentProduct, product.product_variant_id)
+
+									return (
+										<div key={index} className={`mb-2 p-2 border rounded ${!parentProduct || !variant ? 'bg-red-50 border-red-200' : ''}`}>
+											<div className='flex justify-between items-center mb-2'>
+												<span className='font-bold'>
+													{parentProduct?.name || `Product Not Found (${product.product_id})`}
+													{!parentProduct && <span className="text-red-500 text-xs ml-2">[DELETED]</span>}
+												</span>
+												<div className='space-x-2'>
+													<button
+														type='button'
+														className='bg-blue hover:bg-indigo-700 text-white font-bold py-1 px-2 rounded text-xs'
+														onClick={() => handleEditExistingProduct(index)}>
+														Edit
+													</button>
+													<button
+														type='button'
+														className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
+														onClick={() => handleRemoveProduct(index)}>
+														Remove
+													</button>
+												</div>
 											</div>
+											<p>
+												Variant: {SafeDataAccess.formatVariantDisplay(variant)}
+												{!variant && <span className="text-red-500 text-xs ml-2">[NOT FOUND]</span>}
+											</p>
+											<p>Quantity: {product.quantity || 0}</p>
+											<p>
+												Discount per item: $
+												{newInvoice.discounts?.[product.product_id]?.toFixed(2) || '0.00'}
+											</p>
+											<p>Note: {product.note || '-'}</p>
+											{(!parentProduct || !variant) && (
+												<div className="mt-2 p-2 bg-red-100 rounded text-red-700 text-xs">
+													⚠️ This product or variant is no longer available. Please remove or edit this item.
+												</div>
+											)}
 										</div>
-										<p>
-											Variant:{' '}
-											{products.find(p => p.id === product.product_id)
-												?.variants.find(v => v.id === product.product_variant_id)
-												?.size || 'N/A'}{' '}
-											-{' '}
-											{products.find(p => p.id === product.product_id)
-												?.variants.find(v => v.id === product.product_variant_id)
-												?.color || 'N/A'}
-										</p>
-										<p>Quantity: {product.quantity || 0}</p>
-										<p>
-											Discount per item: $
-											{newInvoice.discounts?.[product.product_id]
-												? newInvoice.discounts[product.product_id].toFixed(2)
-												: '0.00'}
-										</p>
-										<p>Note: {product.note || '-'}</p>
-									</div>
-								))}
+									)
+								})}
 							</div>
+
 							<div className='mb-4'>
 								<label className='block text-gray text-sm font-bold mb-2' htmlFor='order_number'>
 									Order Number
@@ -1702,6 +1965,7 @@ const renderFilters = () => (
 									}
 								/>
 							</div>
+
 							<div className='mb-4'>
 								<label className='block text-gray text-sm font-bold mb-2' htmlFor='currency'>
 									Currency
@@ -1721,6 +1985,7 @@ const renderFilters = () => (
 									<option value='euro'>EUR (€)</option>
 								</select>
 							</div>
+
 							<div className='mb-4'>
 								<label className='block text-gray text-sm font-bold mb-2' htmlFor='payment_term'>
 									Payment Terms
@@ -1741,9 +2006,10 @@ const renderFilters = () => (
 									<option value='30% deposit 70% before shipping'>30% deposit 70% before shipping</option>
 									<option value='30 days after shipping'>30 days after shipping</option>
 									<option value='60 days after shipping'>60 days after shipping</option>
-                  <option value='100% prepayment'>100% prepayment</option>
+									<option value='100% prepayment'>100% prepayment</option>
 								</select>
 							</div>
+
 							<div className='mb-4'>
 								<label className='block text-gray text-sm font-bold mb-2' htmlFor='delivery_date'>
 									Delivery Date
@@ -1764,23 +2030,24 @@ const renderFilters = () => (
 									required
 								/>
 							</div>
-                            {/* New Shipping Fee Field */}
-                            <div className='mb-4'>
-                                <label className='block text-gray text-sm font-bold mb-2' htmlFor='shipping_fee'>
-                                    Shipping Fee
-                                </label>
-                                <input
-                                    id='shipping_fee'
-                                    type='number'
-                                    min='0'
-                                    className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
-                                    value={newInvoice.shipping_fee || 0}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                                        handleShippingFeeChange(Number(e.target.value))
-                                    }
-                                    placeholder='Enter shipping fee'
-                                />
-                            </div>
+
+							<div className='mb-4'>
+								<label className='block text-gray text-sm font-bold mb-2' htmlFor='shipping_fee'>
+									Shipping Fee
+								</label>
+								<input
+									id='shipping_fee'
+									type='number'
+									min='0'
+									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									value={newInvoice.shipping_fee || 0}
+									onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+										handleShippingFeeChange(Number(e.target.value))
+									}
+									placeholder='Enter shipping fee'
+								/>
+							</div>
+
 							<div className='mb-4'>
 								<label className='flex items-center'>
 									<input
@@ -1793,7 +2060,7 @@ const renderFilters = () => (
 												newInvoice.discounts || {},
 												activeTab === 'client',
 												includeVAT,
-                                                newInvoice.shipping_fee || 0
+												newInvoice.shipping_fee || 0
 											)
 											setNewInvoice({
 												...newInvoice,
@@ -1807,6 +2074,7 @@ const renderFilters = () => (
 									<span className='ml-2 text-gray text-sm'>Include 11% VAT</span>
 								</label>
 							</div>
+
 							<div className='mb-4'>
 								<label className='block text-gray text-sm font-bold mb-2'>
 									Total Price (including VAT and shipping if applicable)
@@ -1818,6 +2086,7 @@ const renderFilters = () => (
 									readOnly
 								/>
 							</div>
+
 							{newInvoice.include_vat && (
 								<div className='mb-4'>
 									<label className='block text-gray text-sm font-bold mb-2'>
@@ -1831,6 +2100,7 @@ const renderFilters = () => (
 									/>
 								</div>
 							)}
+
 							<div className='mb-4'>
 								<label className='block text-gray text-sm font-bold mb-2'>
 									Payment Information
@@ -1855,6 +2125,7 @@ const renderFilters = () => (
 									))}
 								</select>
 							</div>
+
 							<div className='mb-4'>
 								<label className='block text-gray text-sm font-bold mb-2'>Files</label>
 								<input
@@ -1894,8 +2165,13 @@ const renderFilters = () => (
 					<div className='bg-neutral-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse'>
 						<button
 							type='button'
-							className='w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue text-base font-medium text-white hover:bg-blue focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue sm:ml-3 sm:w-auto sm:text-sm'
-							onClick={handleCreateInvoice}>
+							className={`w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 text-base font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 sm:ml-3 sm:w-auto sm:text-sm ${
+								validationErrors.length > 0 
+									? 'bg-neutral-400 cursor-not-allowed' 
+									: 'bg-blue hover:bg-blue focus:ring-blue'
+							}`}
+							onClick={handleCreateInvoice}
+							disabled={validationErrors.length > 0}>
 							{newInvoice.id ? 'Update Invoice' : 'Create Invoice'}
 						</button>
 						<button
@@ -1913,336 +2189,368 @@ const renderFilters = () => (
 		</div>
 	)
 
-const renderInvoiceDetails = () => {
-  if (!selectedInvoice) return null;
+	const renderInvoiceDetails = () => {
+		if (!selectedInvoice) return null
 
-  const isClientInvoice = activeTab === 'client';
-  const entity:any = isClientInvoice
-    ? clients.find(client => client.client_id === selectedInvoice.client_id)
-    : suppliers.find(supplier => supplier.id === selectedInvoice.supplier_id);
+		const isClientInvoice = activeTab === 'client'
+		const entity:any = isClientInvoice
+			? SafeDataAccess.getClient(clients, selectedInvoice.client_id || 0)
+			: SafeDataAccess.getSupplier(suppliers, selectedInvoice.supplier_id || '')
 
-  const isReturn = selectedInvoice.type === 'return';
-  const currency = selectedInvoice.currency || 'usd';
-  const currencySymbol = currency === 'euro' ? '€' : '$';
+		const isReturn = selectedInvoice.type === 'return'
+		const currency = selectedInvoice.currency || 'usd'
+		const currencySymbol = currency === 'euro' ? '€' : '$'
 
-  // Calculate totals matching PDF calculation logic
-  const subtotal = selectedInvoice.products?.reduce((total, product) => {
-    const parentProduct = products.find(p => p.id === product.product_id);
-    if (!parentProduct) return total;
+		// Enhanced calculations with error handling
+		const subtotal = selectedInvoice.products?.reduce((total, product) => {
+			try {
+				const parentProduct = SafeDataAccess.getProduct(products, product.product_id)
+				if (!parentProduct) return total
 
-    const price = isClientInvoice ? (parentProduct.price || 0) : (parentProduct.cost || 0);
-    const lineTotal = price * product.quantity;
-    return total + (isReturn ? -lineTotal : lineTotal);
-  }, 0) || 0;
+				const price = isClientInvoice ? (parentProduct.price || 0) : (parentProduct.cost || 0)
+				const lineTotal = price * product.quantity
+				return total + (isReturn ? -lineTotal : lineTotal)
+			} catch (error) {
+				console.error('Error calculating subtotal for product:', error)
+				return total
+			}
+		}, 0) || 0
 
-  const totalDiscount = selectedInvoice.products?.reduce((total, product) => {
-    const discount = selectedInvoice.discounts?.[product.product_id] || 0;
-    const lineDiscount = discount * product.quantity;
-    return total + (isReturn ? -lineDiscount : lineDiscount);
-  }, 0) || 0;
+		const totalDiscount = selectedInvoice.products?.reduce((total, product) => {
+			try {
+				const discount = selectedInvoice.discounts?.[product.product_id] || 0
+				const lineDiscount = discount * product.quantity
+				return total + (isReturn ? -lineDiscount : lineDiscount)
+			} catch (error) {
+				console.error('Error calculating discount for product:', error)
+				return total
+			}
+		}, 0) || 0
 
-  const totalBeforeVAT = subtotal - totalDiscount;
-  const vatAmount = selectedInvoice.include_vat ? totalBeforeVAT * 0.11 : 0;
-  const shippingFee = selectedInvoice.shipping_fee || 0;
+		const totalBeforeVAT = subtotal - totalDiscount
+		const vatAmount = selectedInvoice.include_vat ? totalBeforeVAT * 0.11 : 0
+		const shippingFee = selectedInvoice.shipping_fee || 0
 
-  // Updated size options to match PDF - added sizes 50, 52, 54, 56, 58
-  const sizeOptions = [
-    'OS', 'XXS', 'XS', 'S', 'S/M', 'M', 'M/L', 'L', 'XL', '2XL', '3XL',
-    '36', '38', '40', '42', '44', '46','48',
-    '50', '52', '54', '56', '58'
-  ];
+		const sizeOptions = [
+			'OS', 'XXS', 'XS', 'S', 'S/M', 'M', 'M/L', 'L', 'XL', '2XL', '3XL',
+			'36', '38', '40', '42', '44', '46', '48', '50', '52', '54', '56', '58'
+		]
 
-  // Transform product data to match PDF format
-  const productsByNameColor:any = {};
-  selectedInvoice.products?.forEach(product => {
-    const parentProduct = products.find(p => p.id === product.product_id);
-    const variant = parentProduct?.variants.find(v => v.id === product.product_variant_id);
+		// Enhanced product grouping with error handling
+		const productsByNameColor: any = {}
+		selectedInvoice.products?.forEach(product => {
+			try {
+				const parentProduct = SafeDataAccess.getProduct(products, product.product_id)
+				const variant = SafeDataAccess.getVariant(parentProduct, product.product_variant_id)
 
-    if (!parentProduct || !variant) return;
+				const productName = parentProduct?.name || `Product Not Found (${product.product_id})`
+				const variantColor = variant?.color || `Variant Not Found (${product.product_variant_id})`
+				const variantSize = variant?.size || 'Unknown Size'
 
-    const key = `${parentProduct.name}-${variant.color}`;
-    if (!productsByNameColor[key]) {
-      productsByNameColor[key] = {
-        product_id: parentProduct.id,
-        name: parentProduct.name,
-        color: variant.color,
-        image: parentProduct.photo,
-        unitPrice: isClientInvoice ? parentProduct.price : parentProduct.cost,
-        sizes: {},
-        notes: new Set(),
-        totalQuantity: 0,
-        discount: selectedInvoice.discounts?.[parentProduct.id] || 0
-      };
-    }
+				const key = `${productName}-${variantColor}`
+				if (!productsByNameColor[key]) {
+					productsByNameColor[key] = {
+						product_id: parentProduct?.id || product.product_id,
+						name: productName,
+						color: variantColor,
+						image: parentProduct?.photo || '',
+						unitPrice: isClientInvoice ? (parentProduct?.price || 0) : (parentProduct?.cost || 0),
+						sizes: {},
+						notes: new Set(),
+						totalQuantity: 0,
+						discount: selectedInvoice.discounts?.[parentProduct?.id || product.product_id] || 0,
+						hasErrors: !parentProduct || !variant
+					}
+				}
 
-    // Add quantity to the specific size
-    productsByNameColor[key].sizes[variant.size] =
-      (productsByNameColor[key].sizes[variant.size] || 0) + product.quantity;
+				productsByNameColor[key].sizes[variantSize] =
+					(productsByNameColor[key].sizes[variantSize] || 0) + product.quantity
 
-    // Update total quantity
-    productsByNameColor[key].totalQuantity += product.quantity;
+				productsByNameColor[key].totalQuantity += product.quantity
 
-    // Add note if it exists
-    if (product.note) {
-      productsByNameColor[key].notes.add(product.note);
-    }
-  });
+				if (product.note) {
+					productsByNameColor[key].notes.add(product.note)
+				}
+			} catch (error) {
+				console.error('Error processing product for display:', error)
+			}
+		})
 
-  // Convert to array and sort by name then color (matching PDF)
-  const productsArray = Object.values(productsByNameColor).sort((a:any, b:any) => {
-    const nameComparison = a.name.localeCompare(b.name);
-    if (nameComparison !== 0) return nameComparison;
-    return a.color.localeCompare(b.color);
-  });
+		const productsArray = Object.values(productsByNameColor).sort((a: any, b: any) => {
+			const nameComparison = a.name.localeCompare(b.name)
+			if (nameComparison !== 0) return nameComparison
+			return a.color.localeCompare(b.color)
+		})
 
-  return (
-    <div className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'>
-      <div className='relative top-10 mx-auto p-5 border w-4/5 max-w-5xl shadow-lg rounded-md bg-white'>
-        <div className='mt-3'>
-          <div className='flex justify-between items-start mb-6'>
-            <div>
-              <img src="/logo/logo.png" alt="Company Logo" className="h-16 w-auto" />
-            </div>
-            <div className='text-right'>
-              <h4 className='font-bold'>Company Information</h4>
-              <p className='text-sm'>Frisson International LLC</p>
-              <p className='text-sm'>1441 Caribbean breeze drive</p>
-              <p className='text-sm'>Tampa Florida, 33613</p>
-              <p className='text-sm'>United States Of America</p>
-            </div>
-          </div>
+		return (
+			<div className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'>
+				<div className='relative top-10 mx-auto p-5 border w-4/5 max-w-5xl shadow-lg rounded-md bg-white'>
+					<div className='mt-3'>
+						<div className='flex justify-between items-start mb-6'>
+							<div>
+								<img src="/logo/logo.png" alt="Company Logo" className="h-16 w-auto" />
+							</div>
+							<div className='text-right'>
+								<h4 className='font-bold'>Company Information</h4>
+								<p className='text-sm'>Frisson International LLC</p>
+								<p className='text-sm'>1441 Caribbean breeze drive</p>
+								<p className='text-sm'>Tampa Florida, 33613</p>
+								<p className='text-sm'>United States Of America</p>
+							</div>
+						</div>
 
-          <div className='mb-6 text-center'>
-            <h2 className={`text-2xl font-bold ${isReturn ? 'text-red-600' : 'text-blue'}`}>
-              {isReturn ? 'RETURN INVOICE' : 'INVOICE'}
-            </h2>
+						<div className='mb-6 text-center'>
+							<h2 className={`text-2xl font-bold ${isReturn ? 'text-red-600' : 'text-blue'}`}>
+								{isReturn ? 'RETURN INVOICE' : 'INVOICE'}
+							</h2>
 
-            {isReturn && (
-              <div className='mt-2 bg-red-100 p-2 rounded-md'>
-                <p className='text-red-600 font-semibold'>Return Invoice</p>
-              </div>
-            )}
-          </div>
+							{isReturn && (
+								<div className='mt-2 bg-red-100 p-2 rounded-md'>
+									<p className='text-red-600 font-semibold'>Return Invoice</p>
+								</div>
+							)}
+						</div>
 
-          <div className='flex justify-between mb-6'>
-            <div className='w-1/2 pr-4'>
-              <h4 className='font-bold mb-2'>{isClientInvoice ? 'Bill To:' : 'Supplier:'}</h4>
-              <p className='text-sm'>{entity?.name || 'N/A'}</p>
-              <p className='text-sm'>{isClientInvoice ? entity?.address : entity?.location}</p>
-              <p className='text-sm'>Phone: {entity?.phone || 'N/A'}</p>
-              <p className='text-sm'>Email: {entity?.email || 'N/A'}</p>
-              {isClientInvoice && <p className='text-sm'>Tax Number: {entity?.tax_number || 'N/A'}</p>}
-            </div>
+						<div className='flex justify-between mb-6'>
+							<div className='w-1/2 pr-4'>
+								<h4 className='font-bold mb-2'>{isClientInvoice ? 'Bill To:' : 'Supplier:'}</h4>
+								<p className='text-sm'>{entity?.name || 'Entity Not Found'}</p>
+								<p className='text-sm'>{isClientInvoice ? entity?.address : entity?.location}</p>
+								<p className='text-sm'>Phone: {entity?.phone || 'N/A'}</p>
+								<p className='text-sm'>Email: {entity?.email || 'N/A'}</p>
+								{isClientInvoice && <p className='text-sm'>Tax Number: {entity?.tax_number || 'N/A'}</p>}
+							</div>
 
-            <div className='w-1/2 pl-4'>
-              <h4 className='font-bold mb-2'>Invoice Details:</h4>
-              <p className='text-sm'>Invoice Number: {selectedInvoice.id || 'N/A'}</p>
-              <p className='text-sm'>Date: {selectedInvoice.created_at ? format(new Date(selectedInvoice.created_at), 'PP') : 'N/A'}</p>
-              <p className='text-sm'>Order Number: {selectedInvoice.order_number || 'N/A'}</p>
-              {selectedInvoice.delivery_date && (
-                <p className='text-sm'>Delivery Date: {format(new Date(selectedInvoice.delivery_date), 'PP')}</p>
-              )}
-              {selectedInvoice.payment_term && (
-                <p className='text-sm'>Payment Term: {selectedInvoice.payment_term}</p>
-              )}
-            </div>
-          </div>
+							<div className='w-1/2 pl-4'>
+								<h4 className='font-bold mb-2'>Invoice Details:</h4>
+								<p className='text-sm'>Invoice Number: {selectedInvoice.id || 'N/A'}</p>
+								<p className='text-sm'>Date: {selectedInvoice.created_at ? format(new Date(selectedInvoice.created_at), 'PP') : 'N/A'}</p>
+								<p className='text-sm'>Order Number: {selectedInvoice.order_number || 'N/A'}</p>
+								{selectedInvoice.delivery_date && (
+									<p className='text-sm'>Delivery Date: {format(new Date(selectedInvoice.delivery_date), 'PP')}</p>
+								)}
+								{selectedInvoice.payment_term && (
+									<p className='text-sm'>Payment Term: {selectedInvoice.payment_term}</p>
+								)}
+							</div>
+						</div>
 
-          {/* Products Table - Matching PDF Layout with adjusted column widths for additional sizes */}
-          <div className='mb-6 overflow-x-auto'>
-            <table className='min-w-full border border-neutral-300 text-xs'>
-              <thead>
-                <tr className='bg-neutral-100'>
-                  <th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'>IMAGE</th>
-                  <th className='w-20 p-1 text-xs font-bold text-center border border-neutral-300'>STYLE</th>
-                  <th className='w-20 p-1 text-xs font-bold text-center border border-neutral-300'>DESCRIPTION</th>
-                  <th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'>COLOR</th>
-                  {sizeOptions.map(size => (
-                    <th key={size} className='w-8 p-0.5 text-xs font-bold text-center border border-neutral-300'>{size}</th>
-                  ))}
-                  <th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'>TOTAL PCS</th>
-                  <th className='w-16 p-1 text-xs font-bold text-center border border-neutral-300'>UNIT PRICE</th>
-                  {Object.values(productsByNameColor).some((p:any) => p.discount > 0) && (
-                    <th className='w-16 p-1 text-xs font-bold text-center border border-neutral-300'>DISCOUNT</th>
-                  )}
-                  <th className='w-20 p-1 text-xs font-bold text-center border border-neutral-300'>TOTAL</th>
-                </tr>
-              </thead>
-              <tbody>
-                {productsArray.map((product:any, index:any) => {
-                  const priceAfterDiscount = product.unitPrice - product.discount;
-                  const lineTotal = priceAfterDiscount * product.totalQuantity;
-                  const displayLineTotal = isReturn ? -lineTotal : lineTotal;
+						{/* Enhanced Products Table with Error Handling */}
+						<div className='mb-6 overflow-x-auto'>
+							<table className='min-w-full border border-neutral-300 text-xs'>
+								<thead>
+									<tr className='bg-neutral-100'>
+										<th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'>IMAGE</th>
+										<th className='w-20 p-1 text-xs font-bold text-center border border-neutral-300'>STYLE</th>
+										<th className='w-20 p-1 text-xs font-bold text-center border border-neutral-300'>DESCRIPTION</th>
+										<th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'>COLOR</th>
+										{sizeOptions.map(size => (
+											<th key={size} className='w-8 p-0.5 text-xs font-bold text-center border border-neutral-300'>{size}</th>
+										))}
+										<th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'>TOTAL PCS</th>
+										<th className='w-16 p-1 text-xs font-bold text-center border border-neutral-300'>UNIT PRICE</th>
+										{Object.values(productsByNameColor).some((p: any) => p.discount > 0) && (
+											<th className='w-16 p-1 text-xs font-bold text-center border border-neutral-300'>DISCOUNT</th>
+										)}
+										<th className='w-20 p-1 text-xs font-bold text-center border border-neutral-300'>TOTAL</th>
+									</tr>
+								</thead>
+								<tbody>
+									{productsArray.map((product: any, index: any) => {
+										const priceAfterDiscount = product.unitPrice - product.discount
+										const lineTotal = priceAfterDiscount * product.totalQuantity
+										const displayLineTotal = isReturn ? -lineTotal : lineTotal
 
-                  return (
-                    <tr key={index} className='border-b border-neutral-300'>
-                      <td className='p-1 text-center border-r border-neutral-300'>
-                        {product.image ? (
-                          <img src={product.image} alt={product.name} className='w-10 h-10 object-contain mx-auto' />
-                        ) : (
-                          <div className='w-10 h-10 bg-neutral-200 mx-auto'></div>
-                        )}
-                      </td>
-                      <td className='p-1 text-xs font-semibold border-r border-neutral-300'>{product.name || 'N/A'}</td>
-                      <td className='p-1 text-xs border-r border-neutral-300'>
-                        {Array.from(product.notes).map((note:any, i:any) => (
-                          <p key={i} className='text-xs italic text-neutral-600'>{note}</p>
-                        ))}
-                      </td>
-                      <td className='p-1 text-xs text-center border-r border-neutral-300'>{product.color || 'N/A'}</td>
+										return (
+											<tr key={index} className={`border-b border-neutral-300 ${product.hasErrors ? 'bg-red-50' : ''}`}>
+												<td className='p-1 text-center border-r border-neutral-300'>
+													{product.image ? (
+														<img src={product.image} alt={product.name} className='w-10 h-10 object-contain mx-auto' />
+													) : (
+														<div className='w-10 h-10 bg-neutral-200 mx-auto flex items-center justify-center'>
+															{product.hasErrors && <FaExclamationTriangle className="text-red-500 text-xs" />}
+														</div>
+													)}
+												</td>
+												<td className={`p-1 text-xs font-semibold border-r border-neutral-300 ${product.hasErrors ? 'text-red-600' : ''}`}>
+													{product.name}
+													{product.hasErrors && <span className="block text-red-500">[ERROR]</span>}
+												</td>
+												<td className='p-1 text-xs border-r border-neutral-300'>
+													{Array.from(product.notes).map((note: any, i: any) => (
+														<p key={i} className='text-xs italic text-neutral-600'>{note}</p>
+													))}
+												</td>
+												<td className={`p-1 text-xs text-center border-r border-neutral-300 ${product.hasErrors ? 'text-red-600' : ''}`}>
+													{product.color}
+												</td>
 
-                      {/* Size columns - Adjusted to be more compact */}
-                      {sizeOptions.map(size => (
-                        <td key={size} className='p-0.5 text-xs text-center border-r border-neutral-300'>
-                          {product.sizes[size] ? product.sizes[size] : '-'}
-                        </td>
-                      ))}
+												{sizeOptions.map(size => (
+													<td key={size} className='p-0.5 text-xs text-center border-r border-neutral-300'>
+														{product.sizes[size] ? product.sizes[size] : '-'}
+													</td>
+												))}
 
-                      <td className='p-1 text-xs text-center border-r border-neutral-300'>{product.totalQuantity}</td>
-                      <td className='p-1 text-xs text-center border-r border-neutral-300'>
-                        {currencySymbol}{product.unitPrice?.toFixed(2)}
-                      </td>
+												<td className='p-1 text-xs text-center border-r border-neutral-300'>{product.totalQuantity}</td>
+												<td className='p-1 text-xs text-center border-r border-neutral-300'>
+													{currencySymbol}{product.unitPrice?.toFixed(2)}
+												</td>
 
-                      {Object.values(productsByNameColor).some((p:any) => p.discount > 0) && (
-                        <td className='p-1 text-xs text-center border-r border-neutral-300'>
-                          {product.discount > 0 ? `${currencySymbol}${product.discount.toFixed(2)}` : '-'}
-                        </td>
-                      )}
+												{Object.values(productsByNameColor).some((p: any) => p.discount > 0) && (
+													<td className='p-1 text-xs text-center border-r border-neutral-300'>
+														{product.discount > 0 ? `${currencySymbol}${product.discount.toFixed(2)}` : '-'}
+													</td>
+												)}
 
-                      <td className='p-1 text-xs text-center border-r border-neutral-300'>
-                        {currencySymbol}{Math.abs(displayLineTotal).toFixed(2)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+												<td className='p-1 text-xs text-center border-r border-neutral-300'>
+													{currencySymbol}{Math.abs(displayLineTotal).toFixed(2)}
+												</td>
+											</tr>
+										)
+									})}
+								</tbody>
+							</table>
+							
+							{/* Warning for missing products */}
+							{productsArray.some((p: any) => p.hasErrors) && (
+								<div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+									<div className="flex">
+										<FaExclamationTriangle className="text-yellow-400 mt-1 mr-2" />
+										<div>
+											<h4 className="text-sm font-medium text-yellow-800">Data Integrity Warning</h4>
+											<p className="text-sm text-yellow-700 mt-1">
+												Some products or variants in this invoice are no longer available in the system. 
+												This may affect calculations and inventory tracking.
+											</p>
+										</div>
+									</div>
+								</div>
+							)}
+						</div>
 
-          {/* Totals Section - Matching PDF Layout */}
-          <div className='flex flex-col items-end mb-6 mt-4'>
-            {Math.abs(subtotal) !== Math.abs(selectedInvoice.total_price || 0) && (
-              <div className='flex justify-end mb-1 w-1/3'>
-                <div className='w-1/2 font-bold text-right pr-4'>Subtotal:</div>
-                <div className='w-1/2 text-right'>
-                  {currencySymbol}{Math.abs(subtotal).toFixed(2)}
-                  {isReturn && ' (Return)'}
-                </div>
-              </div>
-            )}
+						{/* Totals Section */}
+						<div className='flex flex-col items-end mb-6 mt-4'>
+							{Math.abs(subtotal) !== Math.abs(selectedInvoice.total_price || 0) && (
+								<div className='flex justify-end mb-1 w-1/3'>
+									<div className='w-1/2 font-bold text-right pr-4'>Subtotal:</div>
+									<div className='w-1/2 text-right'>
+										{currencySymbol}{Math.abs(subtotal).toFixed(2)}
+										{isReturn && ' (Return)'}
+									</div>
+								</div>
+							)}
 
-            {totalDiscount > 0 && (
-              <div className='flex justify-end mb-1 w-1/3'>
-                <div className='w-1/2 font-bold text-right pr-4'>Total Discount:</div>
-                <div className='w-1/2 text-right'>
-                  {currencySymbol}{Math.abs(totalDiscount).toFixed(2)}
-                  {isReturn && ' (Return)'}
-                </div>
-              </div>
-            )}
+							{totalDiscount > 0 && (
+								<div className='flex justify-end mb-1 w-1/3'>
+									<div className='w-1/2 font-bold text-right pr-4'>Total Discount:</div>
+									<div className='w-1/2 text-right'>
+										{currencySymbol}{Math.abs(totalDiscount).toFixed(2)}
+										{isReturn && ' (Return)'}
+									</div>
+								</div>
+							)}
 
-            {selectedInvoice.include_vat && (
-              <>
-                {totalBeforeVAT !== subtotal && (
-                  <div className='flex justify-end mb-1 w-1/3'>
-                    <div className='w-1/2 font-bold text-right pr-4'>Total Before VAT:</div>
-                    <div className='w-1/2 text-right'>
-                      {currencySymbol}{Math.abs(totalBeforeVAT).toFixed(2)}
-                      {isReturn && ' (Return)'}
-                    </div>
-                  </div>
-                )}
-                <div className='flex justify-end mb-1 w-1/3'>
-                  <div className='w-1/2 font-bold text-right pr-4'>VAT (11%):</div>
-                  <div className='w-1/2 text-right'>
-                    {currencySymbol}{Math.abs(vatAmount).toFixed(2)}
-                    {isReturn && ' (Return)'}
-                  </div>
-                </div>
-              </>
-            )}
+							{selectedInvoice.include_vat && (
+								<>
+									{totalBeforeVAT !== subtotal && (
+										<div className='flex justify-end mb-1 w-1/3'>
+											<div className='w-1/2 font-bold text-right pr-4'>Total Before VAT:</div>
+											<div className='w-1/2 text-right'>
+												{currencySymbol}{Math.abs(totalBeforeVAT).toFixed(2)}
+												{isReturn && ' (Return)'}
+											</div>
+										</div>
+									)}
+									<div className='flex justify-end mb-1 w-1/3'>
+										<div className='w-1/2 font-bold text-right pr-4'>VAT (11%):</div>
+										<div className='w-1/2 text-right'>
+											{currencySymbol}{Math.abs(vatAmount).toFixed(2)}
+											{isReturn && ' (Return)'}
+										</div>
+									</div>
+								</>
+							)}
 
-            {/* Display Shipping Fee */}
-            {shippingFee > 0 && (
-              <div className='flex justify-end mb-1 w-1/3'>
-                <div className='w-1/2 font-bold text-right pr-4'>Shipping Fee:</div>
-                <div className='w-1/2 text-right'>
-                  {currencySymbol}{Math.abs(shippingFee).toFixed(2)}
-                </div>
-              </div>
-            )}
+							{shippingFee > 0 && (
+								<div className='flex justify-end mb-1 w-1/3'>
+									<div className='w-1/2 font-bold text-right pr-4'>Shipping Fee:</div>
+									<div className='w-1/2 text-right'>
+										{currencySymbol}{Math.abs(shippingFee).toFixed(2)}
+									</div>
+								</div>
+							)}
 
-            <div className='flex justify-end mb-1 w-1/3'>
-              <div className='w-1/2 font-bold text-right pr-4'>Total:</div>
-              <div className='w-1/2 text-right font-bold'>
-                {currencySymbol}{Math.abs(selectedInvoice.total_price || 0).toFixed(2)}
-                {isReturn && ' (Return)'}
-              </div>
-            </div>
+							<div className='flex justify-end mb-1 w-1/3'>
+								<div className='w-1/2 font-bold text-right pr-4'>Total:</div>
+								<div className='w-1/2 text-right font-bold'>
+									{currencySymbol}{Math.abs(selectedInvoice.total_price || 0).toFixed(2)}
+									{isReturn && ' (Return)'}
+								</div>
+							</div>
 
-            <div className='w-2/3 text-right italic text-sm text-neutral-600 mt-1'>
-              Amount in words: [Amount in words would appear here]
-              {isReturn && ' (Credit)'}
-            </div>
-          </div>
+							<div className='w-2/3 text-right italic text-sm text-neutral-600 mt-1'>
+								Amount in words: [Amount in words would appear here]
+								{isReturn && ' (Credit)'}
+							</div>
+						</div>
 
-          {/* Payment Information Section */}
-          <div className='border-t border-neutral-300 pt-4 mb-6'>
-            <h4 className='font-bold mb-2'>Payment Information:</h4>
-            {selectedInvoice.payment_info && (
-              <PaymentInfoDisplay option={selectedInvoice.payment_info} />
-            )}
-          </div>
+						{/* Payment Information Section */}
+						<div className='border-t border-neutral-300 pt-4 mb-6'>
+							<h4 className='font-bold mb-2'>Payment Information:</h4>
+							{selectedInvoice.payment_info && (
+								<PaymentInfoDisplay option={selectedInvoice.payment_info} />
+							)}
+						</div>
 
-          {/* Files Section */}
-          {selectedInvoice.files && selectedInvoice.files.length > 0 && (
-            <div className='mb-6'>
-              <h4 className='font-bold mb-2'>Attached Files:</h4>
-              <ul className='list-disc list-inside'>
-                {selectedInvoice.files.map((file, index) => (
-                  <li key={index} className='text-sm'>
-                    <a
-                      href={file}
-                      target='_blank'
-                      rel='noopener noreferrer'
-                      className='text-blue hover:underline'>
-                      {file.split('/').pop() || 'File'}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+						{/* Files Section */}
+						{selectedInvoice.files && selectedInvoice.files.length > 0 && (
+							<div className='mb-6'>
+								<h4 className='font-bold mb-2'>Attached Files:</h4>
+								<ul className='list-disc list-inside'>
+									{selectedInvoice.files.map((file, index) => (
+										<li key={index} className='text-sm'>
+											<a
+												href={file}
+												target='_blank'
+												rel='noopener noreferrer'
+												className='text-blue hover:underline'>
+												{file.split('/').pop() || 'File'}
+											</a>
+										</li>
+									))}
+								</ul>
+							</div>
+						)}
 
-          {isReturn && (
-            <div className='text-center mb-6'>
-              <p className='text-red-600 italic text-sm'>
-                This is a return invoice. All amounts shown are credits to be applied to your account.
-              </p>
-            </div>
-          )}
+						{isReturn && (
+							<div className='text-center mb-6'>
+								<p className='text-red-600 italic text-sm'>
+									This is a return invoice. All amounts shown are credits to be applied to your account.
+								</p>
+							</div>
+						)}
 
-          <div className='text-center text-neutral-500 text-sm mb-4'>
-            Thank you for your business!
-          </div>
+						<div className='text-center text-neutral-500 text-sm mb-4'>
+							Thank you for your business!
+						</div>
 
-          <div className='flex justify-center space-x-4 mt-6'>
-            <button
-              className='px-4 py-2 bg-blue text-white font-medium rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none'
-              onClick={() => handlePDFGeneration(selectedInvoice)}>
-              Download PDF
-            </button>
-            <button
-              className='px-4 py-2 bg-gray text-white font-medium rounded-md shadow-sm hover:bg-neutral-700 focus:outline-none'
-              onClick={() => setSelectedInvoice(null)}>
-              Close
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+						<div className='flex justify-center space-x-4 mt-6'>
+							<button
+								className='px-4 py-2 bg-blue text-white font-medium rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none'
+								onClick={() => handlePDFGeneration(selectedInvoice)}>
+								Download PDF
+							</button>
+							<button
+								className='px-4 py-2 bg-gray text-white font-medium rounded-md shadow-sm hover:bg-neutral-700 focus:outline-none'
+								onClick={() => setSelectedInvoice(null)}>
+								Close
+							</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		)
+	}
 
 	return (
 		<div className='mx-auto px-4 py-8 text-gray'>
@@ -2290,12 +2598,13 @@ const renderInvoiceDetails = () => {
 						client_id: undefined,
 						supplier_id: undefined,
 						payment_info: 'frisson_llc',
-						shipping_fee:0
+						shipping_fee: 0
 					})
 					setShowModal(true)
 				}}>
 				<FaPlus className='inline-block mr-2' /> Create New Invoice
 			</button>
+
 			{showModal && (
 				<div className='fixed z-10 inset-0 overflow-y-auto'>
 					<div className='flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0'>
@@ -2315,6 +2624,7 @@ const renderInvoiceDetails = () => {
 					</div>
 				</div>
 			)}
+
 			{selectedInvoice && (
 				<div className='fixed z-10 inset-0 overflow-y-auto'>
 					<LoadingOverlay
