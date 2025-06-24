@@ -15,7 +15,8 @@ import {
   FaPlus,
   FaCheck,
   FaSearch,
-  FaSpinner
+  FaSpinner,
+  FaExclamationTriangle
 } from 'react-icons/fa'
 import { generatePDF } from '@/utils/pdfGenerator'
 import { debounce } from 'lodash'
@@ -48,7 +49,7 @@ interface Quotation {
     | '60 days after shipping'
     | '100% after delivery'| '100% prepayment'
   delivery_date: string
-  shipping_fee: number // New field for shipping fee
+  shipping_fee: number
 }
 
 interface LoadingStates {
@@ -58,6 +59,51 @@ interface LoadingStates {
   isOrderUpdating: boolean
   isOrderDeleting: boolean
   isOrderAccepting: boolean
+}
+
+// Error Boundary Component
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode; fallback?: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode; fallback?: React.ReactNode }) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('ErrorBoundary caught an error:', error, errorInfo)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback || (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4 m-4">
+          <div className="flex">
+            <FaExclamationTriangle className="text-red-400 mt-1 mr-2" />
+            <div>
+              <h3 className="text-sm font-medium text-red-800">Something went wrong</h3>
+              <p className="text-sm text-red-700 mt-1">
+                {this.state.error?.message || 'An unexpected error occurred'}
+              </p>
+              <button
+                onClick={() => this.setState({ hasError: false, error: null })}
+                className="mt-2 bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1 rounded text-sm"
+              >
+                Try again
+              </button>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    return this.props.children
+  }
 }
 
 const LoadingOverlay = ({ children, isLoading }: { children: React.ReactNode; isLoading: boolean }) => (
@@ -100,6 +146,7 @@ const QuotationsPage: React.FC = () => {
   const [editingProductIndex, setEditingProductIndex] = useState<number | null>(null)
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null)
   const [allProductVariants, setAllProductVariants] = useState<ProductVariant[]>([])
+  const [error, setError] = useState<string | null>(null)
   const [newQuotation, setNewQuotation] = useState<Partial<Quotation>>({
     created_at: new Date().toISOString(),
     total_price: 0,
@@ -112,9 +159,8 @@ const QuotationsPage: React.FC = () => {
     discounts: {},
     currency: 'usd',
     payment_term: '30% deposit 70% before shipping',
-    // Default delivery date set to one month ahead
     delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(),
-    shipping_fee: 0 // Initialize shipping fee with 0
+    shipping_fee: 0
   })
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [selectedVariants, setSelectedVariants] = useState<QuotationProduct[]>([])
@@ -130,24 +176,68 @@ const QuotationsPage: React.FC = () => {
   })
   const [orderNumberSearch, setOrderNumberSearch] = useState<string>('');
 
+  // Safe product finder with error handling
+  const findProductSafely = useCallback((productId: string) => {
+    try {
+      if (!productId || !products || products.length === 0) return null
+      return products.find(p => p?.id === productId) || null
+    } catch (error) {
+      console.error('Error finding product:', error)
+      return null
+    }
+  }, [products])
+
+  // Safe variant finder with error handling
+  const findVariantSafely = useCallback((product: Product | null, variantId: string) => {
+    try {
+      if (!product || !variantId || !product.variants || product.variants.length === 0) return null
+      return product.variants.find(v => v?.id === variantId) || null
+    } catch (error) {
+      console.error('Error finding variant:', error)
+      return null
+    }
+  }, [])
+
+  // Safe client finder with error handling
+  const findClientSafely = useCallback((clientId: number) => {
+    try {
+      if (!clientId || !clients || clients.length === 0) return null
+      return clients.find(c => c?.client_id === clientId) || null
+    } catch (error) {
+      console.error('Error finding client:', error)
+      return null
+    }
+  }, [clients])
+
   // Fetch data on mount and when filters change
   useEffect(() => {
-    fetchQuotations()
-    fetchClients()
-    fetchProducts()
+    try {
+      fetchQuotations()
+      fetchClients()
+      fetchProducts()
+    } catch (error) {
+      console.error('Error in useEffect:', error)
+      setError('Failed to initialize data')
+    }
   }, [currentPage, sortField, sortOrder, filterStartDate, filterEndDate, filterClient, filterStatus, orderNumberSearch])
 
   useEffect(() => {
-    const filtered = products.filter(product =>
-      product.name.toLowerCase().includes(productSearch.toLowerCase())
-    )
-    setFilteredProducts(filtered)
+    try {
+      const filtered = products.filter(product =>
+        product?.name?.toLowerCase().includes(productSearch.toLowerCase())
+      )
+      setFilteredProducts(filtered)
+    } catch (error) {
+      console.error('Error filtering products:', error)
+      setFilteredProducts([])
+    }
   }, [productSearch, products])
 
   const handleError = (error: any, context: string) => {
     console.error(`Error in ${context}:`, error)
     const errorMessage = error?.message || `Failed to ${context.toLowerCase()}`
     toast.error(errorMessage)
+    setError(errorMessage)
   }
 
   const updateLoadingState = (key: keyof LoadingStates, value: boolean) => {
@@ -155,24 +245,39 @@ const QuotationsPage: React.FC = () => {
   }
 
   const handleProductSearch = debounce((searchTerm: string) => {
-    setProductSearch(searchTerm)
+    try {
+      setProductSearch(searchTerm)
+    } catch (error) {
+      console.error('Error in product search:', error)
+    }
   }, 300)
 
   const handleEditExistingProduct = (index: number) => {
-    if (!newQuotation.products) return
-    const productToEdit = newQuotation.products[index]
-    const parentProduct = products.find(p => p.id === productToEdit.product_id)
-    if (parentProduct) {
-      setSelectedProduct(parentProduct)
-      setSelectedVariants([productToEdit])
-      setEditingProductIndex(index)
+    try {
+      if (!newQuotation.products || !Array.isArray(newQuotation.products)) return
+      
+      const productToEdit = newQuotation.products[index]
+      if (!productToEdit || !productToEdit.product_id) return
+      
+      const parentProduct = findProductSafely(productToEdit.product_id)
+      if (parentProduct) {
+        setSelectedProduct(parentProduct)
+        setSelectedVariants([productToEdit])
+        setEditingProductIndex(index)
+      }
+    } catch (error) {
+      console.error('Error editing product:', error)
+      toast.error('Failed to edit product')
     }
   }
 
   const fetchQuotations = async () => {
     updateLoadingState('isMainLoading', true)
+    setError(null)
+    
     try {
       let query = supabase.from('Quotations').select('*', { count: 'exact' })
+      
       if (filterStartDate) {
         query = query.gte('created_at', filterStartDate.toISOString())
       }
@@ -189,7 +294,6 @@ const QuotationsPage: React.FC = () => {
         query = query.ilike('order_number', `%${orderNumberSearch}%`);
       }
 
-      // Only apply database sorting for fields other than entity_name
       if (sortField !== 'entity_name') {
         query = query.order(sortField, { ascending: sortOrder === 'asc' })
       }
@@ -201,12 +305,11 @@ const QuotationsPage: React.FC = () => {
 
       if (error) throw error
 
-      // Sort by client name if entity_name is selected as sort field
       let sortedData = data || []
       if (sortField === 'entity_name') {
         sortedData = sortedData.sort((a, b) => {
-          const entityA = clients.find(client => client.client_id === a.client_id)?.name || ''
-          const entityB = clients.find(client => client.client_id === b.client_id)?.name || ''
+          const entityA = findClientSafely(a.client_id)?.name || ''
+          const entityB = findClientSafely(b.client_id)?.name || ''
 
           return sortOrder === 'asc'
             ? entityA.localeCompare(entityB)
@@ -224,30 +327,42 @@ const QuotationsPage: React.FC = () => {
   }
 
   const handleOrderNumberSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setOrderNumberSearch(e.target.value);
-    setCurrentPage(1); // Reset to first page when searching
+    try {
+      setOrderNumberSearch(e.target.value);
+      setCurrentPage(1);
+    } catch (error) {
+      console.error('Error in order number search:', error)
+    }
   };
 
   const fetchClients = async () => {
-    const { data, error } = await supabase.from('Clients').select('*').order('name', { ascending: true })
-    if (error) {
-      toast.error(`Error fetching clients: ${error.message}`)
-    } else {
-      setClients(data || [])
+    try {
+      const { data, error } = await supabase.from('Clients').select('*').order('name', { ascending: true })
+      if (error) {
+        throw error
+      } else {
+        setClients(data || [])
+      }
+    } catch (error) {
+      handleError(error, 'fetch clients')
     }
   }
 
   const fetchProducts = async () => {
-    const { data, error } = await supabase.from('Products').select(`
-      *,
-      variants:ProductVariants(*)
-    `)
-    if (error) {
-      toast.error(`Error fetching products: ${error.message}`)
-    } else {
-      setProducts(data || [])
-      const variants = data?.flatMap(product => product.variants) || []
-      setAllProductVariants(variants)
+    try {
+      const { data, error } = await supabase.from('Products').select(`
+        *,
+        variants:ProductVariants(*)
+      `)
+      if (error) {
+        throw error
+      } else {
+        setProducts(data || [])
+        const variants = data?.flatMap(product => product?.variants || []) || []
+        setAllProductVariants(variants)
+      }
+    } catch (error) {
+      handleError(error, 'fetch products')
     }
   }
 
@@ -255,189 +370,232 @@ const QuotationsPage: React.FC = () => {
     quotationProducts: QuotationProduct[],
     discounts: { [productId: string]: number },
     includeVAT: boolean,
-    shippingFee: number = 0 // Add shipping fee parameter with default value
+    shippingFee: number = 0
   ) => {
-    const subtotal = quotationProducts.reduce((total, quotationProduct) => {
-      const parentProduct = products.find(p => p.id === quotationProduct?.product_id)
-      if (!parentProduct) {
-        console.warn(`Product not found: ${quotationProduct?.product_id}`)
-        return total
+    try {
+      if (!Array.isArray(quotationProducts)) {
+        return { subtotal: 0, vatAmount: 0, totalPrice: 0 }
       }
-      const unitPrice = parentProduct.price
-      const discount = discounts[quotationProduct?.product_id] || 0
-      const discountedPrice = Math.max(0, unitPrice - discount)
-      return total + discountedPrice * quotationProduct?.quantity
-    }, 0)
-    const vatAmount = includeVAT ? subtotal * 0.11 : 0
-    // Include shipping fee in total price calculation
-    const totalPrice = subtotal + vatAmount + shippingFee
-    return { subtotal, vatAmount, totalPrice }
+
+      const subtotal = quotationProducts.reduce((total, quotationProduct) => {
+        try {
+          if (!quotationProduct || !quotationProduct.product_id) return total
+          
+          const parentProduct = findProductSafely(quotationProduct.product_id)
+          if (!parentProduct || typeof parentProduct.price !== 'number') {
+            return total
+          }
+          
+          const unitPrice = parentProduct.price
+          const discount = discounts[quotationProduct.product_id] || 0
+          const discountedPrice = Math.max(0, unitPrice - discount)
+          const quantity = quotationProduct.quantity || 0
+          
+          return total + discountedPrice * quantity
+        } catch (error) {
+          console.error('Error calculating product total:', error)
+          return total
+        }
+      }, 0)
+      
+      const vatAmount = includeVAT ? subtotal * 0.11 : 0
+      const totalPrice = subtotal + vatAmount + shippingFee
+      
+      return { subtotal, vatAmount, totalPrice }
+    } catch (error) {
+      console.error('Error calculating total price:', error)
+      return { subtotal: 0, vatAmount: 0, totalPrice: 0 }
+    }
   }
 
-  // Handler for shipping fee changes
   const handleShippingFeeChange = (value: number) => {
-    // Ensure value is valid
-    const fee = value >= 0 ? value : 0;
-    
-    // Update the quotation state
-    setNewQuotation(prev => {
-      // Recalculate total with the new shipping fee
-      const { totalPrice, vatAmount } = calculateTotalPrice(
-        prev.products || [],
-        prev.discounts || {},
-        prev.include_vat || false,
-        fee
-      );
+    try {
+      const fee = value >= 0 ? value : 0;
       
-      return {
-        ...prev,
-        shipping_fee: fee,
-        total_price: totalPrice,
-        vat_amount: vatAmount
-      };
-    });
+      setNewQuotation(prev => {
+        const { totalPrice, vatAmount } = calculateTotalPrice(
+          prev.products || [],
+          prev.discounts || {},
+          prev.include_vat || false,
+          fee
+        );
+        
+        return {
+          ...prev,
+          shipping_fee: fee,
+          total_price: totalPrice,
+          vat_amount: vatAmount
+        };
+      });
+    } catch (error) {
+      console.error('Error handling shipping fee change:', error)
+      toast.error('Failed to update shipping fee')
+    }
   }
 
   const handleDiscountChange = (productId: string, discount: number) => {
-    const product = products.find(p => p.id === productId)
-    const maxDiscount = product?.price
-    if (discount < 0) discount = 0
-    if (maxDiscount !== undefined && discount > maxDiscount) discount = maxDiscount
-    setNewQuotation(prev => ({
-      ...prev,
-      discounts: { ...prev.discounts, [productId]: discount }
-    }))
-    const { totalPrice, vatAmount } = calculateTotalPrice(
-      newQuotation.products || [],
-      { ...newQuotation.discounts, [productId]: discount },
-      newQuotation.include_vat || false,
-      newQuotation.shipping_fee || 0 // Include shipping fee in calculation
-    )
-    setNewQuotation(prev => ({
-      ...prev,
-      total_price: totalPrice,
-      vat_amount: vatAmount
-    }))
+    try {
+      const product = findProductSafely(productId)
+      const maxDiscount = product?.price || 0
+      
+      if (discount < 0) discount = 0
+      if (maxDiscount && discount > maxDiscount) discount = maxDiscount
+      
+      setNewQuotation(prev => ({
+        ...prev,
+        discounts: { ...prev.discounts, [productId]: discount }
+      }))
+      
+      const { totalPrice, vatAmount } = calculateTotalPrice(
+        newQuotation.products || [],
+        { ...newQuotation.discounts, [productId]: discount },
+        newQuotation.include_vat || false,
+        newQuotation.shipping_fee || 0
+      )
+      
+      setNewQuotation(prev => ({
+        ...prev,
+        total_price: totalPrice,
+        vat_amount: vatAmount
+      }))
+    } catch (error) {
+      console.error('Error handling discount change:', error)
+      toast.error('Failed to update discount')
+    }
   }
 
-  // Calculate remaining amount for invoice updates
   const calculateRemainingAmount = (invoice: any, newTotalPrice: number | undefined) => {
-    if (!newTotalPrice) return invoice.remaining_amount;
+    try {
+      if (!newTotalPrice || !invoice) return invoice?.remaining_amount || 0;
 
-    // Calculate how much has been paid already
-    const paidAmount = invoice.total_price - invoice.remaining_amount;
-
-    // Calculate new remaining amount (can't be negative)
-    return Math.max(0, newTotalPrice - paidAmount);
+      const paidAmount = (invoice.total_price || 0) - (invoice.remaining_amount || 0);
+      return Math.max(0, newTotalPrice - paidAmount);
+    } catch (error) {
+      console.error('Error calculating remaining amount:', error)
+      return 0
+    }
   };
 
-  // Create a new invoice from quotation
   const createInvoiceFromQuotation = async (quotation: Quotation) => {
-    const invoiceData = {
-      created_at: new Date().toISOString(),
-      total_price: quotation.total_price,
-      client_id: quotation.client_id,
-      products: quotation.products,
-      files: [],
-      remaining_amount: quotation.total_price,
-      order_number: quotation.order_number,
-      include_vat: quotation.include_vat,
-      vat_amount: quotation.vat_amount,
-      discounts: quotation.discounts,
-      type: 'regular',
-      currency: quotation.currency,
-      payment_term: quotation.payment_term,
-      delivery_date: quotation.delivery_date,
-      payment_info: 'frisson_llc', // Default payment info
-      shipping_fee: quotation.shipping_fee || 0 // Include shipping fee
-    };
-  
-    // Insert the invoice and get the created invoice data
-    const { data: createdInvoice, error: invoiceError } = await supabase
-      .from('ClientInvoices')
-      .insert(invoiceData)
-      .select()
-      .single();
-  
-    if (invoiceError) {
-      throw new Error(`Error creating invoice: ${invoiceError.message}`);
-    }
-  
-    // Update inventory quantities for the new invoice
-    await updateInventoryForInvoice(quotation.products, createdInvoice.id);
-  };
-  
-  // Add a function to handle inventory updates
-  const updateInventoryForInvoice = async (products: QuotationProduct[], invoiceId: number) => {
-    for (const product of products) {
-      try {
-        // For client invoices, we subtract from inventory (negative quantity change)
-        const quantityChange = -product?.quantity;
-        
-        // Use the product utility function with proper source tracking
-        await productFunctions.updateProductVariantQuantity(
-          product.product_variant_id,
-          quantityChange,
-          'client_invoice',
-          invoiceId.toString(),
-          'Invoice created from quotation'
-        );
-      } catch (error: any) {
-        console.error(`Error updating product ${product?.product_id} quantity:`, error);
-        // Continue with other products even if one fails
+    try {
+      if (!quotation || !quotation.client_id) {
+        throw new Error('Invalid quotation data')
       }
-    }
-  };
 
-  // Find and update related invoices for an accepted order
-  const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
-    if (!quotation.id || !quotation.client_id || !quotation.order_number) {
-      throw new Error('Missing required quotation data for invoice update');
-    }
-
-    // Find related invoices
-    const { data: relatedInvoices, error: fetchError } = await supabase
-      .from('ClientInvoices')
-      .select('*')
-      .eq('client_id', quotation.client_id)
-      .eq('order_number', quotation.order_number);
-
-    if (fetchError) {
-      throw new Error(`Error finding related invoices: ${fetchError.message}`);
-    }
-
-    if (!relatedInvoices || relatedInvoices.length === 0) {
-      toast.error('No related invoices found for this order. Creating a new invoice.');
-      await createInvoiceFromQuotation(quotation as Quotation);
-      return;
-    }
-
-    // Update each related invoice
-    for (const invoice of relatedInvoices) {
-      const updatedInvoiceData = {
-        total_price: quotation.total_price,
-        products: quotation.products,
-        remaining_amount: calculateRemainingAmount(invoice, quotation.total_price),
-        include_vat: quotation.include_vat,
-        vat_amount: quotation.vat_amount,
-        discounts: quotation.discounts,
-        currency: quotation.currency,
-        payment_term: quotation.payment_term,
-        delivery_date: quotation.delivery_date,
-        shipping_fee: quotation.shipping_fee || 0 // Include shipping fee
+      const invoiceData = {
+        created_at: new Date().toISOString(),
+        total_price: quotation.total_price || 0,
+        client_id: quotation.client_id,
+        products: quotation.products || [],
+        files: [],
+        remaining_amount: quotation.total_price || 0,
+        order_number: quotation.order_number || '',
+        include_vat: quotation.include_vat || false,
+        vat_amount: quotation.vat_amount || 0,
+        discounts: quotation.discounts || {},
+        type: 'regular',
+        currency: quotation.currency || 'usd',
+        payment_term: quotation.payment_term || '30% deposit 70% before shipping',
+        delivery_date: quotation.delivery_date || new Date().toISOString(),
+        payment_info: 'frisson_llc',
+        shipping_fee: quotation.shipping_fee || 0
       };
-
-      const { error: updateError } = await supabase
+    
+      const { data: createdInvoice, error: invoiceError } = await supabase
         .from('ClientInvoices')
-        .update(updatedInvoiceData)
-        .eq('id', invoice.id);
-
-      if (updateError) {
-        throw new Error(`Error updating related invoice: ${updateError.message}`);
+        .insert(invoiceData)
+        .select()
+        .single();
+    
+      if (invoiceError) {
+        throw new Error(`Error creating invoice: ${invoiceError.message}`);
       }
+    
+      await updateInventoryForInvoice(quotation.products || [], createdInvoice.id);
+    } catch (error) {
+      console.error('Error creating invoice from quotation:', error)
+      throw error
     }
+  };
+  
+  const updateInventoryForInvoice = async (products: QuotationProduct[], invoiceId: number) => {
+    try {
+      if (!Array.isArray(products)) return
+      
+      for (const product of products) {
+        try {
+          if (!product || !product.product_variant_id || !product.quantity) continue
+          
+          const quantityChange = -product.quantity;
+          
+          await productFunctions.updateProductVariantQuantity(
+            product.product_variant_id,
+            quantityChange,
+            'client_invoice',
+            invoiceId.toString(),
+            'Invoice created from quotation'
+          );
+        } catch (error: any) {
+          console.error(`Error updating product ${product?.product_id} quantity:`, error);
+        }
+      }
+    } catch (error) {
+      console.error('Error updating inventory:', error)
+      throw error
+    }
+  };
 
-    toast.success(`Updated ${relatedInvoices.length > 1 ? 'invoices' : 'invoice'} related to this order`);
+  const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
+    try {
+      if (!quotation.id || !quotation.client_id || !quotation.order_number) {
+        throw new Error('Missing required quotation data for invoice update');
+      }
+
+      const { data: relatedInvoices, error: fetchError } = await supabase
+        .from('ClientInvoices')
+        .select('*')
+        .eq('client_id', quotation.client_id)
+        .eq('order_number', quotation.order_number);
+
+      if (fetchError) {
+        throw new Error(`Error finding related invoices: ${fetchError.message}`);
+      }
+
+      if (!relatedInvoices || relatedInvoices.length === 0) {
+        toast.error('No related invoices found for this order. Creating a new invoice.');
+        await createInvoiceFromQuotation(quotation as Quotation);
+        return;
+      }
+
+      for (const invoice of relatedInvoices) {
+        const updatedInvoiceData = {
+          total_price: quotation.total_price || 0,
+          products: quotation.products || [],
+          remaining_amount: calculateRemainingAmount(invoice, quotation.total_price),
+          include_vat: quotation.include_vat || false,
+          vat_amount: quotation.vat_amount || 0,
+          discounts: quotation.discounts || {},
+          currency: quotation.currency || 'usd',
+          payment_term: quotation.payment_term || '30% deposit 70% before shipping',
+          delivery_date: quotation.delivery_date || new Date().toISOString(),
+          shipping_fee: quotation.shipping_fee || 0
+        };
+
+        const { error: updateError } = await supabase
+          .from('ClientInvoices')
+          .update(updatedInvoiceData)
+          .eq('id', invoice.id);
+
+        if (updateError) {
+          throw new Error(`Error updating related invoice: ${updateError.message}`);
+        }
+      }
+
+      toast.success(`Updated ${relatedInvoices.length > 1 ? 'invoices' : 'invoice'} related to this order`);
+    } catch (error) {
+      console.error('Error updating related invoices:', error)
+      throw error
+    }
   };
 
   const handleCreateQuotation = async () => {
@@ -446,9 +604,17 @@ const QuotationsPage: React.FC = () => {
     const isBeingAccepted = isUpdate && newQuotation.status === 'accepted' && !wasAlreadyAccepted;
 
     updateLoadingState(isUpdate ? 'isOrderUpdating' : 'isOrderCreating', true);
+    setError(null)
 
     try {
-      // Ensure shipping_fee is a number
+      if (!newQuotation.client_id) {
+        throw new Error('Please select a client')
+      }
+
+      if (!newQuotation.products || newQuotation.products.length === 0) {
+        throw new Error('Please add at least one product')
+      }
+
       const shippingFee = Number(newQuotation.shipping_fee) || 0;
 
       const { subtotal, vatAmount, totalPrice } = calculateTotalPrice(
@@ -460,12 +626,11 @@ const QuotationsPage: React.FC = () => {
 
       const quotationData = {
         ...newQuotation,
-        shipping_fee: shippingFee, // Ensure shipping_fee is included
+        shipping_fee: shippingFee,
         total_price: totalPrice,
         vat_amount: vatAmount
       };
 
-      // Update the quotation
       const { error } = await supabase
         .from('Quotations')
         [isUpdate ? 'update' : 'insert'](quotationData)
@@ -473,12 +638,9 @@ const QuotationsPage: React.FC = () => {
 
       if (error) throw error;
 
-      // If the quotation was already accepted, update the related invoice
       if (wasAlreadyAccepted) {
         await updateRelatedInvoices(newQuotation);
-      }
-      // If the quotation is being accepted now, create a new invoice
-      else if (isBeingAccepted) {
+      } else if (isBeingAccepted) {
         await createInvoiceFromQuotation(quotationData as Quotation);
       }
 
@@ -494,7 +656,13 @@ const QuotationsPage: React.FC = () => {
 
   const handleAcceptQuotation = async (quotation: Quotation) => {
     updateLoadingState('isOrderAccepting', true);
+    setError(null)
+    
     try {
+      if (!quotation || !quotation.id) {
+        throw new Error('Invalid quotation')
+      }
+
       const { error: updateError } = await supabase
         .from('Quotations')
         .update({ status: 'accepted' })
@@ -502,7 +670,6 @@ const QuotationsPage: React.FC = () => {
 
       if (updateError) throw new Error(`Error updating quotation status: ${updateError.message}`);
 
-      // Create invoice from quotation
       await createInvoiceFromQuotation(quotation);
 
       toast.success('Order accepted and converted to invoice successfully');
@@ -520,9 +687,9 @@ const QuotationsPage: React.FC = () => {
     }
 
     updateLoadingState('isOrderDeleting', true);
+    setError(null)
 
     try {
-      // First, fetch the quotation to check its status
       const { data: quotation, error: fetchError } = await supabase
         .from('Quotations')
         .select('*')
@@ -533,9 +700,7 @@ const QuotationsPage: React.FC = () => {
         throw new Error(`Error fetching order details: ${fetchError.message}`);
       }
 
-      // If the quotation status is 'accepted', find and delete the related invoice
       if (quotation && quotation.status === 'accepted') {
-        // Find invoice(s) that were created from this quotation
         const { data: relatedInvoices, error: invoiceFetchError } = await supabase
           .from('ClientInvoices')
           .select('*')
@@ -548,7 +713,6 @@ const QuotationsPage: React.FC = () => {
 
         if (relatedInvoices && relatedInvoices.length > 0) {
           for (const invoice of relatedInvoices) {
-            // Check if there are any payments made for this invoice
             const { data: receipts, error: receiptsError } = await supabase
               .from('ClientReceipts')
               .select('id')
@@ -558,14 +722,12 @@ const QuotationsPage: React.FC = () => {
               throw new Error(`Error checking for receipts: ${receiptsError.message}`);
             }
 
-            // If receipts exist, warn the user and abort
             if (receipts && receipts.length > 0) {
               toast.error('Cannot delete: This order has related invoices with payments');
               updateLoadingState('isOrderDeleting', false);
               return;
             }
 
-            // Delete the invoice
             const { error: invoiceDeleteError } = await supabase
               .from('ClientInvoices')
               .delete()
@@ -580,7 +742,6 @@ const QuotationsPage: React.FC = () => {
         }
       }
 
-      // Delete the quotation
       const { error: deleteError } = await supabase
         .from('Quotations')
         .delete()
@@ -600,98 +761,152 @@ const QuotationsPage: React.FC = () => {
   };
 
   const handleSort = (field: any) => {
-    if (field === sortField) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
-    } else {
-      setSortField(field)
-      setSortOrder('asc')
+    try {
+      if (field === sortField) {
+        setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+      } else {
+        setSortField(field)
+        setSortOrder('asc')
+      }
+    } catch (error) {
+      console.error('Error handling sort:', error)
     }
   }
 
   const handleEditQuotation = (quotation: Quotation) => {
-    // Set newQuotation state to the quotation being edited
-    setNewQuotation({
-      ...quotation,
-      shipping_fee: quotation.shipping_fee || 0 // Ensure shipping fee is set
-    })
-    setShowModal(true)
+    try {
+      if (!quotation) {
+        toast.error('Invalid quotation data')
+        return
+      }
+
+      setNewQuotation({
+        ...quotation,
+        shipping_fee: quotation.shipping_fee || 0,
+        products: quotation.products || [],
+        discounts: quotation.discounts || {}
+      })
+      setShowModal(true)
+    } catch (error) {
+      console.error('Error editing quotation:', error)
+      toast.error('Failed to edit quotation')
+    }
   }
 
   const handleQuotationClick = (quotation: Quotation) => {
-    setSelectedQuotation(quotation)
+    try {
+      setSelectedQuotation(quotation)
+    } catch (error) {
+      console.error('Error selecting quotation:', error)
+    }
   }
 
   const handleAddProduct = (product: Product) => {
-    if (!product.variants || product.variants.length === 0) {
-      toast.error("This product has no available variants.")
-      return
-    }
-    setSelectedProduct(product)
-    setSelectedVariants([
-      {
-        product_id: product.id,
-        product_variant_id: product.variants[0]?.id || '',
-        quantity: 1,
-        note: product.description || ''
+    try {
+      if (!product || !product.variants || product.variants.length === 0) {
+        toast.error("This product has no available variants.")
+        return
       }
-    ])
+      
+      setSelectedProduct(product)
+      setSelectedVariants([
+        {
+          product_id: product.id,
+          product_variant_id: product.variants[0]?.id || '',
+          quantity: 1,
+          note: product.description || ''
+        }
+      ])
+    } catch (error) {
+      console.error('Error adding product:', error)
+      toast.error('Failed to add product')
+    }
   }
 
   const handleAddVariant = () => {
-    if (selectedProduct) {
-      setSelectedVariants([
-        ...selectedVariants,
-        {
-          product_id: selectedProduct.id,
-          product_variant_id: '', // Default to empty string; user must select
-          quantity: 1,
-          note: selectedProduct.description || ''
-        }
-      ])
+    try {
+      if (selectedProduct) {
+        setSelectedVariants([
+          ...selectedVariants,
+          {
+            product_id: selectedProduct.id,
+            product_variant_id: '',
+            quantity: 1,
+            note: selectedProduct.description || ''
+          }
+        ])
+      }
+    } catch (error) {
+      console.error('Error adding variant:', error)
+      toast.error('Failed to add variant')
     }
   }
 
   const handleVariantChange = (index: number, field: keyof QuotationProduct, value: string | number) => {
-    const updatedVariants = [...selectedVariants]
-    updatedVariants[index] = { ...updatedVariants[index], [field]: value }
-    setSelectedVariants(updatedVariants)
+    try {
+      const updatedVariants = [...selectedVariants]
+      updatedVariants[index] = { ...updatedVariants[index], [field]: value }
+      setSelectedVariants(updatedVariants)
+    } catch (error) {
+      console.error('Error changing variant:', error)
+      toast.error('Failed to update variant')
+    }
   }
 
   const handleRemoveVariant = (index: number) => {
-    const updatedVariants = selectedVariants.filter((_, i) => i !== index)
-    setSelectedVariants(updatedVariants)
+    try {
+      const updatedVariants = selectedVariants.filter((_, i) => i !== index)
+      setSelectedVariants(updatedVariants)
+    } catch (error) {
+      console.error('Error removing variant:', error)
+      toast.error('Failed to remove variant')
+    }
   }
 
   const handleAddSelectedProductToQuotation = () => {
-    if (selectedProduct && selectedVariants.length > 0) {
-      let updatedProducts = [...(newQuotation.products || [])]
-      if (editingProductIndex !== null) {
-        updatedProducts[editingProductIndex] = selectedVariants[0]
-      } else {
-        updatedProducts = [...updatedProducts, ...selectedVariants]
+    try {
+      if (selectedProduct && selectedVariants.length > 0) {
+        let updatedProducts = [...(newQuotation.products || [])]
+        
+        if (editingProductIndex !== null) {
+          updatedProducts[editingProductIndex] = selectedVariants[0]
+        } else {
+          updatedProducts = [...updatedProducts, ...selectedVariants]
+        }
+        
+        const { totalPrice, vatAmount } = calculateTotalPrice(
+          updatedProducts,
+          newQuotation.discounts || {},
+          newQuotation.include_vat || false,
+          newQuotation.shipping_fee || 0
+        )
+        
+        setNewQuotation({
+          ...newQuotation,
+          products: updatedProducts,
+          total_price: totalPrice,
+          vat_amount: vatAmount
+        })
+        
+        setSelectedProduct(null)
+        setSelectedVariants([])
+        setEditingProductIndex(null)
       }
-      const { totalPrice, vatAmount } = calculateTotalPrice(
-        updatedProducts,
-        newQuotation.discounts || {},
-        newQuotation.include_vat || false,
-        newQuotation.shipping_fee || 0 // Include shipping fee
-      )
-      setNewQuotation({
-        ...newQuotation,
-        products: updatedProducts,
-        total_price: totalPrice,
-        vat_amount: vatAmount
-      })
-      // Reset product selection
-      setSelectedProduct(null)
-      setSelectedVariants([])
-      setEditingProductIndex(null)
+    } catch (error) {
+      console.error('Error adding selected product:', error)
+      toast.error('Failed to add product to order')
     }
   }
 
   const handlePDFGeneration = async (quotation: Quotation) => {
     updateLoadingState('isPDFGenerating', true)
+    setError(null)
+    
     try {
+      if (!quotation) {
+        throw new Error('Invalid quotation data')
+      }
+      
       await generatePDF('quotation', quotation)
       toast.success('PDF generated successfully')
     } catch (error) {
@@ -702,135 +917,149 @@ const QuotationsPage: React.FC = () => {
   }
 
   const resetProductEditingState = () => {
-    setSelectedProduct(null)
-    setSelectedVariants([])
-    setEditingProductIndex(null)
+    try {
+      setSelectedProduct(null)
+      setSelectedVariants([])
+      setEditingProductIndex(null)
+    } catch (error) {
+      console.error('Error resetting product editing state:', error)
+    }
   }
 
   const handleCloseModal = () => {
-    setShowModal(false)
-    setNewQuotation({
-      created_at: new Date().toISOString(),
-      total_price: 0,
-      note: '',
-      products: [],
-      status: 'pending',
-      include_vat: false,
-      vat_amount: 0,
-      order_number: '0',
-      discounts: {},
-      currency: 'usd',
-      payment_term: '30% deposit 70% before shipping',
-      // Default delivery date set to current date (adjust if needed)
-      delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(),
-      client_id: undefined,
-      shipping_fee: 0 // Reset shipping fee
-    })
-    resetProductEditingState()
+    try {
+      setShowModal(false)
+      setNewQuotation({
+        created_at: new Date().toISOString(),
+        total_price: 0,
+        note: '',
+        products: [],
+        status: 'pending',
+        include_vat: false,
+        vat_amount: 0,
+        order_number: '0',
+        discounts: {},
+        currency: 'usd',
+        payment_term: '30% deposit 70% before shipping',
+        delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(),
+        client_id: undefined,
+        shipping_fee: 0
+      })
+      resetProductEditingState()
+      setError(null)
+    } catch (error) {
+      console.error('Error closing modal:', error)
+    }
   }
 
   const renderQuotationTable = () => (
-    <div className='overflow-x-auto bg-white rounded-lg shadow'>
-      {loadingStates.isMainLoading ? (
-        <div className='flex justify-center items-center p-8'>
-          <FaSpinner className='animate-spin text-4xl text-blue' />
-        </div>
-      ) : (
-        <table className='w-full table-auto'>
-          <thead>
-            <tr className='bg-gray text-white uppercase text-sm leading-normal'>
-              <th
-                className='py-3 px-6 text-left cursor-pointer'
-                onClick={() => handleSort('entity_name')}>
-                Client {sortField === 'entity_name' && <FaSort className='inline' />}
-              </th>
-              <th
-                className='py-3 px-6 text-left cursor-pointer'
-                onClick={() => handleSort('created_at')}>
-                Date {sortField === 'created_at' && <FaSort className='inline' />}
-              </th>
-              <th
-                className='py-3 px-6 text-left cursor-pointer'
-                onClick={() => handleSort('total_price')}>
-                Total Price {sortField === 'total_price' && <FaSort className='inline' />}
-              </th>
-              <th
-                className='py-3 px-6 text-left cursor-pointer'
-                onClick={() => handleSort('status')}>
-                Status {sortField === 'status' && <FaSort className='inline' />}
-              </th>
-              <th
-                className='py-3 px-6 text-left cursor-pointer'
-                onClick={() => handleSort('order_number')}>
-                Order Number {sortField === 'order_number' && <FaSort className='inline' />}
-              </th>
-              <th className='py-3 px-6 text-center'>Actions</th>
-            </tr>
-          </thead>
-          <tbody className='text-gray text-sm font-light'>
-            {quotations.map(quotation => (
-              <tr
-                key={quotation.id}
-                className='border-b border-gray hover:bg-neutral-100 cursor-pointer'
-                onClick={() => handleQuotationClick(quotation)}>
-                <td className='py-3 px-6 text-left whitespace-nowrap'>
-                  {clients.find(client => client.client_id === quotation.client_id)?.name || '-'}
-                </td>
-                <td className='py-3 px-6 text-left'>
-                  {new Date(quotation.created_at).toLocaleDateString() || 'N/A'}
-                </td>
-                <td className='py-3 px-6 text-left'>
-                  ${quotation.total_price?.toFixed(2)}
-                </td>
-                <td className='py-3 px-6 text-left'>
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs ${
-                      quotation.status === 'pending'
-                        ? 'bg-yellow-200 text-yellow-800'
-                        : quotation.status === 'accepted'
-                        ? 'bg-green-200 text-green-800'
-                        : 'bg-red-200 text-red-800'
-                    }`}>
-                    {quotation.status}
-                  </span>
-                </td>
-                <td className='py-3 px-6 text-left'>{quotation.order_number || '-'}</td>
-                <td className='py-3 px-6 text-center'>
-                  <div className='flex items-center justify-center'>
-                    {quotation.status === 'pending' && (
-                      <button
-                        className='w-4 mr-2 transform hover:text-green-500 hover:scale-110'
-                        onClick={e => {
-                          e.stopPropagation()
-                          handleAcceptQuotation(quotation)
-                        }}>
-                        <FaCheck />
-                      </button>
-                    )}
-                    <button
-                      className='w-4 mr-2 transform hover:text-purple-500 hover:scale-110'
-                      onClick={e => {
-                        e.stopPropagation()
-                        handleEditQuotation(quotation)
-                      }}>
-                      <FaEdit />
-                    </button>
-                    <button
-                      className='w-4 mr-2 transform hover:text-red-500 hover:scale-110'
-                      onClick={e => {
-                        e.stopPropagation()
-                        handleDeleteQuotation(quotation.id)
-                      }}>
-                      <FaTrash />
-                    </button>
-                  </div>
-                </td>
+    <ErrorBoundary>
+      <div className='overflow-x-auto bg-white rounded-lg shadow'>
+        {loadingStates.isMainLoading ? (
+          <div className='flex justify-center items-center p-8'>
+            <FaSpinner className='animate-spin text-4xl text-blue' />
+          </div>
+        ) : (
+          <table className='w-full table-auto'>
+            <thead>
+              <tr className='bg-gray text-white uppercase text-sm leading-normal'>
+                <th
+                  className='py-3 px-6 text-left cursor-pointer'
+                  onClick={() => handleSort('entity_name')}>
+                  Client {sortField === 'entity_name' && <FaSort className='inline' />}
+                </th>
+                <th
+                  className='py-3 px-6 text-left cursor-pointer'
+                  onClick={() => handleSort('created_at')}>
+                  Date {sortField === 'created_at' && <FaSort className='inline' />}
+                </th>
+                <th
+                  className='py-3 px-6 text-left cursor-pointer'
+                  onClick={() => handleSort('total_price')}>
+                  Total Price {sortField === 'total_price' && <FaSort className='inline' />}
+                </th>
+                <th
+                  className='py-3 px-6 text-left cursor-pointer'
+                  onClick={() => handleSort('status')}>
+                  Status {sortField === 'status' && <FaSort className='inline' />}
+                </th>
+                <th
+                  className='py-3 px-6 text-left cursor-pointer'
+                  onClick={() => handleSort('order_number')}>
+                  Order Number {sortField === 'order_number' && <FaSort className='inline' />}
+                </th>
+                <th className='py-3 px-6 text-center'>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
+            </thead>
+            <tbody className='text-gray text-sm font-light'>
+              {quotations.map(quotation => {
+                const client = findClientSafely(quotation.client_id)
+                
+                return (
+                  <tr
+                    key={quotation.id}
+                    className='border-b border-gray hover:bg-neutral-100 cursor-pointer'
+                    onClick={() => handleQuotationClick(quotation)}>
+                    <td className='py-3 px-6 text-left whitespace-nowrap'>
+                      {client?.name || '-'}
+                    </td>
+                    <td className='py-3 px-6 text-left'>
+                      {quotation.created_at ? new Date(quotation.created_at).toLocaleDateString() : 'N/A'}
+                    </td>
+                    <td className='py-3 px-6 text-left'>
+                      ${(quotation.total_price || 0).toFixed(2)}
+                    </td>
+                    <td className='py-3 px-6 text-left'>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs ${
+                          quotation.status === 'pending'
+                            ? 'bg-yellow-200 text-yellow-800'
+                            : quotation.status === 'accepted'
+                            ? 'bg-green-200 text-green-800'
+                            : 'bg-red-200 text-red-800'
+                        }`}>
+                        {quotation.status}
+                      </span>
+                    </td>
+                    <td className='py-3 px-6 text-left'>{quotation.order_number || '-'}</td>
+                    <td className='py-3 px-6 text-center'>
+                      <div className='flex items-center justify-center'>
+                        {quotation.status === 'pending' && (
+                          <button
+                            className='w-4 mr-2 transform hover:text-green-500 hover:scale-110'
+                            onClick={e => {
+                              e.stopPropagation()
+                              handleAcceptQuotation(quotation)
+                            }}>
+                            <FaCheck />
+                          </button>
+                        )}
+                        <button
+                          className='w-4 mr-2 transform hover:text-purple-500 hover:scale-110'
+                          onClick={e => {
+                            e.stopPropagation()
+                            handleEditQuotation(quotation)
+                          }}>
+                          <FaEdit />
+                        </button>
+                        <button
+                          className='w-4 mr-2 transform hover:text-red-500 hover:scale-110'
+                          onClick={e => {
+                            e.stopPropagation()
+                            handleDeleteQuotation(quotation.id)
+                          }}>
+                          <FaTrash />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </ErrorBoundary>
   )
 
   const renderPagination = () => {
@@ -871,76 +1100,81 @@ const QuotationsPage: React.FC = () => {
   }
 
   const handleFilterClientChange = (clientId: number | null) => {
-    setFilterClient(clientId);
-    setCurrentPage(1);
+    try {
+      setFilterClient(clientId);
+      setCurrentPage(1);
+    } catch (error) {
+      console.error('Error changing client filter:', error)
+    }
   };
 
-
   const renderFilters = () => (
-    <div className='mb-6 flex flex-wrap items-center gap-4'>
-      <div className='relative min-w-[200px]'>
-        <DatePicker
-          selected={filterStartDate}
-          onChange={(date: Date | null) => setFilterStartDate(date)}
-          selectsStart
-          startDate={filterStartDate}
-          endDate={filterEndDate}
-          placeholderText='Start Date'
-          className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue sm:text-sm'
-        />
-        <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-          <FaFilter className='h-5 w-5 text-gray' />
+    <ErrorBoundary>
+      <div className='mb-6 flex flex-wrap items-center gap-4'>
+        <div className='relative min-w-[200px]'>
+          <DatePicker
+            selected={filterStartDate}
+            onChange={(date: Date | null) => setFilterStartDate(date)}
+            selectsStart
+            startDate={filterStartDate}
+            endDate={filterEndDate}
+            placeholderText='Start Date'
+            className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue sm:text-sm'
+          />
+          <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
+            <FaFilter className='h-5 w-5 text-gray' />
+          </div>
         </div>
-      </div>
 
-      <div className='relative min-w-[200px]'>
-        <DatePicker
-          selected={filterEndDate}
-          onChange={(date: Date | null) => setFilterEndDate(date)}
-          selectsEnd
-          startDate={filterStartDate}
-          endDate={filterEndDate}
-          minDate={filterStartDate}
-          placeholderText='End Date'
-          className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue sm:text-sm'
-        />
-        <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-          <FaFilter className='h-5 w-5 text-gray' />
+        <div className='relative min-w-[200px]'>
+          <DatePicker
+            selected={filterEndDate}
+            onChange={(date: Date | null) => setFilterEndDate(date)}
+            selectsEnd
+            startDate={filterStartDate}
+            endDate={filterEndDate}
+            minDate={filterStartDate}
+            placeholderText='End Date'
+            className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue sm:text-sm'
+          />
+          <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
+            <FaFilter className='h-5 w-5 text-gray' />
+          </div>
         </div>
-      </div>
 
-      <div className='relative min-w-[200px]'>
-        <input
-          type='text'
-          value={orderNumberSearch}
-          onChange={handleOrderNumberSearch}
-          placeholder='Search by Order Number'
-          className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
-        />
-        <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-          <FaSearch className='h-5 w-5 text-gray' />
+        <div className='relative min-w-[200px]'>
+          <input
+            type='text'
+            value={orderNumberSearch}
+            onChange={handleOrderNumberSearch}
+            placeholder='Search by Order Number'
+            className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
+          />
+          <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
+            <FaSearch className='h-5 w-5 text-gray' />
+          </div>
         </div>
-      </div>
-      <div className='flex-grow min-w-[250px]'>
-        <SearchableSelect
-          options={clients}
-          value={filterClient}
-          onChange={handleFilterClientChange}
-          placeholder="All Clients"
-          label="Filter Client"
-          idField="client_id"
-        />
-      </div>
+        <div className='flex-grow min-w-[250px]'>
+          <SearchableSelect
+            options={clients}
+            value={filterClient}
+            onChange={handleFilterClientChange}
+            placeholder="All Clients"
+            label="Filter Client"
+            idField="client_id"
+          />
+        </div>
 
-      <select
-        onChange={e => setFilterStatus(e.target.value || null)}
-        className='block min-w-[200px] pl-3 pr-10 py-2 text-base border-gray rounded-md focus:outline-none focus:ring-blue sm:text-sm'>
-        <option value=''>All Statuses</option>
-        <option value='pending'>Pending</option>
-        <option value='accepted'>Accepted</option>
-        <option value='rejected'>Rejected</option>
-      </select>
-    </div>
+        <select
+          onChange={e => setFilterStatus(e.target.value || null)}
+          className='block min-w-[200px] pl-3 pr-10 py-2 text-base border-gray rounded-md focus:outline-none focus:ring-blue sm:text-sm'>
+          <option value=''>All Statuses</option>
+          <option value='pending'>Pending</option>
+          <option value='accepted'>Accepted</option>
+          <option value='rejected'>Rejected</option>
+        </select>
+      </div>
+    </ErrorBoundary>
   );
 
   const renderQuotationModal = () => {
@@ -948,759 +1182,833 @@ const QuotationsPage: React.FC = () => {
     const isAcceptedOrder = isExistingOrder && quotations.find(q => q.id === newQuotation.id)?.status === 'accepted';
 
     return (
-      <div className={`fixed z-10 inset-0 overflow-y-auto ${showModal ? '' : 'hidden'}`}>
-        <div className='flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0'>
-          <div className='fixed inset-0 transition-opacity' aria-hidden='true'>
-            <div className='absolute inset-0 bg-gray opacity-75'></div>
-          </div>
-          <span className='hidden sm:inline-block sm:align-middle sm:h-screen' aria-hidden='true'>
-            &#8203;
-          </span>
-          <div className='inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full'>
-            <div className='bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4'>
-              <h3 className='text-lg leading-6 font-medium text-gray mb-4'>
-                {isExistingOrder ? 'Edit Order' : 'Create New Order'}
-              </h3>
+      <ErrorBoundary>
+        <div className={`fixed z-10 inset-0 overflow-y-auto ${showModal ? '' : 'hidden'}`}>
+          <div className='flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0'>
+            <div className='fixed inset-0 transition-opacity' aria-hidden='true'>
+              <div className='absolute inset-0 bg-gray opacity-75'></div>
+            </div>
+            <span className='hidden sm:inline-block sm:align-middle sm:h-screen' aria-hidden='true'>
+              &#8203;
+            </span>
+            <div className='inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full'>
+              <div className='bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4'>
+                <h3 className='text-lg leading-6 font-medium text-gray mb-4'>
+                  {isExistingOrder ? 'Edit Order' : 'Create New Order'}
+                </h3>
 
-    
-              {isAcceptedOrder && (
-                <div className="mb-4 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700">
-                  <h3 className="font-medium">Editing an Accepted Order</h3>
-                  <p className="text-sm">
-                    This order has already been accepted and converted to an invoice.
-                    Any changes you make will also update the related invoice.
-                  </p>
-                </div>
-              )}
-
-              <form>
-                <div className='mb-4'>
-                  <label className='block text-gray text-sm font-bold mb-2' htmlFor='date'>
-                    Date
-                  </label>
-                  <DatePicker
-                    selected={newQuotation.created_at ? new Date(newQuotation.created_at) : new Date()}
-                    onChange={(date: Date | null) =>
-                      setNewQuotation({
-                        ...newQuotation,
-                        created_at: date ? date.toISOString() : new Date().toISOString()
-                      })
-                    }
-                    className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'
-                  />
-                </div>
-                <div className='mb-4'>
-                  <SearchableSelect
-                    options={clients}
-                    value={newQuotation.client_id}
-                    onChange={(clientId) => setNewQuotation({ ...newQuotation, client_id: Number(clientId) })}
-                    placeholder="Select Client"
-                    label="Client"
-                    idField="client_id"
-                    required
-                  />
-                </div>
-                <div className='mb-4'>
-                  <label className='block text-gray text-sm font-bold mb-2'>Products</label>
-                  <div className='flex mb-2'>
-                    <input
-                      type='text'
-                      placeholder='Search products...'
-                      className='flex-grow shadow appearance-none border rounded py-2 px-3 text-gray leading-tight focus:outline-none'
-                      onChange={e => handleProductSearch(e.target.value)}
-                    />
-                    <button
-                      type='button'
-                      className='ml-2 bg-blue hover:bg-blue text-white font-bold py-2 px-4 rounded'
-                      onClick={() => setProductSearch('')}>
-                      <FaSearch />
-                    </button>
-                  </div>
-                  <div className='max-h-40 overflow-y-auto mb-2'>
-                    {filteredProducts.map(product => (
-                      <div
-                        key={product.id}
-                        className='flex justify-between items-center p-2 hover:bg-neutral-100 cursor-pointer'
-                        onClick={() => handleAddProduct(product)}>
-                        <span>{product.name}</span>
-                        <button
-                          type='button'
-                          className='bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-xs'>
-                          Select
-                        </button>
+                {error && (
+                  <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-4">
+                    <div className="flex">
+                      <FaExclamationTriangle className="text-red-400 mt-1 mr-2" />
+                      <div>
+                        <h3 className="text-sm font-medium text-red-800">Error</h3>
+                        <p className="text-sm text-red-700 mt-1">{error}</p>
                       </div>
-                    ))}
+                    </div>
                   </div>
-                  {selectedProduct && (
-                    <div className='mb-4 p-2 border rounded'>
-                      <h4 className='font-bold mb-2'>{selectedProduct.name}</h4>
-                      <label className='block text-gray text-sm font-semibold mb-2' htmlFor='discount'>
-                        Discount per item
-                      </label>
+                )}
+      
+                {isAcceptedOrder && (
+                  <div className="mb-4 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700">
+                    <h3 className="font-medium">Editing an Accepted Order</h3>
+                    <p className="text-sm">
+                      This order has already been accepted and converted to an invoice.
+                      Any changes you make will also update the related invoice.
+                    </p>
+                  </div>
+                )}
+
+                <form>
+                  <div className='mb-4'>
+                    <label className='block text-gray text-sm font-bold mb-2' htmlFor='date'>
+                      Date
+                    </label>
+                    <DatePicker
+                      selected={newQuotation.created_at ? new Date(newQuotation.created_at) : new Date()}
+                      onChange={(date: Date | null) =>
+                        setNewQuotation({
+                          ...newQuotation,
+                          created_at: date ? date.toISOString() : new Date().toISOString()
+                        })
+                      }
+                      className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'
+                    />
+                  </div>
+                  <div className='mb-4'>
+                    <SearchableSelect
+                      options={clients}
+                      value={newQuotation.client_id}
+                      onChange={(clientId) => setNewQuotation({ ...newQuotation, client_id: Number(clientId) })}
+                      placeholder="Select Client"
+                      label="Client"
+                      idField="client_id"
+                      required
+                    />
+                  </div>
+                  <div className='mb-4'>
+                    <label className='block text-gray text-sm font-bold mb-2'>Products</label>
+                    <div className='flex mb-2'>
                       <input
-                        type='number'
-                        className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none mb-2'
-                        value={newQuotation.discounts?.[selectedProduct.id] || 0}
-                        min={0}
-                        onChange={e =>
-                          handleDiscountChange(selectedProduct.id, Number(e.target.value))
-                        }
-                        placeholder='Discount per item'
+                        type='text'
+                        placeholder='Search products...'
+                        className='flex-grow shadow appearance-none border rounded py-2 px-3 text-gray leading-tight focus:outline-none'
+                        onChange={e => handleProductSearch(e.target.value)}
                       />
-                      {selectedVariants.map((variant, index) => (
-                        <div key={index} className='mb-2 p-2 border rounded'>
-                          <select
-                            className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none mb-2'
-                            value={variant.product_variant_id}
-                            onChange={e =>
-                              handleVariantChange(index, 'product_variant_id', e.target.value)
-                            }>
-                            <option value=''>Select Variant</option>
-                            {selectedProduct.variants.map(v => (
-                              <option key={v.id} value={v.id}>
-                                {v.size} - {v.color}
-                              </option>
-                            ))}
-                          </select>
-                          <input
-                            type='number'
-                            className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none mb-2'
-                            value={variant.quantity}
-                            onChange={e =>
-                              handleVariantChange(index, 'quantity', Number(e.target.value))
-                            }
-                            placeholder='Quantity'
-                          />
-                          <textarea
-                            className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none mb-2'
-                            value={variant.note}
-                            onChange={e =>
-                              handleVariantChange(index, 'note', e.target.value)
-                            }
-                            placeholder='Product Note'
-                          />
+                      <button
+                        type='button'
+                        className='ml-2 bg-blue hover:bg-blue text-white font-bold py-2 px-4 rounded'
+                        onClick={() => setProductSearch('')}>
+                        <FaSearch />
+                      </button>
+                    </div>
+                    <div className='max-h-40 overflow-y-auto mb-2'>
+                      {filteredProducts.map(product => (
+                        <div
+                          key={product.id}
+                          className='flex justify-between items-center p-2 hover:bg-neutral-100 cursor-pointer'
+                          onClick={() => handleAddProduct(product)}>
+                          <span>{product?.name || 'Unknown Product'}</span>
                           <button
                             type='button'
-                            className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
-                            onClick={() => handleRemoveVariant(index)}>
-                            Remove Variant
+                            className='bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-xs'>
+                            Select
                           </button>
                         </div>
                       ))}
-                      <button
-                        type='button'
-                        className='bg-blue hover:bg-blue text-white font-bold py-1 px-2 rounded text-xs mr-2'
-                        onClick={handleAddVariant}>
-                        Add Another Variant
-                      </button>
-                      <button
-                        type='button'
-                        className='bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-xs'
-                        onClick={handleAddSelectedProductToQuotation}>
-                        Add to Order
-                      </button>
                     </div>
-                  )}
-                  {newQuotation.products?.map((product, index) => (
-                    <div key={index} className='mb-2 p-2 border rounded'>
-                      <div className='flex justify-between items-center mb-2'>
-                        <span className='font-bold'>
-                          {products.find(p => p.id === product?.product_id)?.name || 'N/A'}
-                        </span>
-                        <div className='space-x-2'>
-                          <button
-                            type='button'
-                            className='bg-blue hover:bg-indigo-700 text-white font-bold py-1 px-2 rounded text-xs'
-                            onClick={() => handleEditExistingProduct(index)}>
-                            Edit
-                          </button>
-                          <button
-                            type='button'
-                            className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
-                            onClick={() => {
-                              const updatedProducts = newQuotation.products?.filter((_, i) => i !== index)
-                              const { totalPrice, vatAmount } = calculateTotalPrice(
-                                updatedProducts || [],
-                                newQuotation.discounts || {},
-                                newQuotation.include_vat || false,
-                                newQuotation.shipping_fee || 0
-                              )
-                              setNewQuotation({
-                                ...newQuotation,
-                                products: updatedProducts,
-                                total_price: totalPrice,
-                                vat_amount: vatAmount
-                              })
-                            }}>
-                            Remove
-                          </button>
-                        </div>
+                    {selectedProduct && (
+                      <div className='mb-4 p-2 border rounded'>
+                        <h4 className='font-bold mb-2'>{selectedProduct.name}</h4>
+                        <label className='block text-gray text-sm font-semibold mb-2' htmlFor='discount'>
+                          Discount per item
+                        </label>
+                        <input
+                          type='number'
+                          className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none mb-2'
+                          value={newQuotation.discounts?.[selectedProduct.id] || 0}
+                          min={0}
+                          onChange={e =>
+                            handleDiscountChange(selectedProduct.id, Number(e.target.value))
+                          }
+                          placeholder='Discount per item'
+                        />
+                        {selectedVariants.map((variant, index) => (
+                          <div key={index} className='mb-2 p-2 border rounded'>
+                            <select
+                              className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none mb-2'
+                              value={variant.product_variant_id}
+                              onChange={e =>
+                                handleVariantChange(index, 'product_variant_id', e.target.value)
+                              }>
+                              <option value=''>Select Variant</option>
+                              {selectedProduct.variants?.map(v => (
+                                <option key={v.id} value={v.id}>
+                                  {v.size} - {v.color}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type='number'
+                              className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none mb-2'
+                              value={variant.quantity}
+                              onChange={e =>
+                                handleVariantChange(index, 'quantity', Number(e.target.value))
+                              }
+                              placeholder='Quantity'
+                            />
+                            <textarea
+                              className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none mb-2'
+                              value={variant.note}
+                              onChange={e =>
+                                handleVariantChange(index, 'note', e.target.value)
+                              }
+                              placeholder='Product Note'
+                            />
+                            <button
+                              type='button'
+                              className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
+                              onClick={() => handleRemoveVariant(index)}>
+                              Remove Variant
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type='button'
+                          className='bg-blue hover:bg-blue text-white font-bold py-1 px-2 rounded text-xs mr-2'
+                          onClick={handleAddVariant}>
+                          Add Another Variant
+                        </button>
+                        <button
+                          type='button'
+                          className='bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-xs'
+                          onClick={handleAddSelectedProductToQuotation}>
+                          Add to Order
+                        </button>
                       </div>
-                      <p>
-                        Variant:{' '}
-                        {products.find(p => p.id === product?.product_id)
-                          ?.variants.find(v => v.id === product.product_variant_id)
-                          ?.size || 'N/A'}{' '}
-                        -{' '}
-                        {products.find(p => p.id === product?.product_id)
-                          ?.variants.find(v => v.id === product.product_variant_id)
-                          ?.color || 'N/A'}
-                      </p>
-                      <p>Quantity: {product?.quantity || 0}</p>
-                      <p>
-                        Discount per item: $
-                        {newQuotation.discounts?.[product?.product_id]
-                          ? newQuotation.discounts[product?.product_id].toFixed(2)
-                          : '0.00'}
-                      </p>
-                      <p>Note: {product.note || '-'}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className='mb-4'>
-                  <label className='block text-gray text-sm font-bold mb-2' htmlFor='note'>
-                    Note
-                  </label>
-                  <textarea
-                    id='note'
-                    className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'
-                    value={newQuotation.note}
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                      setNewQuotation({ ...newQuotation, note: e.target.value })
-                    }
-                  />
-                </div>
-                <div className='mb-4'>
-                  <label className='block text-gray text-sm font-bold mb-2' htmlFor='order_number'>
-                    Order Number
-                  </label>
-                  <input
-                    type='text'
-                    id='order_number'
-                    required
-                    className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'
-                    value={newQuotation.order_number}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      setNewQuotation({ ...newQuotation, order_number: e.target.value })
-                    }
-                  />
-                </div>
-                <div className='mb-4'>
-                  <label className='block text-gray text-sm font-bold mb-2' htmlFor='currency'>
-                    Currency
-                  </label>
-                  <select
-                    required
-                    value={newQuotation.currency || 'usd'}
-                    onChange={(e: any) =>
-                      setNewQuotation({
-                        ...newQuotation,
-                        currency: e.target.value || 'usd'
-                      })
-                    }
-                    className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'>
-                    <option value='usd'>USD ($)</option>
-                    <option value='euro'>EUR (€)</option>
-                  </select>
-                </div>
-                <div className='mb-4'>
-                  <label className='block text-gray text-sm font-bold mb-2' htmlFor='payment_term'>
-                    Payment Terms
-                  </label>
-                  <select
-                    required
-                    value={newQuotation.payment_term || '30% deposit 70% before shipping'}
-                    onChange={(e:any) =>
-                      setNewQuotation({
-                        ...newQuotation,
-                        payment_term: e.target.value || '30% deposit 70% before shipping'
-                      })
-                    }
-                    className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'>
-                    <option value=''>Select Payment Term</option>
-                    <option value='100% after delivery'>100% after delivery</option>
-                    <option value='30% deposit 70% before shipping'>30% deposit 70% before shipping</option>
-                    <option value='30 days after shipping'>30 days after shipping</option>
-                    <option value='60 days after shipping'>60 days after shipping</option>
-                    <option value='100% prepayment'>100% prepayment</option>
-                  </select>
-                </div>
-                <div className='mb-4'>
-                  <label className='block text-gray text-sm font-bold mb-2' htmlFor='delivery_date'>
-                    Delivery Date
-                  </label>
-                  <DatePicker
-                    selected={newQuotation.delivery_date ? new Date(newQuotation.delivery_date) : new Date(new Date().setMonth(new Date().getMonth() + 1))}
-                    onChange={(date: Date | null) =>
-                      setNewQuotation({
-                        ...newQuotation,
-                        delivery_date: date ? date.toISOString() : new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString()
-                      })
-                    }
-                    className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'
-                    minDate={new Date()}
-                    placeholderText='Select delivery date'
-                    required
-                  />
-                </div>
-                {/* New Shipping Fee Field */}
-                <div className='mb-4'>
-                  <label className='block text-gray text-sm font-bold mb-2' htmlFor='shipping_fee'>
-                    Shipping Fee
-                  </label>
-                  <input
-                    id='shipping_fee'
-                    type='number'
-                    min='0'
-                    className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
-                    value={newQuotation.shipping_fee || 0}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      handleShippingFeeChange(Number(e.target.value))
-                    }
-                    placeholder='Enter shipping fee'
-                  />
-                </div>
-                <div className='mb-4'>
-                  <label className='flex items-center'>
+                    )}
+                    {Array.isArray(newQuotation.products) && newQuotation.products.map((product, index) => {
+                      if (!product) return null;
+                      
+                      const parentProduct = findProductSafely(product.product_id || '');
+                      const variant = findVariantSafely(parentProduct, product.product_variant_id || '');
+                      
+                      return (
+                        <div key={index} className='mb-2 p-2 border rounded'>
+                          <div className='flex justify-between items-center mb-2'>
+                            <span className='font-bold'>
+                              {parentProduct?.name || 'Unknown Product'}
+                            </span>
+                            <div className='space-x-2'>
+                              <button
+                                type='button'
+                                className='bg-blue hover:bg-indigo-700 text-white font-bold py-1 px-2 rounded text-xs'
+                                onClick={() => handleEditExistingProduct(index)}>
+                                Edit
+                              </button>
+                              <button
+                                type='button'
+                                className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
+                                onClick={() => {
+                                  try {
+                                    const updatedProducts = newQuotation.products?.filter((_, i) => i !== index)
+                                    const { totalPrice, vatAmount } = calculateTotalPrice(
+                                      updatedProducts || [],
+                                      newQuotation.discounts || {},
+                                      newQuotation.include_vat || false,
+                                      newQuotation.shipping_fee || 0
+                                    )
+                                    setNewQuotation({
+                                      ...newQuotation,
+                                      products: updatedProducts,
+                                      total_price: totalPrice,
+                                      vat_amount: vatAmount
+                                    })
+                                  } catch (error) {
+                                    console.error('Error removing product:', error)
+                                    toast.error('Failed to remove product')
+                                  }
+                                }}>
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                          <p>
+                            Variant: {variant?.size || 'N/A'} - {variant?.color || 'N/A'}
+                          </p>
+                          <p>Quantity: {product.quantity || 0}</p>
+                          <p>
+                            Discount per item: $
+                            {newQuotation.discounts?.[product.product_id || '']
+                              ? newQuotation.discounts[product.product_id || ''].toFixed(2)
+                              : '0.00'}
+                          </p>
+                          <p>Note: {product.note || '-'}</p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div className='mb-4'>
+                    <label className='block text-gray text-sm font-bold mb-2' htmlFor='note'>
+                      Note
+                    </label>
+                    <textarea
+                      id='note'
+                      className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'
+                      value={newQuotation.note}
+                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                        setNewQuotation({ ...newQuotation, note: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className='mb-4'>
+                    <label className='block text-gray text-sm font-bold mb-2' htmlFor='order_number'>
+                      Order Number
+                    </label>
                     <input
-                      type='checkbox'
-                      checked={newQuotation.include_vat}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                        const includeVAT = e.target.checked
-                        const { totalPrice, vatAmount } = calculateTotalPrice(
-                          newQuotation.products || [],
-                          newQuotation.discounts || {},
-                          includeVAT,
-                          newQuotation.shipping_fee || 0
-                        )
+                      type='text'
+                      id='order_number'
+                      required
+                      className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'
+                      value={newQuotation.order_number}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        setNewQuotation({ ...newQuotation, order_number: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className='mb-4'>
+                    <label className='block text-gray text-sm font-bold mb-2' htmlFor='currency'>
+                      Currency
+                    </label>
+                    <select
+                      required
+                      value={newQuotation.currency || 'usd'}
+                      onChange={(e: any) =>
                         setNewQuotation({
                           ...newQuotation,
-                          include_vat: includeVAT,
-                          vat_amount: vatAmount,
-                          total_price: totalPrice
+                          currency: e.target.value || 'usd'
                         })
-                      }}
-                      className='form-checkbox h-5 w-5 text-blue'
+                      }
+                      className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'>
+                      <option value='usd'>USD ($)</option>
+                      <option value='euro'>EUR (€)</option>
+                    </select>
+                  </div>
+                  <div className='mb-4'>
+                    <label className='block text-gray text-sm font-bold mb-2' htmlFor='payment_term'>
+                      Payment Terms
+                    </label>
+                    <select
+                      required
+                      value={newQuotation.payment_term || '30% deposit 70% before shipping'}
+                      onChange={(e:any) =>
+                        setNewQuotation({
+                          ...newQuotation,
+                          payment_term: e.target.value || '30% deposit 70% before shipping'
+                        })
+                      }
+                      className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'>
+                      <option value=''>Select Payment Term</option>
+                      <option value='100% after delivery'>100% after delivery</option>
+                      <option value='30% deposit 70% before shipping'>30% deposit 70% before shipping</option>
+                      <option value='30 days after shipping'>30 days after shipping</option>
+                      <option value='60 days after shipping'>60 days after shipping</option>
+                      <option value='100% prepayment'>100% prepayment</option>
+                    </select>
+                  </div>
+                  <div className='mb-4'>
+                    <label className='block text-gray text-sm font-bold mb-2' htmlFor='delivery_date'>
+                      Delivery Date
+                    </label>
+                    <DatePicker
+                      selected={newQuotation.delivery_date ? new Date(newQuotation.delivery_date) : new Date(new Date().setMonth(new Date().getMonth() + 1))}
+                      onChange={(date: Date | null) =>
+                        setNewQuotation({
+                          ...newQuotation,
+                          delivery_date: date ? date.toISOString() : new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString()
+                        })
+                      }
+                      className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'
+                      minDate={new Date()}
+                      placeholderText='Select delivery date'
+                      required
                     />
-                    <span className='ml-2 text-gray text-sm'>Include 11% VAT</span>
-                  </label>
-                </div>
-                <div className='mb-4'>
-                  <label className='block text-gray text-sm font-bold mb-2'>
-                    Total Price (including VAT and shipping if applicable)
-                  </label>
-                  <input
-                    type='number'
-                    className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'
-                    value={newQuotation.total_price || 0}
-                    readOnly
-                  />
-                </div>
-                {newQuotation.include_vat && (
+                  </div>
+                  <div className='mb-4'>
+                    <label className='block text-gray text-sm font-bold mb-2' htmlFor='shipping_fee'>
+                      Shipping Fee
+                    </label>
+                    <input
+                      id='shipping_fee'
+                      type='number'
+                      min='0'
+                      className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+                      value={newQuotation.shipping_fee || 0}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        handleShippingFeeChange(Number(e.target.value))
+                      }
+                      placeholder='Enter shipping fee'
+                    />
+                  </div>
+                  <div className='mb-4'>
+                    <label className='flex items-center'>
+                      <input
+                        type='checkbox'
+                        checked={newQuotation.include_vat}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                          try {
+                            const includeVAT = e.target.checked
+                            const { totalPrice, vatAmount } = calculateTotalPrice(
+                              newQuotation.products || [],
+                              newQuotation.discounts || {},
+                              includeVAT,
+                              newQuotation.shipping_fee || 0
+                            )
+                            setNewQuotation({
+                              ...newQuotation,
+                              include_vat: includeVAT,
+                              vat_amount: vatAmount,
+                              total_price: totalPrice
+                            })
+                          } catch (error) {
+                            console.error('Error handling VAT change:', error)
+                            toast.error('Failed to update VAT')
+                          }
+                        }}
+                        className='form-checkbox h-5 w-5 text-blue'
+                      />
+                      <span className='ml-2 text-gray text-sm'>Include 11% VAT</span>
+                    </label>
+                  </div>
                   <div className='mb-4'>
                     <label className='block text-gray text-sm font-bold mb-2'>
-                      VAT Amount (11%)
+                      Total Price (including VAT and shipping if applicable)
                     </label>
                     <input
                       type='number'
                       className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'
-                      value={newQuotation.vat_amount || 0}
+                      value={newQuotation.total_price || 0}
                       readOnly
                     />
                   </div>
-                )}
-                {newQuotation.id && (
-                  <div className='mb-4'>
-                    <label className='block text-gray text-sm font-bold mb-2'>
-                      Status
-                    </label>
-                    <select
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'
-                      value={newQuotation.status}
-                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                        setNewQuotation({
-                          ...newQuotation,
-                          status: e.target.value as 'pending' | 'accepted' | 'rejected'
-                        })
-                      }>
-                      <option value='pending'>Pending</option>
-                      <option value='accepted'>Accepted</option>
-                      <option value='rejected'>Rejected</option>
-                    </select>
-                    {isAcceptedOrder && newQuotation.status !== 'accepted' && (
-                      <p className="mt-1 text-xs text-red-600">
-                        Warning: Changing the status from accepted will not remove the related invoice.
-                      </p>
-                    )}
-                    {!isAcceptedOrder && newQuotation.status === 'accepted' && (
-                      <p className="mt-1 text-xs text-green-600">
-                        This order will be converted to an invoice when saved.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </form>
-            </div>
-            <div className='bg-neutral-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse'>
-              <button
-                type='button'
-                className='w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue text-base font-medium text-white hover:bg-blue focus:outline-none sm:ml-3 sm:w-auto sm:text-sm'
-                onClick={handleCreateQuotation}>
-                {newQuotation.id ? 'Update Order' : 'Create Order'}
-              </button>
-              <button
-                type='button'
-                className='mt-3 w-full inline-flex justify-center rounded-md border border-gray shadow-sm px-4 py-2 bg-white text-base font-medium text-gray hover:bg-neutral-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
-                onClick={() => handleCloseModal()}>
-                Cancel
-              </button>
+                  {newQuotation.include_vat && (
+                    <div className='mb-4'>
+                      <label className='block text-gray text-sm font-bold mb-2'>
+                        VAT Amount (11%)
+                      </label>
+                      <input
+                        type='number'
+                        className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'
+                        value={newQuotation.vat_amount || 0}
+                        readOnly
+                      />
+                    </div>
+                  )}
+                  {newQuotation.id && (
+                    <div className='mb-4'>
+                      <label className='block text-gray text-sm font-bold mb-2'>
+                        Status
+                      </label>
+                      <select
+                        className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'
+                        value={newQuotation.status}
+                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                          setNewQuotation({
+                            ...newQuotation,
+                            status: e.target.value as 'pending' | 'accepted' | 'rejected'
+                          })
+                        }>
+                        <option value='pending'>Pending</option>
+                        <option value='accepted'>Accepted</option>
+                        <option value='rejected'>Rejected</option>
+                      </select>
+                      {isAcceptedOrder && newQuotation.status !== 'accepted' && (
+                        <p className="mt-1 text-xs text-red-600">
+                          Warning: Changing the status from accepted will not remove the related invoice.
+                        </p>
+                      )}
+                      {!isAcceptedOrder && newQuotation.status === 'accepted' && (
+                        <p className="mt-1 text-xs text-green-600">
+                          This order will be converted to an invoice when saved.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </form>
+              </div>
+              <div className='bg-neutral-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse'>
+                <button
+                  type='button'
+                  className='w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue text-base font-medium text-white hover:bg-blue focus:outline-none sm:ml-3 sm:w-auto sm:text-sm'
+                  onClick={handleCreateQuotation}
+                  disabled={loadingStates.isOrderCreating || loadingStates.isOrderUpdating}>
+                  {newQuotation.id ? 'Update Order' : 'Create Order'}
+                </button>
+                <button
+                  type='button'
+                  className='mt-3 w-full inline-flex justify-center rounded-md border border-gray shadow-sm px-4 py-2 bg-white text-base font-medium text-gray hover:bg-neutral-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
+                  onClick={() => handleCloseModal()}>
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </ErrorBoundary>
     );
   };
 
   const renderQuotationDetails = () => {
     if (!selectedQuotation) return null;
 
-    const client = clients.find(c => c.client_id === selectedQuotation.client_id);
-    const currency = selectedQuotation.currency || 'usd';
-    const currencySymbol = currency === 'euro' ? '€' : '$';
+    try {
+      const client = findClientSafely(selectedQuotation.client_id);
+      const currency = selectedQuotation.currency || 'usd';
+      const currencySymbol = currency === 'euro' ? '€' : '$';
 
-    // Updated size options matching PDF - includes existing 48 and adds 50, 52, 54, 56, 58
-    const sizeOptions = [
-      'OS', 'XXS', 'XS', 'S', 'S/M', 'M', 'M/L', 'L', 'XL', '2XL', '3XL',
-      '36', '38', '40', '42', '44', '46', '48', '50', '52', '54', '56', '58'
-    ];
+      const sizeOptions = [
+        'OS', 'XXS', 'XS', 'S', 'S/M', 'M', 'M/L', 'L', 'XL', '2XL', '3XL',
+        '36', '38', '40', '42', '44', '46', '48', '50', '52', '54', '56', '58'
+      ];
 
-    // Calculate totals matching PDF calculation logic
-    const subtotal = selectedQuotation.products?.reduce((total, product) => {
-      const parentProduct = products.find(p => p.id === product?.product_id);
-      if (!parentProduct) return total;
+      const subtotal = (selectedQuotation.products || []).reduce((total, product) => {
+        if (!product) return total;
+        
+        const parentProduct = findProductSafely(product.product_id || '');
+        if (!parentProduct) return total;
 
-      const price = parentProduct.price || 0;
-      return total + (price * product?.quantity);
-    }, 0) || 0;
+        const price = parentProduct.price || 0;
+        return total + (price * (product.quantity || 0));
+      }, 0);
 
-    const totalDiscount = selectedQuotation.products?.reduce((total, product) => {
-      const discount = selectedQuotation.discounts?.[product?.product_id] || 0;
-      return total + (discount * product?.quantity);
-    }, 0) || 0;
+      const totalDiscount = (selectedQuotation.products || []).reduce((total, product) => {
+        if (!product) return total;
+        
+        const discount = selectedQuotation.discounts?.[product.product_id || ''] || 0;
+        return total + (discount * (product.quantity || 0));
+      }, 0);
 
-    const totalBeforeVAT = subtotal - totalDiscount;
-    const vatAmount = selectedQuotation.include_vat ? totalBeforeVAT * 0.11 : 0;
-    const shippingFee = selectedQuotation.shipping_fee || 0;
+      const totalBeforeVAT = subtotal - totalDiscount;
+      const vatAmount = selectedQuotation.include_vat ? totalBeforeVAT * 0.11 : 0;
+      const shippingFee = selectedQuotation.shipping_fee || 0;
 
-    // Transform product data to match PDF format
-    const productsByNameColor:any = {};
-    selectedQuotation.products?.forEach(product => {
-      const parentProduct = products.find(p => p.id === product?.product_id);
-      if (!parentProduct) return;
+      const productsByNameColor: any = {};
+      
+      (selectedQuotation.products || []).forEach(product => {
+        if (!product || !product.product_id) return;
+        
+        const parentProduct = findProductSafely(product.product_id);
+        if (!parentProduct) return;
 
-      const variant = allProductVariants.find(v => v.id === product.product_variant_id);
-      if (!variant) return;
+        const variant = findVariantSafely(parentProduct, product.product_variant_id || '');
+        if (!variant) return;
 
-      const key = `${parentProduct.name}-${variant.color}`;
-      if (!productsByNameColor[key]) {
-        productsByNameColor[key] = {
-          product_id: parentProduct.id,
-          name: parentProduct.name,
-          color: variant.color,
-          image: parentProduct.photo,
-          unitPrice: parentProduct.price,
-          sizes: {},
-          notes: new Set(),
-          totalQuantity: 0,
-          discount: selectedQuotation.discounts?.[parentProduct.id] || 0
-        };
-      }
+        const key = `${parentProduct.name}-${variant.color}`;
+        if (!productsByNameColor[key]) {
+          productsByNameColor[key] = {
+            product_id: parentProduct.id,
+            name: parentProduct.name,
+            color: variant.color,
+            image: parentProduct.photo,
+            unitPrice: parentProduct.price,
+            sizes: {},
+            notes: new Set(),
+            totalQuantity: 0,
+            discount: selectedQuotation.discounts?.[parentProduct.id] || 0
+          };
+        }
 
-      // Add quantity to the specific size
-      productsByNameColor[key].sizes[variant.size] =
-        (productsByNameColor[key].sizes[variant.size] || 0) + product?.quantity;
+        productsByNameColor[key].sizes[variant.size] =
+          (productsByNameColor[key].sizes[variant.size] || 0) + (product.quantity || 0);
 
-      // Update total quantity
-      productsByNameColor[key].totalQuantity += product?.quantity;
+        productsByNameColor[key].totalQuantity += (product.quantity || 0);
 
-      // Add note if it exists
-      if (product.note) {
-        productsByNameColor[key].notes.add(product.note);
-      }
-    });
+        if (product.note) {
+          productsByNameColor[key].notes.add(product.note);
+        }
+      });
 
-    // Convert to array and sort by name then color (matching PDF)
-    const productsArray = Object.values(productsByNameColor).sort((a:any, b:any) => {
-      const nameComparison = a.name.localeCompare(b.name);
-      if (nameComparison !== 0) return nameComparison;
-      return a.color.localeCompare(b.color);
-    });
+      const productsArray = Object.values(productsByNameColor).sort((a: any, b: any) => {
+        const nameComparison = (a.name || '').localeCompare(b.name || '');
+        if (nameComparison !== 0) return nameComparison;
+        return (a.color || '').localeCompare(b.color || '');
+      });
 
-    return (
-      <div className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'>
-        <div className='relative top-10 mx-auto p-5 border w-4/5 max-w-5xl shadow-lg rounded-md bg-white'>
-          <div className='mt-3'>
-            <div className='flex justify-between items-start mb-6'>
-              <div>
-                <img src="/logo/logo.png" alt="Company Logo" className="h-16 w-auto" />
-              </div>
-              <div className='text-right'>
-                <h4 className='font-bold'>Company Information</h4>
-                <p className='text-sm'>Frisson International LLC</p>
-                <p className='text-sm'>1441 Caribbean breeze drive</p>
-                <p className='text-sm'>Tampa Florida, 33613</p>
-                <p className='text-sm'>United States Of America</p>
-              </div>
-            </div>
+      return (
+        <ErrorBoundary>
+          <div className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'>
+            <div className='relative top-10 mx-auto p-5 border w-4/5 max-w-5xl shadow-lg rounded-md bg-white'>
+              <div className='mt-3'>
+                <div className='flex justify-between items-start mb-6'>
+                  <div>
+                    <img src="/logo/logo.png" alt="Company Logo" className="h-16 w-auto" />
+                  </div>
+                  <div className='text-right'>
+                    <h4 className='font-bold'>Company Information</h4>
+                    <p className='text-sm'>Frisson International LLC</p>
+                    <p className='text-sm'>1441 Caribbean breeze drive</p>
+                    <p className='text-sm'>Tampa Florida, 33613</p>
+                    <p className='text-sm'>United States Of America</p>
+                  </div>
+                </div>
 
-            <div className='mb-6 text-center'>
-              <h2 className='text-2xl font-bold text-blue'>PURCHASE ORDER</h2>
-            </div>
+                <div className='mb-6 text-center'>
+                  <h2 className='text-2xl font-bold text-blue'>PURCHASE ORDER</h2>
+                </div>
 
-            <div className='flex justify-between mb-6'>
-              <div className='w-1/2 pr-4'>
-                <h4 className='font-bold mb-2'>Order To:</h4>
-                <p className='text-sm'>{client?.name || 'N/A'}</p>
-                <p className='text-sm'>{client?.address || 'N/A'}</p>
-                <p className='text-sm'>Phone: {client?.phone || 'N/A'}</p>
-                <p className='text-sm'>Email: {client?.email || 'N/A'}</p>
-                <p className='text-sm'>Tax Number: {client?.tax_number || 'N/A'}</p>
-              </div>
+                <div className='flex justify-between mb-6'>
+                  <div className='w-1/2 pr-4'>
+                    <h4 className='font-bold mb-2'>Order To:</h4>
+                    <p className='text-sm'>{client?.name || 'N/A'}</p>
+                    <p className='text-sm'>{client?.address || 'N/A'}</p>
+                    <p className='text-sm'>Phone: {client?.phone || 'N/A'}</p>
+                    <p className='text-sm'>Email: {client?.email || 'N/A'}</p>
+                    <p className='text-sm'>Tax Number: {client?.tax_number || 'N/A'}</p>
+                  </div>
 
-              <div className='w-1/2 pl-4'>
-                <h4 className='font-bold mb-2'>Order Details:</h4>
-                <p className='text-sm'>Order Number: {selectedQuotation.id || 'N/A'}</p>
-                <p className='text-sm'>Date: {selectedQuotation.created_at ? format(new Date(selectedQuotation.created_at), 'PP') : 'N/A'}</p>
-                <p className='text-sm'>Order Number: {selectedQuotation.order_number || 'N/A'}</p>
-                {selectedQuotation.delivery_date && (
-                  <p className='text-sm'>Delivery Date: {format(new Date(selectedQuotation.delivery_date), 'PP')}</p>
-                )}
-                {selectedQuotation.payment_term && (
-                  <p className='text-sm'>Payment Term: {selectedQuotation.payment_term}</p>
-                )}
-                <p className='text-sm'>Status: <span className={`px-2 py-1 rounded-full text-xs ${
-                  selectedQuotation.status === 'pending'
-                    ? 'bg-yellow-200 text-yellow-800'
-                    : selectedQuotation.status === 'accepted'
-                    ? 'bg-green-200 text-green-800'
-                    : 'bg-red-200 text-red-800'
-                }`}>{selectedQuotation.status}</span></p>
-              </div>
-            </div>
-
-            {/* Products Table - Matching PDF Layout with adjusted column widths for additional sizes */}
-            <div className='mb-6 overflow-x-auto'>
-              <table className='min-w-full border border-neutral-300 text-xs'>
-                <thead>
-                  <tr className='bg-neutral-100'>
-                    <th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'>IMAGE</th>
-                    <th className='w-20 p-1 text-xs font-bold text-center border border-neutral-300'>STYLE</th>
-                    <th className='w-20 p-1 text-xs font-bold text-center border border-neutral-300'>DESCRIPTION</th>
-                    <th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'>COLOR</th>
-                    {sizeOptions.map(size => (
-                      <th key={size} className='w-7 p-0.5 text-xs font-bold text-center border border-neutral-300'>{size}</th>
-                    ))}
-                    <th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'>TOTAL PCS</th>
-                    <th className='w-16 p-1 text-xs font-bold text-center border border-neutral-300'>UNIT PRICE</th>
-                    {Object.values(productsByNameColor).some((p:any) => p.discount > 0) && (
-                      <th className='w-16 p-1 text-xs font-bold text-center border border-neutral-300'>DISCOUNT</th>
+                  <div className='w-1/2 pl-4'>
+                    <h4 className='font-bold mb-2'>Order Details:</h4>
+                    <p className='text-sm'>Order Number: {selectedQuotation.id || 'N/A'}</p>
+                    <p className='text-sm'>Date: {selectedQuotation.created_at ? format(new Date(selectedQuotation.created_at), 'PP') : 'N/A'}</p>
+                    <p className='text-sm'>Order Number: {selectedQuotation.order_number || 'N/A'}</p>
+                    {selectedQuotation.delivery_date && (
+                      <p className='text-sm'>Delivery Date: {format(new Date(selectedQuotation.delivery_date), 'PP')}</p>
                     )}
-                    <th className='w-18 p-1 text-xs font-bold text-center border border-neutral-300'>TOTAL</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {productsArray.map((product:any, index:any) => {
-                    const priceAfterDiscount = product.unitPrice - product.discount;
-                    const lineTotal = priceAfterDiscount * product.totalQuantity;
+                    {selectedQuotation.payment_term && (
+                      <p className='text-sm'>Payment Term: {selectedQuotation.payment_term}</p>
+                    )}
+                    <p className='text-sm'>Status: <span className={`px-2 py-1 rounded-full text-xs ${
+                      selectedQuotation.status === 'pending'
+                        ? 'bg-yellow-200 text-yellow-800'
+                        : selectedQuotation.status === 'accepted'
+                        ? 'bg-green-200 text-green-800'
+                        : 'bg-red-200 text-red-800'
+                    }`}>{selectedQuotation.status}</span></p>
+                  </div>
+                </div>
 
-                    return (
-                      <tr key={index} className='border-b border-neutral-300'>
-                        <td className='p-1 text-center border-r border-neutral-300'>
-                          {product.image ? (
-                            <img src={product.image} alt={product.name} className='w-10 h-10 object-contain mx-auto' />
-                          ) : (
-                            <div className='w-10 h-10 bg-neutral-200 mx-auto'></div>
-                          )}
-                        </td>
-                        <td className='p-1 text-xs font-semibold border-r border-neutral-300'>{product.name || 'N/A'}</td>
-                        <td className='p-1 text-xs border-r border-neutral-300'>
-                          {Array.from(product.notes).map((note:any, i) => (
-                            <p key={i} className='text-xs italic text-neutral-600'>{note}</p>
-                          ))}
-                        </td>
-                        <td className='p-1 text-xs text-center border-r border-neutral-300'>{product.color || 'N/A'}</td>
-
-                        {/* Size columns - Adjusted to be more compact */}
+                <div className='mb-6 overflow-x-auto'>
+                  <table className='min-w-full border border-neutral-300 text-xs'>
+                    <thead>
+                      <tr className='bg-neutral-100'>
+                        <th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'>IMAGE</th>
+                        <th className='w-20 p-1 text-xs font-bold text-center border border-neutral-300'>STYLE</th>
+                        <th className='w-20 p-1 text-xs font-bold text-center border border-neutral-300'>DESCRIPTION</th>
+                        <th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'>COLOR</th>
                         {sizeOptions.map(size => (
-                          <td key={size} className='p-0.5 text-xs text-center border-r border-neutral-300'>
-                            {product.sizes[size] ? product.sizes[size] : '-'}
-                          </td>
+                          <th key={size} className='w-7 p-0.5 text-xs font-bold text-center border border-neutral-300'>{size}</th>
                         ))}
-
-                        <td className='p-1 text-xs text-center border-r border-neutral-300'>{product.totalQuantity}</td>
-                        <td className='p-1 text-xs text-center border-r border-neutral-300'>
-                          {currencySymbol}{product.unitPrice?.toFixed(2)}
-                        </td>
-
-                        {Object.values(productsByNameColor).some((p:any) => p.discount > 0) && (
-                          <td className='p-1 text-xs text-center border-r border-neutral-300'>
-                            {product.discount > 0 ? `${currencySymbol}${product.discount.toFixed(2)}` : '-'}
-                          </td>
+                        <th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'>TOTAL PCS</th>
+                        <th className='w-16 p-1 text-xs font-bold text-center border border-neutral-300'>UNIT PRICE</th>
+                        {Object.values(productsByNameColor).some((p: any) => (p.discount || 0) > 0) && (
+                          <th className='w-16 p-1 text-xs font-bold text-center border border-neutral-300'>DISCOUNT</th>
                         )}
-
-                        <td className='p-1 text-xs text-center border-r border-neutral-300'>
-                          {currencySymbol}{lineTotal.toFixed(2)}
-                        </td>
+                        <th className='w-18 p-1 text-xs font-bold text-center border border-neutral-300'>TOTAL</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody>
+                      {productsArray.map((product: any, index: any) => {
+                        const priceAfterDiscount = (product.unitPrice || 0) - (product.discount || 0);
+                        const lineTotal = priceAfterDiscount * (product.totalQuantity || 0);
 
-            {/* Totals Section - Matching PDF Layout */}
-            <div className='flex flex-col items-end mb-6 mt-4'>
-              {Math.abs(subtotal) !== Math.abs(selectedQuotation.total_price || 0) && (
-                <div className='flex justify-end mb-1 w-1/3'>
-                  <div className='w-1/2 font-bold text-right pr-4'>Subtotal:</div>
-                  <div className='w-1/2 text-right'>
-                    {currencySymbol}{subtotal.toFixed(2)}
-                  </div>
+                        return (
+                          <tr key={index} className='border-b border-neutral-300'>
+                            <td className='p-1 text-center border-r border-neutral-300'>
+                              {product.image ? (
+                                <img src={product.image} alt={product.name} className='w-10 h-10 object-contain mx-auto' />
+                              ) : (
+                                <div className='w-10 h-10 bg-neutral-200 mx-auto'></div>
+                              )}
+                            </td>
+                            <td className='p-1 text-xs font-semibold border-r border-neutral-300'>{product.name || 'N/A'}</td>
+                            <td className='p-1 text-xs border-r border-neutral-300'>
+                              {Array.from(product.notes || []).map((note: any, i) => (
+                                <p key={i} className='text-xs italic text-neutral-600'>{note}</p>
+                              ))}
+                            </td>
+                            <td className='p-1 text-xs text-center border-r border-neutral-300'>{product.color || 'N/A'}</td>
+
+                            {sizeOptions.map(size => (
+                              <td key={size} className='p-0.5 text-xs text-center border-r border-neutral-300'>
+                                {product.sizes[size] ? product.sizes[size] : '-'}
+                              </td>
+                            ))}
+
+                            <td className='p-1 text-xs text-center border-r border-neutral-300'>{product.totalQuantity || 0}</td>
+                            <td className='p-1 text-xs text-center border-r border-neutral-300'>
+                              {currencySymbol}{(product.unitPrice || 0).toFixed(2)}
+                            </td>
+
+                            {Object.values(productsByNameColor).some((p: any) => (p.discount || 0) > 0) && (
+                              <td className='p-1 text-xs text-center border-r border-neutral-300'>
+                                {(product.discount || 0) > 0 ? `${currencySymbol}${product.discount.toFixed(2)}` : '-'}
+                              </td>
+                            )}
+
+                            <td className='p-1 text-xs text-center border-r border-neutral-300'>
+                              {currencySymbol}{lineTotal.toFixed(2)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-              )}
 
-              {totalDiscount > 0 && (
-                <div className='flex justify-end mb-1 w-1/3'>
-                  <div className='w-1/2 font-bold text-right pr-4'>Total Discount:</div>
-                  <div className='w-1/2 text-right'>
-                    {currencySymbol}{totalDiscount.toFixed(2)}
-                  </div>
-                </div>
-              )}
-
-              {selectedQuotation.include_vat && (
-                <>
-                  {totalBeforeVAT !== subtotal && (
+                <div className='flex flex-col items-end mb-6 mt-4'>
+                  {Math.abs(subtotal) !== Math.abs(selectedQuotation.total_price || 0) && (
                     <div className='flex justify-end mb-1 w-1/3'>
-                      <div className='w-1/2 font-bold text-right pr-4'>Total Before VAT:</div>
+                      <div className='w-1/2 font-bold text-right pr-4'>Subtotal:</div>
                       <div className='w-1/2 text-right'>
-                        {currencySymbol}{totalBeforeVAT.toFixed(2)}
+                        {currencySymbol}{subtotal.toFixed(2)}
                       </div>
                     </div>
                   )}
+
+                  {totalDiscount > 0 && (
+                    <div className='flex justify-end mb-1 w-1/3'>
+                      <div className='w-1/2 font-bold text-right pr-4'>Total Discount:</div>
+                      <div className='w-1/2 text-right'>
+                        {currencySymbol}{totalDiscount.toFixed(2)}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedQuotation.include_vat && (
+                    <>
+                      {totalBeforeVAT !== subtotal && (
+                        <div className='flex justify-end mb-1 w-1/3'>
+                          <div className='w-1/2 font-bold text-right pr-4'>Total Before VAT:</div>
+                          <div className='w-1/2 text-right'>
+                            {currencySymbol}{totalBeforeVAT.toFixed(2)}
+                          </div>
+                        </div>
+                      )}
+                      <div className='flex justify-end mb-1 w-1/3'>
+                        <div className='w-1/2 font-bold text-right pr-4'>VAT (11%):</div>
+                        <div className='w-1/2 text-right'>
+                          {currencySymbol}{vatAmount.toFixed(2)}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {shippingFee > 0 && (
+                    <div className='flex justify-end mb-1 w-1/3'>
+                      <div className='w-1/2 font-bold text-right pr-4'>Shipping Fee:</div>
+                      <div className='w-1/2 text-right'>
+                        {currencySymbol}{shippingFee.toFixed(2)}
+                      </div>
+                    </div>
+                  )}
+
                   <div className='flex justify-end mb-1 w-1/3'>
-                    <div className='w-1/2 font-bold text-right pr-4'>VAT (11%):</div>
-                    <div className='w-1/2 text-right'>
-                      {currencySymbol}{vatAmount.toFixed(2)}
+                    <div className='w-1/2 font-bold text-right pr-4'>Total:</div>
+                    <div className='w-1/2 text-right font-bold'>
+                      {currencySymbol}{(selectedQuotation.total_price || 0).toFixed(2)}
                     </div>
                   </div>
-                </>
-              )}
 
-              {/* Display shipping fee if present */}
-              {shippingFee > 0 && (
-                <div className='flex justify-end mb-1 w-1/3'>
-                  <div className='w-1/2 font-bold text-right pr-4'>Shipping Fee:</div>
-                  <div className='w-1/2 text-right'>
-                    {currencySymbol}{shippingFee.toFixed(2)}
+                  <div className='w-2/3 text-right italic text-sm text-neutral-600 mt-1'>
+                    Amount in words: [Amount in words would appear here]
                   </div>
                 </div>
-              )}
 
-              <div className='flex justify-end mb-1 w-1/3'>
-                <div className='w-1/2 font-bold text-right pr-4'>Total:</div>
-                <div className='w-1/2 text-right font-bold'>
-                  {currencySymbol}{(selectedQuotation.total_price || 0).toFixed(2)}
+                {selectedQuotation.note && (
+                  <div className='mb-6'>
+                    <h4 className='font-bold mb-2'>Additional Notes:</h4>
+                    <p className='text-sm'>{selectedQuotation.note}</p>
+                  </div>
+                )}
+
+                <div className='text-center text-neutral-500 text-sm mb-4'>
+                  Thank you for your business!
+                </div>
+
+                <div className='flex justify-center space-x-4 mt-6'>
+                  <button
+                    className='px-4 py-2 bg-blue text-white font-medium rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none'
+                    onClick={() => handlePDFGeneration(selectedQuotation)}>
+                    Download PDF
+                  </button>
+
+                  <button
+                    className='px-4 py-2 bg-blue text-white font-medium rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none'
+                    onClick={() => {
+                      setSelectedQuotation(null);
+                      handleEditQuotation(selectedQuotation);
+                    }}>
+                    Edit Order
+                  </button>
+
+                  <button
+                    className='px-4 py-2 bg-gray text-white font-medium rounded-md shadow-sm hover:bg-neutral-700 focus:outline-none'
+                    onClick={() => setSelectedQuotation(null)}>
+                    Close
+                  </button>
                 </div>
               </div>
-
-              <div className='w-2/3 text-right italic text-sm text-neutral-600 mt-1'>
-                Amount in words: [Amount in words would appear here]
-              </div>
             </div>
-
-            {/* Note Section */}
-            {selectedQuotation.note && (
-              <div className='mb-6'>
-                <h4 className='font-bold mb-2'>Additional Notes:</h4>
-                <p className='text-sm'>{selectedQuotation.note}</p>
+          </div>
+        </ErrorBoundary>
+      );
+    } catch (error) {
+      console.error('Error rendering quotation details:', error)
+      return (
+        <div className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'>
+          <div className='relative top-10 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white'>
+            <div className="bg-red-50 border border-red-200 rounded-md p-4">
+              <div className="flex">
+                <FaExclamationTriangle className="text-red-400 mt-1 mr-2" />
+                <div>
+                  <h3 className="text-sm font-medium text-red-800">Error Loading Order Details</h3>
+                  <p className="text-sm text-red-700 mt-1">
+                    Failed to load order details. Please try again.
+                  </p>
+                  <button
+                    onClick={() => setSelectedQuotation(null)}
+                    className="mt-2 bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1 rounded text-sm"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
-            )}
-
-            <div className='text-center text-neutral-500 text-sm mb-4'>
-              Thank you for your business!
-            </div>
-
-            <div className='flex justify-center space-x-4 mt-6'>
-              <button
-                className='px-4 py-2 bg-blue text-white font-medium rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none'
-                onClick={() => handlePDFGeneration(selectedQuotation)}>
-                Download PDF
-              </button>
-
-              <button
-                className='px-4 py-2 bg-blue text-white font-medium rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none'
-                onClick={() => {
-                  setSelectedQuotation(null);
-                  handleEditQuotation(selectedQuotation);
-                }}>
-                Edit Order
-              </button>
-
-              <button
-                className='px-4 py-2 bg-gray text-white font-medium rounded-md shadow-sm hover:bg-neutral-700 focus:outline-none'
-                onClick={() => setSelectedQuotation(null)}>
-                Close
-              </button>
             </div>
           </div>
         </div>
-      </div>
-    );
+      )
+    }
   };
 
   return (
-    <div className='mx-auto px-4 py-8 text-gray'>
-      <h1 className='text-3xl font-bold text-gray mb-6'>Order Management</h1>
-      <div className='bg-white shadow-md rounded-lg'>
-        <div className='p-6'>
-          {renderFilters()}
-          {renderQuotationTable()}
-          {renderPagination()}
+    <ErrorBoundary>
+      <div className='mx-auto px-4 py-8 text-gray'>
+        <h1 className='text-3xl font-bold text-gray mb-6'>Order Management</h1>
+        
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
+            <div className="flex">
+              <FaExclamationTriangle className="text-red-400 mt-1 mr-2" />
+              <div>
+                <h3 className="text-sm font-medium text-red-800">Error</h3>
+                <p className="text-sm text-red-700 mt-1">{error}</p>
+                <button
+                  onClick={() => setError(null)}
+                  className="mt-2 bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1 rounded text-sm"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        <div className='bg-white shadow-md rounded-lg'>
+          <div className='p-6'>
+            {renderFilters()}
+            {renderQuotationTable()}
+            {renderPagination()}
+          </div>
         </div>
+        <button
+          className='mt-6 bg-blue hover:bg-blue text-white font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110'
+          onClick={() => {
+            try {
+              setNewQuotation({
+                created_at: new Date().toISOString(),
+                total_price: 0,
+                note: '',
+                products: [],
+                status: 'pending',
+                include_vat: false,
+                vat_amount: 0,
+                order_number: '0',
+                discounts: {},
+                currency: 'usd',
+                payment_term: '30% deposit 70% before shipping',
+                delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(),
+                client_id: undefined,
+                shipping_fee: 0
+              })
+              setError(null)
+              setShowModal(true)
+            } catch (error) {
+              console.error('Error creating new order:', error)
+              toast.error('Failed to create new order')
+            }
+          }}>
+          <FaPlus className='inline-block mr-2' /> Create New Order
+        </button>
+        {showModal && (
+          <div className='fixed z-10 inset-0 overflow-y-auto'>
+            <LoadingOverlay isLoading={loadingStates.isOrderCreating || loadingStates.isOrderUpdating}>
+              {renderQuotationModal()}
+            </LoadingOverlay>
+          </div>
+        )}
+        {selectedQuotation && renderQuotationDetails()}
       </div>
-      <button
-        className='mt-6 bg-blue hover:bg-blue text-white font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110'
-        onClick={() => {
-          setNewQuotation({
-            created_at: new Date().toISOString(),
-            total_price: 0,
-            note: '',
-            products: [],
-            status: 'pending',
-            include_vat: false,
-            vat_amount: 0,
-            order_number: '0',
-            discounts: {},
-            currency: 'usd',
-            payment_term: '30% deposit 70% before shipping',
-            delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(),
-            client_id: undefined,
-            shipping_fee: 0 // Initialize shipping fee
-          })
-          setShowModal(true)
-        }}>
-        <FaPlus className='inline-block mr-2' /> Create New Order
-      </button>
-      {showModal && (
-        <div className='fixed z-10 inset-0 overflow-y-auto'>
-          <LoadingOverlay isLoading={loadingStates.isOrderCreating || loadingStates.isOrderUpdating}>
-            {renderQuotationModal()}
-          </LoadingOverlay>
-        </div>
-      )}
-      {selectedQuotation && renderQuotationDetails()}
-    </div>
+    </ErrorBoundary>
   )
 }
 
