@@ -345,7 +345,7 @@ export default function ProductsPage() {
         photoUrl = await handleFileUpload()
       }
       const productWithPhoto = { ...newProduct, photo: photoUrl }
-      const newVariants = flattenColorVariantGroups()
+      const newVariants:any = flattenColorVariantGroups()
       
       await productFunctions.addProduct(productWithPhoto, newVariants)
       
