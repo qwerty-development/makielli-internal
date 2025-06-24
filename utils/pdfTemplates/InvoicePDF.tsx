@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
     productNameCell: {
         fontSize: 5,
         padding: 1,
-        fontWeight: 700, // Using numeric weight
+        fontWeight: 700,
         fontFamily: 'Times New Roman'
     },
     header: {
@@ -117,13 +117,13 @@ const styles = StyleSheet.create({
     },
     title: {
         fontSize: 18,
-        fontWeight: 700, // Explicit numeric weight
+        fontWeight: 700,
         marginBottom: 20,
         color: '#1E40AF'
     },
     returnTitle: {
         fontSize: 18,
-        fontWeight: 700, // Explicit numeric weight
+        fontWeight: 700,
         marginBottom: 20,
         color: '#DC2626'
     },
@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
     returnBadgeText: {
         color: '#DC2626',
         fontSize: 12,
-        fontWeight: 700, // Explicit numeric weight
+        fontWeight: 700,
         textAlign: 'center'
     },
     returnNote: {
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
         fontSize: 10
     },
     label: {
-        fontWeight: 700, // Explicit numeric weight
+        fontWeight: 700,
         marginRight: 5
     },
     value: {
@@ -178,44 +178,44 @@ const styles = StyleSheet.create({
         borderBottomColor: '#bfbfbf',
         borderBottomStyle: 'solid',
         alignItems: 'center',
-        minHeight: 24, // Minimum height for a row
+        minHeight: 24,
         textAlign: 'center'
     },
     tableColHeader: {
         borderStyle: 'solid',
-        borderBottomWidth: 1, // Border for header cells
+        borderBottomWidth: 1,
         borderRightWidth: 1,
         borderColor: '#bfbfbf',
         backgroundColor: '#f0f0f0',
-        padding: 1, // Reduced padding for header cells
-        justifyContent: 'center', // Vertically center content in header cells
-        alignItems: 'center' // Horizontally center content
+        padding: 1,
+        justifyContent: 'center',
+        alignItems: 'center'
     },
     tableCol: {
         borderStyle: 'solid',
         borderRightWidth: 1,
         borderRightColor: '#bfbfbf',
-        padding: 1, // Ensure data cells also have padding if needed
-        justifyContent: 'center', // Vertically center content in data cells
-        alignItems: 'center' // Horizontally center content
+        padding: 1,
+        justifyContent: 'center',
+        alignItems: 'center'
     },
     tableCellHeader: {
-        fontWeight: 700, // Explicit numeric weight
-        fontSize: 5, // Small font size for header
+        fontWeight: 700,
+        fontSize: 5,
         textAlign: 'center'
     },
     tableCell: {
-        fontSize: 5, // Small font size for data cells
-        padding: 1, // Padding for content within cell
-        textAlign: 'center' // Center text in data cells
+        fontSize: 5,
+        padding: 1,
+        textAlign: 'center'
     },
     notes: {
         fontSize: 5,
         fontStyle: 'italic',
         color: '#666',
         marginTop: 2,
-        textAlign: 'left', // Notes might be better left-aligned
-        paddingHorizontal: 2 // Add some padding for notes
+        textAlign: 'left',
+        paddingHorizontal: 2
     },
     subtotal: {
         flexDirection: 'row',
@@ -223,14 +223,14 @@ const styles = StyleSheet.create({
         marginTop: 10
     },
     subtotalLabel: {
-        width: '16.66%', // Adjust as needed based on number of columns
+        width: '16.66%',
         textAlign: 'right',
         paddingRight: 5,
-        fontWeight: 700, // Explicit numeric weight
+        fontWeight: 700,
         fontSize: 10
     },
     subtotalValue: {
-        width: '16.66%', // Adjust as needed
+        width: '16.66%',
         textAlign: 'right',
         fontSize: 10
     },
@@ -244,18 +244,18 @@ const styles = StyleSheet.create({
         fontSize: 10
     },
     productImage: {
-        width: '100%', // Take full width of container
-        height: 'auto', // Adjust height automatically
-        maxHeight: 50, // Max height to fit in row
-        objectFit: 'contain', // Ensure image scales nicely
-        marginVertical: 2 // Some vertical margin
+        width: '100%',
+        height: 'auto',
+        maxHeight: 50,
+        objectFit: 'contain',
+        marginVertical: 2
     },
     imageContainer: {
-        width: '7%', // Column width for image
-        height: 54, // Fixed height for the image cell to ensure row consistency
+        width: '7%',
+        height: 54,
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 1 // Minimal padding for image container
+        padding: 1
     },
     amountInWords: {
         fontSize: 8,
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
     },
     paymentInfoTitle: {
         fontSize: 10,
-        fontWeight: 700, // Explicit numeric weight
+        fontWeight: 700,
         marginBottom: 5
     },
     paymentInfoRow: {
@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
         marginBottom: 2
     },
     paymentInfoLabel: {
-        fontWeight: 700 // Explicit numeric weight
+        fontWeight: 700
     }
 })
 
@@ -401,7 +401,7 @@ const convertAmountToWords = (
 
 const sizeOptions = [
     'OS', 'XXS', 'XS', 'S', 'S/M', 'M', 'M/L', 'L', 'XL', '2XL', '3XL',
-    '36', '38', '40', '42', '44', '46', '50', '52', '54', '56', '58'
+    '36', '38', '40', '42', '44', '46', '48', '50', '52', '54', '56', '58'
 ]
 
 const InvoicePDF: React.FC<{
@@ -431,10 +431,15 @@ const InvoicePDF: React.FC<{
         currency
     )
 
+    // MODIFIED: Enhanced subtotal calculation using historical prices
     const subtotal = products.reduce((total: number, product: any) => {
+        // CRITICAL: Use the historical prices that are now embedded in the product data
+        // The PDF generator has already resolved whether to use stored historical prices
+        // or fallback to current prices for legacy invoices
         const price = isClientInvoice
-            ? product.unitPrice || 0
-            : product.unitCost || 0
+            ? (product.unitPrice || product.displayPrice || 0)
+            : (product.unitCost || 0)
+        
         const quantity = product.totalQuantity || 0
         const lineTotal = price * quantity
         return total + (isReturn ? -lineTotal : lineTotal)
@@ -449,7 +454,7 @@ const InvoicePDF: React.FC<{
 
     const totalBeforeVAT = subtotal - totalDiscount
     const vatAmount = safeInvoice.include_vat ? totalBeforeVAT * 0.11 : 0
-    const shippingFee = safeInvoice.shipping_fee || 0 // Added for completeness
+    const shippingFee = safeInvoice.shipping_fee || 0
 
     return (
         <Document>
@@ -458,7 +463,7 @@ const InvoicePDF: React.FC<{
                     {logoBase64 ? (
                         <Image src={logoBase64} style={styles.logo} />
                     ) : (
-                        <Image src='/logo/logo.png' style={styles.logo} /> // Ensure this path is correct or handle fallback
+                        <Image src='/logo/logo.png' style={styles.logo} />
                     )}
                     <View style={styles.companyInfo}>
                         <Text>{safeCompany.name || 'N/A'}</Text>
@@ -531,7 +536,6 @@ const InvoicePDF: React.FC<{
                 </View>
 
                 <View style={styles.table}>
-                    {/* MODIFICATION: Added 'fixed' prop to the table header row View */}
                     <View style={styles.tableRow} fixed>
                         <View style={[styles.tableColHeader, { width: '7%' }]}>
                             <Text style={styles.tableCellHeader}>IMAGE</Text>
@@ -561,35 +565,40 @@ const InvoicePDF: React.FC<{
                                 <Text style={styles.tableCellHeader}>DISCOUNT</Text>
                             </View>
                         )}
-                        <View style={[styles.tableColHeader, { width: '7%', borderRightWidth: 0 }]}> {/* Removed right border for the last header cell */}
+                        <View style={[styles.tableColHeader, { width: '7%', borderRightWidth: 0 }]}>
                             <Text style={styles.tableCellHeader}>TOTAL</Text>
                         </View>
                     </View>
 
                     {(products || []).map((product: any, index: number) => {
+                        // MODIFIED: Enhanced price calculation using historical data
                         const basePrice = isClientInvoice
-                            ? product.unitPrice || 0
-                            : product.unitCost || 0
+                            ? (product.unitPrice || product.displayPrice || 0)
+                            : (product.unitCost || 0)
+                        
                         const discount = safeInvoice.discounts?.[product.product_id] || 0
                         const quantity = product.totalQuantity || 0
                         const priceAfterDiscount = basePrice - discount
                         const lineTotal = priceAfterDiscount * quantity
                         const displayLineTotal = isReturn ? -lineTotal : lineTotal
 
+                        // VALIDATION: Log when using fallback pricing (for debugging)
+                        if (!product.hasHistoricalPrices && process.env.NODE_ENV === 'development') {
+                            console.warn(`Using fallback pricing for product ${product.product_id} in invoice PDF generation`)
+                        }
+
                         return (
-                            // MODIFICATION: Added 'wrap={false}' to prevent data rows from splitting across pages
                             <View key={index} style={styles.tableRow} wrap={false}>
                                 <View style={[styles.tableCol, styles.imageContainer]}>
                                     {product.image ? (
                                         <Image
                                             src={product.image}
                                             style={styles.productImage}
-                                            cache={true} // Cache is good for performance
+                                            cache={true}
                                         />
                                     ) : (
-                                        // Fallback if no image is provided
                                         <Image
-                                            src="/placeholder-image.jpg" // Ensure you have a placeholder image at this path or remove
+                                            src="/placeholder-image.jpg"
                                             style={styles.productImage}
                                             cache={true}
                                         />
@@ -641,7 +650,7 @@ const InvoicePDF: React.FC<{
                                         </Text>
                                     </View>
                                 )}
-                                <View style={[styles.tableCol, { width: '7%', borderRightWidth: 0 }]}> {/* Removed right border for the last data cell in row */}
+                                <View style={[styles.tableCol, { width: '7%', borderRightWidth: 0 }]}>
                                     <Text style={styles.tableCell}>
                                         {currencySymbol}
                                         {Math.abs(displayLineTotal).toFixed(2)}
@@ -676,7 +685,7 @@ const InvoicePDF: React.FC<{
 
                 {safeInvoice.include_vat && (
                     <>
-                        {totalBeforeVAT !== subtotal && ( // Only show if different from subtotal
+                        {totalBeforeVAT !== subtotal && (
                             <View style={styles.subtotal}>
                                 <Text style={styles.subtotalLabel}>Total Before VAT:</Text>
                                 <Text style={styles.subtotalValue}>
@@ -734,7 +743,7 @@ const InvoicePDF: React.FC<{
                     </Text>
                 )}
 
-                <Text style={styles.footer} fixed> {/* Added fixed to footer as well for consistency */}
+                <Text style={styles.footer} fixed>
                     Thank you for your business!
                 </Text>
             </Page>

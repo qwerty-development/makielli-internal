@@ -90,15 +90,26 @@ const fetchCompanyDetails = async (companyId: any) => {
   return data
 }
 
-// Fetch product details with safe check for productVariantId.
-const fetchProductDetails = async (productVariantId: string) => {
-  if (!productVariantId || productVariantId.trim() === "") {
-    throw new Error("Invalid productVariantId: it is empty or missing.")
+// MODIFIED: Enhanced product details fetching with historical price priority
+const fetchProductDetailsWithHistoricalPrices = async (
+  invoiceProduct: any,
+  isClientInvoice: boolean
+) => {
+  // Validate product variant ID
+  if (!invoiceProduct.product_variant_id || invoiceProduct.product_variant_id.trim() === "") {
+    throw new Error("Invalid product_variant_id: it is empty or missing.")
   }
-  const { data, error } = await supabase
+
+  // Check if historical prices are available in invoice product data
+  const hasHistoricalPrices = invoiceProduct.unit_price !== undefined && invoiceProduct.unit_cost !== undefined;
+
+  let productDetails: any;
+  let variantDetails: any;
+
+  // Fetch variant and product information
+  const { data: variantData, error: variantError } = await supabase
     .from('ProductVariants')
-    .select(
-      `
+    .select(`
       id,
       size,
       color,
@@ -111,8 +122,86 @@ const fetchProductDetails = async (productVariantId: string) => {
         price,
         cost
       )
-    `
-    )
+    `)
+    .eq('id', invoiceProduct.product_variant_id)
+    .single()
+
+  if (variantError) {
+    throw new Error(`Unable to fetch product variant details for variant_id ${invoiceProduct.product_variant_id}: ${variantError.message}`)
+  }
+
+  variantDetails = variantData;
+  productDetails = variantData.Products;
+
+  // If product details are not available via variant, fetch directly
+  if (!productDetails) {
+    const { data: productData, error: productError } = await supabase
+      .from('Products')
+      .select('id, name, photo, price, cost')
+      .eq('id', variantData.product_id)
+      .single()
+
+    if (productError) {
+      throw new Error(`Unable to fetch product details for product_id ${variantData.product_id}: ${productError.message}`)
+    }
+    productDetails = productData
+  }
+
+  // CRITICAL: Determine price source based on historical data availability
+  let unitPrice: number;
+  let unitCost: number;
+
+  if (hasHistoricalPrices) {
+    // PRIMARY: Use stored historical prices from invoice
+    unitPrice = invoiceProduct.unit_price;
+    unitCost = invoiceProduct.unit_cost;
+    console.log(`Using historical prices for product ${productDetails.id}: price=${unitPrice}, cost=${unitCost}`);
+  } else {
+    // FALLBACK: Use current prices from Products table (legacy support)
+    unitPrice = productDetails.price || 0;
+    unitCost = productDetails.cost || 0;
+    console.warn(`Using current prices for legacy invoice product ${productDetails.id}: price=${unitPrice}, cost=${unitCost}`);
+  }
+
+  return {
+    id: variantDetails.id,
+    product_id: variantDetails.product_id,
+    name: productDetails.name,
+    image: productDetails.photo,
+    unitPrice: unitPrice,
+    unitCost: unitCost,
+    color: variantDetails.color,
+    size: variantDetails.size,
+    quantity: variantDetails.quantity,
+    // Additional fields for invoice processing
+    invoiceQuantity: invoiceProduct.quantity,
+    note: invoiceProduct.note || '',
+    hasHistoricalPrices: hasHistoricalPrices
+  }
+}
+
+// MODIFIED: Simplified product details fetching for quotations (maintains original logic)
+const fetchProductDetailsForQuotation = async (productVariantId: string) => {
+  if (!productVariantId || productVariantId.trim() === "") {
+    throw new Error("Invalid productVariantId: it is empty or missing.")
+  }
+  
+  const { data, error } = await supabase
+    .from('ProductVariants')
+    .select(`
+      id,
+      size,
+      color,
+      quantity,
+      product_id,
+      Products (
+        id,
+        name,
+        photo,
+        price,
+        cost
+      )
+    `)
     .eq('id', productVariantId)
     .single()
 
@@ -120,7 +209,7 @@ const fetchProductDetails = async (productVariantId: string) => {
     throw new Error(`Unable to fetch product details for variant_id ${productVariantId}: ${error.message}`)
   }
 
-  let productDetails:any = data.Products
+  let productDetails: any = data.Products
   if (!productDetails) {
     const { data: productData, error: productError } = await supabase
       .from('Products')
@@ -240,15 +329,15 @@ const fetchSupplierFinancialData = async (supplierId: any) => {
   return financialData
 }
 
-// Generate the PDF document.
+// MODIFIED: Enhanced PDF generation with historical price support
 export const generatePDF = async (
   type: string,
-  data:any
+  data: any
 ) => {
-  let component:any
-  let fileName:any
+  let component: any
+  let fileName: any
 
- if (type === 'invoice' || type === 'quotation') {
+  if (type === 'invoice' || type === 'quotation') {
     const productMap = new Map();
 
     const validProducts = data.products.filter(
@@ -256,42 +345,82 @@ export const generatePDF = async (
         product.product_variant_id && product.product_variant_id.trim() !== ""
     );
 
-await Promise.all(
-      validProducts.map(async (product: any) => {
-        const details = await fetchProductDetails(product.product_variant_id);
-        const key = `${details.name}-${details.color}`;
+    // CRITICAL MODIFICATION: Use appropriate product fetching method based on document type
+    if (type === 'invoice') {
+      // For invoices: Use historical price fetching method
+      const isClientInvoice = !!data.client_id;
+      
+      await Promise.all(
+        validProducts.map(async (product: any) => {
+          const details = await fetchProductDetailsWithHistoricalPrices(product, isClientInvoice);
+          const key = `${details.name}-${details.color}`;
 
-        if (!productMap.has(key)) {
-          productMap.set(key, {
-            ...details,
-            sizes: {},
-            totalQuantity: 0,
-            notes: new Set(),
-            discount: data.discounts?.[details.product_id] || 0
-          });
-        } else {
-          // Update existing entry if the current variant has an image and the stored one doesn't
-          const existingProduct = productMap.get(key);
-          if (!existingProduct.image && details.image) {
-            existingProduct.image = details.image;
-            productMap.set(key, existingProduct);
+          if (!productMap.has(key)) {
+            productMap.set(key, {
+              ...details,
+              sizes: {},
+              totalQuantity: 0,
+              notes: new Set(),
+              discount: data.discounts?.[details.product_id] || 0,
+              // IMPORTANT: Use the correct price based on invoice type
+              displayPrice: isClientInvoice ? details.unitPrice : details.unitCost
+            });
+          } else {
+            // Update existing entry if the current variant has an image and the stored one doesn't
+            const existingProduct = productMap.get(key);
+            if (!existingProduct.image && details.image) {
+              existingProduct.image = details.image;
+              productMap.set(key, existingProduct);
+            }
           }
-        }
 
-        const existingProduct = productMap.get(key);
-        existingProduct.sizes[details.size] =
-          (existingProduct.sizes[details.size] || 0) + product.quantity;
-        existingProduct.totalQuantity += product.quantity;
-        if (product.note) {
-          existingProduct.notes.add(product.note);
-        }
-        productMap.set(key, existingProduct);
-      })
-    );
+          const existingProduct = productMap.get(key);
+          existingProduct.sizes[details.size] =
+            (existingProduct.sizes[details.size] || 0) + details.invoiceQuantity;
+          existingProduct.totalQuantity += details.invoiceQuantity;
+          if (details.note) {
+            existingProduct.notes.add(details.note);
+          }
+          productMap.set(key, existingProduct);
+        })
+      );
+    } else {
+      // For quotations: Use original method (current prices)
+      await Promise.all(
+        validProducts.map(async (product: any) => {
+          const details = await fetchProductDetailsForQuotation(product.product_variant_id);
+          const key = `${details.name}-${details.color}`;
 
+          if (!productMap.has(key)) {
+            productMap.set(key, {
+              ...details,
+              sizes: {},
+              totalQuantity: 0,
+              notes: new Set(),
+              discount: data.discounts?.[details.product_id] || 0
+            });
+          } else {
+            // Update existing entry if the current variant has an image and the stored one doesn't
+            const existingProduct = productMap.get(key);
+            if (!existingProduct.image && details.image) {
+              existingProduct.image = details.image;
+              productMap.set(key, existingProduct);
+            }
+          }
 
+          const existingProduct = productMap.get(key);
+          existingProduct.sizes[details.size] =
+            (existingProduct.sizes[details.size] || 0) + product.quantity;
+          existingProduct.totalQuantity += product.quantity;
+          if (product.note) {
+            existingProduct.notes.add(product.note);
+          }
+          productMap.set(key, existingProduct);
+        })
+      );
+    }
 
- const productsArray = Array.from(productMap.values()).map((product) => ({
+    const productsArray = Array.from(productMap.values()).map((product) => ({
       ...product,
       notes: Array.from(product.notes)
     }));
@@ -306,7 +435,7 @@ await Promise.all(
       return a.color.localeCompare(b.color);
     });
 
- try {
+    try {
       console.log("Preloading images for PDF generation...");
       const imageCache = await preloadImages(productsArray);
 
@@ -330,6 +459,7 @@ await Promise.all(
       payment_info: data.payment_info || 'frisson_llc'
     };
   }
+
   switch (type) {
     case 'invoice': {
       let entityData, companyData, isClientInvoice
@@ -354,7 +484,8 @@ await Promise.all(
           currency: data.currency || 'usd',
           payment_term: data.payment_term || 'N/A',
           delivery_date: data.delivery_date || '',
-          payment_info: data.payment_info || 'frisson_llc'
+          payment_info: data.payment_info || 'frisson_llc',
+          shipping_fee: data.shipping_fee || 0
         },
         entity: entityData,
         company: companyData,
@@ -385,7 +516,7 @@ await Promise.all(
       component = ReceiptPDF({
         receipt: {
           ...data,
-          currency: data.currency || invoiceData.currency || 'usd'  // Add this line
+          currency: data.currency || invoiceData.currency || 'usd'
         },
         entity: entityData2,
         company: companyData2,
@@ -417,7 +548,7 @@ await Promise.all(
         products: data.products.map((product: { sizes: any; notes: any; note: any }) => ({
           ...product,
           totalQuantity: Object.values(product.sizes || {}).reduce(
-            (sum:any, quantity:any) => sum + Number(quantity || 0),
+            (sum: any, quantity: any) => sum + Number(quantity || 0),
             0
           ),
           notes: Array.isArray(product.notes)
@@ -487,7 +618,7 @@ await Promise.all(
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-  } catch (err:any) {
+  } catch (err: any) {
     throw new Error(`PDF generation failed: ${err.message}`)
   }
 }
