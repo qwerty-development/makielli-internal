@@ -316,7 +316,7 @@ export const analyticsService = {
     }
 
     // Get sales data from ProductHistory
-    const { data: salesHistory, error: salesError } = await supabase
+    const { data: salesHistory, error: salesError }:any = await supabase
       .from('ProductHistory')
       .select(`
         product_id,
@@ -506,7 +506,7 @@ export const analyticsService = {
       if (cached) return cached;
     }
 
-    const { data: invoices, error } = await supabase
+    const { data: invoices, error }:any = await supabase
       .from('ClientInvoices')
       .select(`
         client_id,
@@ -572,7 +572,7 @@ export const analyticsService = {
       if (cached) return cached;
     }
 
-    const { data: variants, error } = await supabase
+    const { data: variants, error }:any = await supabase
       .from('ProductVariants')
       .select(`
         id,
@@ -593,7 +593,7 @@ export const analyticsService = {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const { data: salesHistory, error: salesError } = await supabase
+    const { data: salesHistory, error: salesError }:any = await supabase
       .from('ProductHistory')
       .select('variant_id, quantity_change')
       .eq('source_type', 'client_invoice')
