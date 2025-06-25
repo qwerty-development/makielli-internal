@@ -4,8 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { 
   FaChartLine, FaBoxOpen, FaChartBar, FaExclamationTriangle, 
   FaSearch, FaDownload, FaSyncAlt, FaArrowUp, FaArrowDown,
-  FaEquals, FaInfoCircle, FaDollarSign, FaUsers, FaShoppingCart,
- FaEye
+  FaEquals, FaInfoCircle, FaDollarSign, FaUsers, FaShoppingCart, FaEye
 } from 'react-icons/fa'
 import { 
   analyticsService,
@@ -293,7 +292,7 @@ export default function AnalyticsDashboard() {
         analyticsService.getInventoryMetrics(forceRefresh),
         analyticsService.getProductPerformance(formattedStartDate, formattedEndDate, 20, forceRefresh),
         analyticsService.getInventoryMovement(formattedStartDate, formattedEndDate, 'day', forceRefresh),
-        analyticsService.getClientMetrics(formattedStartDate, formattedEndDate, 10, forceRefresh),
+        analyticsService.getClientMetrics(formattedStartDate, formattedEndDate, 1000, forceRefresh),
         analyticsService.getLowStockAlerts(5, forceRefresh),
         analyticsService.getPeriodComparison(formattedStartDate, formattedEndDate, prevStartDate, prevEndDate, forceRefresh)
       ]);
@@ -476,7 +475,6 @@ export default function AnalyticsDashboard() {
           info="Current inventory value at retail prices"
           color="blue"
         />
-        
         
       </div>
 
@@ -829,7 +827,14 @@ export default function AnalyticsDashboard() {
     <div className="space-y-8">
       {/* Client Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      
+        <MetricCard
+          title="Active Clients"
+          value={clientMetrics.length.toString()}
+          subtitle="With orders this period"
+          icon={<FaUsers />}
+          loading={loading}
+          color="blue"
+        />
         <MetricCard
           title="Total Outstanding"
           value={`$${clientMetrics.reduce((sum, client) => sum + client.outstanding_balance, 0).toLocaleString()}`}
@@ -840,7 +845,7 @@ export default function AnalyticsDashboard() {
         />
         <MetricCard
           title="Average Invoice Value"
-          value={`$${clientMetrics.length > 0 ? (clientMetrics.reduce((sum, client) => sum + client.total_invoiced, 0) / clientMetrics.reduce((sum, client) => sum + client.invoice_count, 0)).toFixed(0) : '0'}`}
+          value={`${salesMetrics?.avg_invoice_value.toFixed(0) || '0'}`}
           subtitle="Per invoice"
           icon={<FaChartBar />}
           loading={loading}
