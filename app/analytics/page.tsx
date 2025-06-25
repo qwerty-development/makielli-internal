@@ -144,6 +144,10 @@ const MetricCard = React.memo(({
   );
 });
 
+
+
+MetricCard.displayName = 'MetricCard';
+
 // Enhanced data table
 const DataTable = React.memo(({ 
   data, 
@@ -210,6 +214,8 @@ const DataTable = React.memo(({
     </div>
   );
 });
+
+DataTable.displayName = 'DataTable';
 
 // Custom chart tooltip
 const CustomTooltip = ({ active, payload, label, formatter }: any) => {
