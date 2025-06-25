@@ -1,76 +1,80 @@
-/* eslint-disable react/display-name */
 'use client'
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { 
   FaChartLine, FaBoxOpen, FaChartBar, FaExclamationTriangle, 
-  FaSearch, FaCalendar, FaDownload, FaSyncAlt, FaArrowUp, 
-  FaArrowDown, FaEquals, FaInfoCircle, FaTimes
+  FaSearch, FaDownload, FaSyncAlt, FaArrowUp, FaArrowDown,
+  FaEquals, FaInfoCircle, FaDollarSign, FaUsers, FaShoppingCart,
+ FaEye
 } from 'react-icons/fa'
 import { 
-  analyticsFunctions, TopSellersData, TimeSeriesData, 
-  InventoryValueData, SalesKPIData 
+  analyticsService,
+  SalesMetrics,
+  InventoryMetrics,
+  ProductPerformance,
+  InventoryMovement,
+  ClientMetrics,
+  LowStockAlert,
+  PeriodComparison
 } from '@/utils/functions/analytics'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  Legend, ResponsiveContainer, BarChart, Bar, Cell,
-  PieChart, Pie, Sector
+  Legend, ResponsiveContainer, BarChart, Bar,
+  PieChart, Pie, Cell, ComposedChart, Area, AreaChart
 } from 'recharts'
 import { 
   format, subMonths, subWeeks, startOfMonth, endOfMonth, 
-  startOfWeek, endOfWeek, isSameDay, parseISO,
-  formatDistanceToNow, differenceInDays
+  differenceInDays, addDays
 } from 'date-fns'
 
-// Skeleton components for loading states
+// Enhanced color palette
+const COLORS = ['#1E40AF', '#7C3AED', '#059669', '#DC2626', '#F59E0B', '#8B5CF6', '#10B981', '#EF4444'];
+
+// Enhanced skeleton components
 const MetricCardSkeleton = () => (
-  <div className="bg-white rounded-lg shadow-md p-4 animate-pulse">
+  <div className="bg-white rounded-xl shadow-lg p-6 animate-pulse">
     <div className="flex items-center justify-between">
-      <div>
-        <div className="h-4 bg-neutral-200 rounded w-24 mb-2"></div>
-        <div className="h-8 bg-neutral-200 rounded w-16"></div>
+      <div className="flex-1">
+        <div className="h-4 bg-neutral-200 rounded w-24 mb-3"></div>
+        <div className="h-8 bg-neutral-200 rounded w-20 mb-2"></div>
+        <div className="h-3 bg-neutral-200 rounded w-16"></div>
       </div>
-      <div className="w-8 h-8 bg-neutral-200 rounded-full"></div>
+      <div className="w-12 h-12 bg-neutral-200 rounded-full"></div>
     </div>
   </div>
 )
 
-const TableSkeleton = () => (
-  <div className="animate-pulse">
-    <div className="h-8 bg-neutral-200 rounded mb-4"></div>
-    <div className="h-16 bg-neutral-200 rounded mb-2"></div>
-    <div className="h-16 bg-neutral-200 rounded mb-2"></div>
-    <div className="h-16 bg-neutral-200 rounded mb-2"></div>
-  </div>
-)
-
 const ChartSkeleton = () => (
-  <div className="animate-pulse h-80">
-    <div className="h-full bg-neutral-200 rounded"></div>
+  <div className="animate-pulse h-80 bg-neutral-100 rounded-lg flex items-center justify-center">
+    <div className="text-neutral-600">Loading chart...</div>
   </div>
 )
 
-// Card component for summary metrics with trend indicator
+// Enhanced metric card component
 const MetricCard = React.memo(({ 
   title, 
   value, 
+  subtitle,
   icon, 
   trend = null, 
   trendValue = 0,
   className = '',
   loading = false,
-  info = null
+  info = null,
+  color = 'blue'
 }: {
   title: string;
   value: string | number;
+  subtitle?: string;
   icon: React.ReactNode;
   trend?: 'up' | 'down' | 'neutral' | null;
   trendValue?: number;
   className?: string;
   loading?: boolean;
   info?: string | null;
+  color?: string;
 }) => {
   const [showInfo, setShowInfo] = useState(false);
   
@@ -82,177 +86,148 @@ const MetricCard = React.memo(({
   
   if (trend === 'up') {
     trendIcon = <FaArrowUp className="mr-1" />;
-    trendColor = trendValue > 0 ? 'text-green-500' : 'text-red-500';
+    trendColor = trendValue > 0 ? 'text-green-600' : 'text-red-600';
   } else if (trend === 'down') {
     trendIcon = <FaArrowDown className="mr-1" />;
-    trendColor = trendValue < 0 ? 'text-green-500' : 'text-red-500';
+    trendColor = trendValue < 0 ? 'text-red-600' : 'text-green-600';
   } else if (trend === 'neutral') {
     trendIcon = <FaEquals className="mr-1" />;
     trendColor = 'text-neutral-500';
   }
   
+  const colorMap = {
+    blue: 'text-indigo-600',
+    green: 'text-green-600',
+    purple: 'text-purple-600',
+    orange: 'text-orange-600',
+    red: 'text-red-600'
+  };
+  
   return (
-    <div className={`bg-white rounded-lg shadow-md p-4 relative ${className}`}>
+    <div className={`bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 p-6 relative ${className}`}>
       <div className="flex items-center justify-between">
-        <div>
+        <div className="flex-1">
           <div className="flex items-center">
-            <p className="text-sm text-neutral-400">{title}</p>
+            <p className="text-sm font-medium text-neutral-600">{title}</p>
             {info && (
-              <div className="relative ml-1">
+              <div className="relative ml-2">
                 <FaInfoCircle 
-                  className="text-neutral-400 hover:text-blue cursor-pointer" 
+                  className="text-neutral-600 hover:text-indigo-600 cursor-pointer transition-colors" 
                   onMouseEnter={() => setShowInfo(true)}
                   onMouseLeave={() => setShowInfo(false)}
                   onClick={() => setShowInfo(!showInfo)}
                 />
                 {showInfo && (
-                  <div className="absolute z-10 bg-white p-2 rounded shadow-lg text-xs w-48 left-0 top-6 text-neutral-800">
+                  <div className="absolute z-10 bg-white p-3 rounded-lg shadow-lg text-xs w-64 left-0 top-6 border text-neutral-600">
                     {info}
                   </div>
                 )}
               </div>
             )}
           </div>
-          <p className="text-2xl font-bold">{value}</p>
+          <p className="text-3xl font-bold text-neutral-900 mt-2">{value}</p>
+          {subtitle && (
+            <p className="text-sm text-neutral-500 mt-1">{subtitle}</p>
+          )}
           {trend && (
-            <div className={`flex items-center text-sm ${trendColor}`}>
+            <div className={`flex items-center text-sm mt-2 ${trendColor}`}>
               {trendIcon}
-              <span>{Math.abs(Math.round(trendValue * 10) / 10)}%</span>
+              <span className="font-medium">{Math.abs(Math.round(trendValue * 10) / 10)}%</span>
+              <span className="ml-1 text-neutral-500">vs last period</span>
             </div>
           )}
         </div>
-        <div className="text-blue text-3xl">{icon}</div>
+        <div className={`text-4xl ${colorMap[color as keyof typeof colorMap] || colorMap.blue}`}>
+          {icon}
+        </div>
       </div>
     </div>
   );
 });
 
-// DataTable component for displaying tabular data
+// Enhanced data table
 const DataTable = React.memo(({ 
   data, 
   columns, 
   loading = false,
-  emptyMessage = "No data available"
+  emptyMessage = "No data available",
+  maxHeight = "400px"
 }: {
   data: any[];
-  columns: { header: string; accessor: string; render?: (row: any) => React.ReactNode }[];
+  columns: { header: string; accessor: string; render?: (row: any) => React.ReactNode; className?: string }[];
   loading?: boolean;
   emptyMessage?: string;
+  maxHeight?: string;
 }) => {
   if (loading) {
-    return <TableSkeleton />;
+    return (
+      <div className="animate-pulse space-y-3">
+        <div className="h-12 bg-neutral-200 rounded"></div>
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="h-16 bg-neutral-100 rounded"></div>
+        ))}
+      </div>
+    );
   }
   
   if (!data || data.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow p-8 text-center text-neutral-500">
+        <FaBoxOpen className="mx-auto text-4xl mb-4 text-neutral-600" />
         {emptyMessage}
       </div>
     );
   }
   
   return (
-    <div className="overflow-x-auto bg-white rounded-lg shadow">
-      <table className="min-w-full divide-y divide-neutral-200">
-        <thead className="bg-neutral-50">
-          <tr>
-            {columns.map((column, index) => (
-              <th
-                key={index}
-                className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider"
-              >
-                {column.header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-neutral-200">
-          {data.map((row, rowIndex) => (
-            <tr key={rowIndex} className="hover:bg-neutral-50">
-              {columns.map((column, colIndex) => (
-                <td key={colIndex} className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
-                  {column.render ? column.render(row) : row[column.accessor]}
-                </td>
+    <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+      <div className="overflow-x-auto" style={{ maxHeight }}>
+        <table className="min-w-full">
+          <thead className="bg-neutral-50 sticky top-0">
+            <tr>
+              {columns.map((column, index) => (
+                <th
+                  key={index}
+                  className={`px-6 py-4 text-left text-xs font-semibold text-neutral-600 uppercase tracking-wider ${column.className || ''}`}
+                >
+                  {column.header}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-neutral-200 text-neutral-700" >
+            {data.map((row, rowIndex) => (
+              <tr key={rowIndex} className="hover:bg-neutral-50 transition-colors">
+                {columns.map((column, colIndex) => (
+                  <td key={colIndex} className={`px-6 py-4 text-sm ${column.className || 'text-neutral-900'}`}>
+                    {column.render ? column.render(row) : row[column.accessor]}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 });
 
-// Custom tooltip for charts
-const CustomTooltip = ({ active, payload, label, valuePrefix = '', valueSuffix = '' }: any) => {
+// Custom chart tooltip
+const CustomTooltip = ({ active, payload, label, formatter }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-white p-3 border border-neutral-200 shadow-md rounded">
-        <p className="font-medium text-sm">{label}</p>
+      <div className="bg-white p-4 border border-neutral-200 shadow-lg rounded-lg">
+        <p className="font-semibold text-neutral-800 mb-2">{label}</p>
         {payload.map((entry: any, index: number) => (
           <p key={index} style={{ color: entry.color }} className="text-sm">
-            {entry.name}: {valuePrefix}{entry.value.toLocaleString()}{valueSuffix}
+            <span className="font-medium">{entry.name}:</span>{' '}
+            {formatter ? formatter(entry.value) : entry.value.toLocaleString()}
           </p>
         ))}
       </div>
     );
   }
   return null;
-};
-
-// Custom active shape for pie chart
-const renderActiveShape = (props: any) => {
-  const { 
-    cx, cy, midAngle, innerRadius, outerRadius, startAngle, endAngle,
-    fill, payload, percent, value 
-  } = props;
-  
-  const sin = Math.sin(-midAngle * Math.PI / 180);
-  const cos = Math.cos(-midAngle * Math.PI / 180);
-  const sx = cx + (outerRadius + 10) * cos;
-  const sy = cy + (outerRadius + 10) * sin;
-  const mx = cx + (outerRadius + 30) * cos;
-  const my = cy + (outerRadius + 30) * sin;
-  const ex = mx + (cos >= 0 ? 1 : -1) * 22;
-  const ey = my;
-  const textAnchor = cos >= 0 ? 'start' : 'end';
-
-  return (
-    <g>
-      <Sector
-        cx={cx}
-        cy={cy}
-        innerRadius={innerRadius}
-        outerRadius={outerRadius}
-        startAngle={startAngle}
-        endAngle={endAngle}
-        fill={fill}
-      />
-      <Sector
-        cx={cx}
-        cy={cy}
-        startAngle={startAngle}
-        endAngle={endAngle}
-        innerRadius={outerRadius + 6}
-        outerRadius={outerRadius + 10}
-        fill={fill}
-      />
-      <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke={fill} fill="none" />
-      <circle cx={ex} cy={ey} r={2} fill={fill} stroke="none" />
-      <text x={ex + (cos >= 0 ? 1 : -1) * 12} y={ey} textAnchor={textAnchor} fill="#333">{payload.name}</text>
-      <text x={ex + (cos >= 0 ? 1 : -1) * 12} y={ey} dy={18} textAnchor={textAnchor} fill="#999">
-        {`${value} units (${(percent * 100).toFixed(2)}%)`}
-      </text>
-    </g>
-  );
-};
-
-// Tab panel component
-const TabPanel = ({ children, value, index }: { children: React.ReactNode, value: string, index: string }) => {
-  return (
-    <div className={value === index ? 'block' : 'hidden'}>
-      {children}
-    </div>
-  );
 };
 
 // Date range presets
@@ -266,378 +241,109 @@ const dateRangePresets = [
 ];
 
 export default function AnalyticsDashboard() {
-  // State for date range selection
+  // State management
   const [startDate, setStartDate] = useState<Date>(subMonths(new Date(), 1));
   const [endDate, setEndDate] = useState<Date>(new Date());
-  const [prevStartDate, setPrevStartDate] = useState<Date>(subMonths(startDate, 1));
- 
-  const [customRange, setCustomRange] = useState<boolean>(false);
-  
-  // Helper function to calculate previous period
-  const subDays = (date: Date, days: number) => {
-    const result = new Date(date);
-    result.setDate(date.getDate() - days);
-    return result;
-  };
-  const [prevEndDate, setPrevEndDate] = useState<Date>(subDays(startDate, 1));
-  // Function to update both current and previous period dates
-  const updateDateRanges = (start: Date, end: Date) => {
-    setStartDate(start);
-    setEndDate(end);
-    
-    // Calculate previous period of same length
-    const daysDiff = differenceInDays(end, start);
-    const prevStart = subDays(start, daysDiff + 1);
-    const prevEnd = subDays(start, 1);
-    
-    setPrevStartDate(prevStart);
-    setPrevEndDate(prevEnd);
-  };
-  
-  // State for data
-  const [topSellers, setTopSellers] = useState<TopSellersData[]>([]);
-  const [timeSeriesData, setTimeSeriesData] = useState<TimeSeriesData[]>([]);
-  const [inventoryValue, setInventoryValue] = useState<InventoryValueData | null>(null);
-  const [lowStockProducts, setLowStockProducts] = useState<any[]>([]);
-  const [salesKPIs, setSalesKPIs] = useState<any>(null);
-  
-  // Individual loading states
-  const [loadingTopSellers, setLoadingTopSellers] = useState<boolean>(true);
-  const [loadingTimeSeries, setLoadingTimeSeries] = useState<boolean>(true);
-  const [loadingInventoryValue, setLoadingInventoryValue] = useState<boolean>(true);
-  const [loadingLowStock, setLoadingLowStock] = useState<boolean>(true);
-  const [loadingSalesKPIs, setLoadingSalesKPIs] = useState<boolean>(true);
+  const [activeTab, setActiveTab] = useState<'overview' | 'sales' | 'inventory' | 'clients'>('overview');
+  const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  
+  // Data state
+  const [salesMetrics, setSalesMetrics] = useState<SalesMetrics | null>(null);
+  const [inventoryMetrics, setInventoryMetrics] = useState<InventoryMetrics | null>(null);
+  const [productPerformance, setProductPerformance] = useState<ProductPerformance[]>([]);
+  const [inventoryMovement, setInventoryMovement] = useState<InventoryMovement[]>([]);
+  const [clientMetrics, setClientMetrics] = useState<ClientMetrics[]>([]);
+  const [lowStockAlerts, setLowStockAlerts] = useState<LowStockAlert[]>([]);
+  const [periodComparison, setPeriodComparison] = useState<PeriodComparison | null>(null);
 
-  // State for active tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'sales' | 'inventory'>('overview');
-  
-  // State for active pie chart segment
-  const [activePieIndex, setActivePieIndex] = useState<number>(0);
-  
-  // Format dates for API calls
+  // Format dates for API
   const formattedStartDate = useMemo(() => startDate.toISOString(), [startDate]);
   const formattedEndDate = useMemo(() => endDate.toISOString(), [endDate]);
-  const formattedPrevStartDate = useMemo(() => prevStartDate.toISOString(), [prevStartDate]);
-  const formattedPrevEndDate = useMemo(() => prevEndDate.toISOString(), [prevEndDate]);
-  
-  // Function to clear cache and refresh all data
-  const refreshAllData = useCallback(async () => {
-    setRefreshing(true);
-    analyticsFunctions.clearCache();
+
+  // Calculate previous period
+  const { prevStartDate, prevEndDate } = useMemo(() => {
+    const daysDiff = differenceInDays(endDate, startDate);
+    const prevEnd = new Date(startDate);
+    prevEnd.setDate(prevEnd.getDate() - 1);
+    const prevStart = new Date(prevEnd);
+    prevStart.setDate(prevStart.getDate() - daysDiff);
     
-    try {
-      await Promise.all([
-        fetchTopSellers(true),
-        fetchTimeSeries(true),
-        fetchInventoryValue(true),
-        fetchLowStockProducts(true),
-        fetchSalesKPIs(true)
-      ]);
-    } catch (error) {
-      console.error('Error refreshing data:', error);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [
-    formattedStartDate, 
-    formattedEndDate, 
-    formattedPrevStartDate, 
-    formattedPrevEndDate
-  ]);
+    return {
+      prevStartDate: prevStart.toISOString(),
+      prevEndDate: prevEnd.toISOString()
+    };
+  }, [startDate, endDate]);
 
   // Data fetching functions
-  const fetchTopSellers = useCallback(async (forceRefresh: boolean = false) => {
-    setLoadingTopSellers(true);
+  const fetchAllData = useCallback(async (forceRefresh = false) => {
     try {
-      const data = await analyticsFunctions.getTopSellingProducts(
-        formattedStartDate,
-        formattedEndDate,
-        10,
-        forceRefresh
-      );
-      setTopSellers(data);
-      return data;
-    } catch (error) {
-      console.error('Error fetching top sellers:', error);
-      return [];
-    } finally {
-      setLoadingTopSellers(false);
-    }
-  }, [formattedStartDate, formattedEndDate]);
+      setLoading(true);
+      
+      const [
+        salesData,
+        inventoryData,
+        productData,
+        movementData,
+        clientData,
+        lowStockData,
+        comparisonData
+      ] = await Promise.all([
+        analyticsService.getSalesMetrics(formattedStartDate, formattedEndDate, forceRefresh),
+        analyticsService.getInventoryMetrics(forceRefresh),
+        analyticsService.getProductPerformance(formattedStartDate, formattedEndDate, 20, forceRefresh),
+        analyticsService.getInventoryMovement(formattedStartDate, formattedEndDate, 'day', forceRefresh),
+        analyticsService.getClientMetrics(formattedStartDate, formattedEndDate, 10, forceRefresh),
+        analyticsService.getLowStockAlerts(5, forceRefresh),
+        analyticsService.getPeriodComparison(formattedStartDate, formattedEndDate, prevStartDate, prevEndDate, forceRefresh)
+      ]);
 
-  const fetchTimeSeries = useCallback(async (forceRefresh: boolean = false) => {
-    setLoadingTimeSeries(true);
-    try {
-      const data = await analyticsFunctions.getInventoryTimeSeries(
-        formattedStartDate,
-        formattedEndDate,
-        'day',
-        forceRefresh
-      );
-      setTimeSeriesData(data);
-      return data;
+      setSalesMetrics(salesData);
+      setInventoryMetrics(inventoryData);
+      setProductPerformance(productData);
+      setInventoryMovement(movementData);
+      setClientMetrics(clientData);
+      setLowStockAlerts(lowStockData);
+      setPeriodComparison(comparisonData);
     } catch (error) {
-      console.error('Error fetching time series data:', error);
-      return [];
+      console.error('Error fetching analytics data:', error);
     } finally {
-      setLoadingTimeSeries(false);
+      setLoading(false);
     }
-  }, [formattedStartDate, formattedEndDate]);
+  }, [formattedStartDate, formattedEndDate, prevStartDate, prevEndDate]);
 
-  const fetchInventoryValue = useCallback(async (forceRefresh: boolean = false) => {
-    setLoadingInventoryValue(true);
-    try {
-      const data = await analyticsFunctions.getInventoryValue(forceRefresh);
-      setInventoryValue(data);
-      return data;
-    } catch (error) {
-      console.error('Error fetching inventory value:', error);
-      return null;
-    } finally {
-      setLoadingInventoryValue(false);
-    }
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    analyticsService.clearCache();
+    await fetchAllData(true);
+    setRefreshing(false);
+  }, [fetchAllData]);
+
+  const handleDateChange = useCallback((start: Date, end: Date) => {
+    setStartDate(start);
+    setEndDate(end);
   }, []);
 
-  const fetchLowStockProducts = useCallback(async (forceRefresh: boolean = false) => {
-    setLoadingLowStock(true);
-    try {
-      const data = await analyticsFunctions.getLowStockProducts(5, forceRefresh);
-      setLowStockProducts(data);
-      return data;
-    } catch (error) {
-      console.error('Error fetching low stock products:', error);
-      return [];
-    } finally {
-      setLoadingLowStock(false);
-    }
-  }, []);
-  
-  const fetchSalesKPIs = useCallback(async (forceRefresh: boolean = false) => {
-    setLoadingSalesKPIs(true);
-    try {
-      const data = await analyticsFunctions.getSalesKPIs(
-        formattedStartDate,
-        formattedEndDate,
-        formattedPrevStartDate,
-        formattedPrevEndDate,
-        forceRefresh
-      );
-      setSalesKPIs(data);
-      return data;
-    } catch (error) {
-      console.error('Error fetching sales KPIs:', error);
-      return null;
-    } finally {
-      setLoadingSalesKPIs(false);
-    }
-  }, [formattedStartDate, formattedEndDate, formattedPrevStartDate, formattedPrevEndDate]);
-
-  // Fetch data based on active tab
-  const fetchTabData = useCallback((tab: string, forceRefresh: boolean = false) => {
-    // Common data for all tabs
-    fetchInventoryValue(forceRefresh);
-    
-    if (tab === 'overview' || tab === 'sales') {
-      fetchTopSellers(forceRefresh);
-      fetchTimeSeries(forceRefresh);
-      fetchSalesKPIs(forceRefresh);
-    }
-    
-    if (tab === 'overview' || tab === 'inventory') {
-      fetchLowStockProducts(forceRefresh);
-    }
-  }, [
-    fetchInventoryValue, 
-    fetchTopSellers, 
-    fetchTimeSeries, 
-    fetchLowStockProducts,
-    fetchSalesKPIs
-  ]);
-
-  // Handle tab change
-  const handleTabChange = useCallback((tab: 'overview' | 'sales' | 'inventory') => {
-    setActiveTab(tab);
-    fetchTabData(tab);
-  }, [fetchTabData]);
-  
-  // Handle date preset selection
-  const handleDatePresetSelect = useCallback((preset: { 
-    startDate: () => Date; 
-    endDate: () => Date 
-  }) => {
-    const newStartDate = preset.startDate();
-    const newEndDate = preset.endDate();
-    updateDateRanges(newStartDate, newEndDate);
-    setCustomRange(false);
-  }, []);
-
-  // Initial data loading
+  // Initial data load
   useEffect(() => {
-    fetchTabData(activeTab);
-  }, [activeTab, formattedStartDate, formattedEndDate, fetchTabData]);
+    fetchAllData();
+  }, [fetchAllData]);
 
-  // Derived metrics
-  const totalSold = useMemo(() =>
-    topSellers.reduce((sum, product) => sum + product.quantity_sold, 0),
-    [topSellers]
-  );
-
-  const totalRevenue = useMemo(() =>
-    topSellers.reduce((sum, product) => sum + product.revenue, 0),
-    [topSellers]
-  );
-
-  const inventoryItems = useMemo(() =>
-    inventoryValue?.total_items || 0,
-    [inventoryValue]
-  );
-
-  const inventoryTotalValue = useMemo(() =>
-    inventoryValue?.total_value || 0,
-    [inventoryValue]
-  );
-  
-  // Prepare data for pie chart
-  const inventoryPieData = useMemo(() => {
-    if (!inventoryValue) return [];
-    
-    // Group small items into "Others" category for cleaner chart
-    const threshold = inventoryValue.total_items * 0.03; // 3% threshold
-    
-    const mainItems = [] as any[];
-    let othersValue = 0;
-    let othersItems = 0;
-    
-    inventoryValue.by_product.forEach(product => {
-      if (product.items > threshold) {
-        mainItems.push({
-          name: product.product_name,
-          value: product.items
-        });
-      } else {
-        othersValue += product.value;
-        othersItems += product.items;
-      }
-    });
-    
-    if (othersItems > 0) {
-      mainItems.push({
-        name: 'Others',
-        value: othersItems
-      });
-    }
-    
-    return mainItems.sort((a, b) => b.value - a.value);
-  }, [inventoryValue]);
-  
-  // Prepare data for sales comparison chart
-  const salesComparisonData = useMemo(() => {
-    if (!salesKPIs) return [];
-    
-    return [
-      {
-        name: 'Current Period',
-        sales: salesKPIs.current_period.total_sales,
-        orders: salesKPIs.current_period.invoice_count
-      },
-      {
-        name: 'Previous Period',
-        sales: salesKPIs.prev_period.total_sales,
-        orders: salesKPIs.prev_period.invoice_count
-      }
-    ];
-  }, [salesKPIs]);
-  
-  // Columns for tables - memoized
-  const topSellerColumns = useMemo(() => [
-    {
-      header: 'Product',
-      accessor: 'product_name',
-      render: (row: TopSellersData) => (
-        <div className="flex items-center">
-          {row.product_photo ? (
-            <img
-              src={row.product_photo}
-              alt={row.product_name}
-              className="h-10 w-10 object-cover rounded-md mr-2"
-              loading="lazy"
-            />
-          ) : (
-            <div className="h-10 w-10 bg-neutral-200 rounded-md mr-2 flex items-center justify-center">
-              <FaBoxOpen className="text-gray" />
-            </div>
-          )}
-          <span>{row.product_name}</span>
-        </div>
-      )
-    },
-    {
-      header: 'Quantity Sold',
-      accessor: 'quantity_sold',
-    },
-    {
-      header: 'Revenue',
-      accessor: 'revenue',
-      render: (row: TopSellersData) => `$${row.revenue.toFixed(2)}`
-    },
-    {
-      header: 'Most Popular Variant',
-      accessor: 'most_popular_variant',
-      render: (row: TopSellersData) =>
-        row.most_popular_variant
-          ? `${row.most_popular_variant.size} - ${row.most_popular_variant.color}`
-          : 'N/A'
-    },
-  ], []);
-
-  const lowStockColumns = useMemo(() => [
-    {
-      header: 'Product',
-      accessor: 'product_name',
-    },
-    {
-      header: 'Size',
-      accessor: 'size',
-    },
-    {
-      header: 'Color',
-      accessor: 'color',
-    },
-    {
-      header: 'Quantity',
-      accessor: 'quantity',
-      render: (row: { quantity: number }) => (
-        <span className={row.quantity <= 2 ? 'text-red-500 font-bold' : ''}>
-          {row.quantity}
-        </span>
-      )
-    },
-  ], []);
-  
-  // CSV export function
+  // Export functions
   const exportToCSV = useCallback((data: any[], filename: string) => {
     if (!data || data.length === 0) return;
     
-    // Create headers based on first item keys
     const headers = Object.keys(data[0]);
-    
-    // Create CSV rows
     const csvRows = [
-      headers.join(','), // Header row
+      headers.join(','),
       ...data.map(row => 
         headers.map(header => {
-          // Handle objects and arrays
-          const value = typeof row[header] === 'object' ? 
-            JSON.stringify(row[header]) : row[header];
-          
-          // Escape commas and quotes
+          const value = typeof row[header] === 'object' ? JSON.stringify(row[header]) : row[header];
           return `"${String(value).replace(/"/g, '""')}"`;
         }).join(',')
       )
     ];
     
-    // Create blob and download
     const csvContent = csvRows.join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -649,251 +355,176 @@ export default function AnalyticsDashboard() {
     document.body.removeChild(link);
   }, []);
 
-  // Render date range selector
-  const renderDateSelector = useCallback(() => (
-    <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-      <div className="flex flex-wrap items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">Date Range</h3>
-        <div className="flex space-x-2">
+  // Render components
+  const renderDateSelector = () => (
+    <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+      <div className="flex flex-wrap items-center justify-between mb-6">
+        <h3 className="text-xl font-bold text-neutral-800">Analytics Period</h3>
+        <div className="flex flex-wrap gap-2">
           {dateRangePresets.map((preset, index) => (
             <button
               key={index}
-              className={`px-3 py-1 text-sm rounded ${
-                !customRange && 
-                isSameDay(preset.startDate(), startDate) && 
-                isSameDay(preset.endDate(), endDate)
-                  ? 'bg-blue text-white'
-                  : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-              }`}
-              onClick={() => handleDatePresetSelect(preset)}
+              className="px-4 py-2 text-sm font-medium rounded-lg bg-neutral-100 text-neutral-700 hover:bg-indigo-100 hover:text-indigo-700 transition-colors"
+              onClick={() => handleDateChange(preset.startDate(), preset.endDate())}
             >
               {preset.label}
             </button>
           ))}
-          <button
-            className={`px-3 py-1 text-sm rounded ${
-              customRange
-                ? 'bg-blue text-white'
-                : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-            }`}
-            onClick={() => setCustomRange(true)}
+        </div>
+      </div>
+      
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-neutral-600">From:</span>
+          <DatePicker
+            selected={startDate}
+            onChange={(date) => date && handleDateChange(date, endDate)}
+            selectsStart
+            startDate={startDate}
+            endDate={endDate}
+            className="border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-neutral-600">To:</span>
+          <DatePicker
+            selected={endDate}
+            onChange={(date) => date && handleDateChange(startDate, date)}
+            selectsEnd
+            startDate={startDate}
+            endDate={endDate}
+            minDate={startDate}
+            className="border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          />
+        </div>
+        
+        <div className="ml-auto flex items-center gap-4">
+          <div className="text-sm text-neutral-600">
+            <span className="font-medium">{differenceInDays(endDate, startDate) + 1} days</span> selected
+          </div>
+          <button 
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+            onClick={handleRefresh}
+            disabled={refreshing}
           >
-            Custom
+            <FaSyncAlt className={refreshing ? 'animate-spin' : ''} />
+            {refreshing ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
       </div>
-      
-      {customRange && (
-        <div className="flex flex-wrap items-center space-x-4">
-          <div className="flex items-center mb-2">
-            <span className="mr-2 text-gray">From:</span>
-            <DatePicker
-              selected={startDate}
-              onChange={date => {
-                if (date) {
-                  if (date >= endDate) {
-                    // Ensure start date is before end date
-                    setStartDate(new Date(endDate.getTime() - 86400000)); // 1 day before
-                  } else {
-                    setStartDate(date);
-                    
-                    // Adjust previous period
-                    const daysDiff = differenceInDays(endDate, date);
-                    const prevStart = subDays(date, daysDiff + 1);
-                    const prevEnd = subDays(date, 1);
-                    
-                    setPrevStartDate(prevStart);
-                    setPrevEndDate(prevEnd);
-                  }
-                }
-              }}
-              selectsStart
-              startDate={startDate}
-              endDate={endDate}
-              className="border border-gray rounded p-2"
-            />
-          </div>
-          <div className="flex items-center mb-2">
-            <span className="mr-2 text-gray">To:</span>
-            <DatePicker
-              selected={endDate}
-              onChange={date => {
-                if (date) {
-                  setEndDate(date);
-                  
-                  // Adjust previous period
-                  const daysDiff = differenceInDays(date, startDate);
-                  const prevStart = subDays(startDate, daysDiff + 1);
-                  const prevEnd = subDays(startDate, 1);
-                  
-                  setPrevStartDate(prevStart);
-                  setPrevEndDate(prevEnd);
-                }
-              }}
-              selectsEnd
-              startDate={startDate}
-              endDate={endDate}
-              minDate={startDate}
-              className="border border-gray rounded p-2"
-            />
-          </div>
-          <div className="text-sm text-neutral-500">
-            Previous period: {format(prevStartDate, 'MMM d, yyyy')} - {format(prevEndDate, 'MMM d, yyyy')}
-          </div>
-        </div>
-      )}
-      
-      <div className="flex justify-between items-center mt-4">
-        <div className="text-sm text-neutral-500">
-          {format(startDate, 'MMM d, yyyy')} - {format(endDate, 'MMM d, yyyy')}
-          <span className="ml-2">({differenceInDays(endDate, startDate) + 1} days)</span>
-        </div>
-        <button 
-          className="flex items-center px-3 py-2 bg-blue text-white rounded hover:bg-indigo-700"
-          onClick={refreshAllData}
-          disabled={refreshing}
+    </div>
+  );
+
+  const renderTabs = () => (
+    <div className="flex border-b border-neutral-200 mb-8">
+      {[
+        { key: 'overview', label: 'Overview', icon: <FaChartLine /> },
+        { key: 'sales', label: 'Sales Analysis', icon: <FaDollarSign /> },
+        { key: 'inventory', label: 'Inventory', icon: <FaBoxOpen /> },
+        { key: 'clients', label: 'Clients', icon: <FaUsers /> }
+      ].map((tab) => (
+        <button
+          key={tab.key}
+          className={`flex items-center gap-2 py-4 px-6 font-medium transition-colors ${
+            activeTab === tab.key
+              ? 'border-b-2 border-indigo-600 text-indigo-600'
+              : 'text-neutral-600 hover:text-indigo-600'
+          }`}
+          onClick={() => setActiveTab(tab.key as any)}
         >
-          {refreshing ? (
-            <>
-              <FaSyncAlt className="animate-spin mr-2" /> Refreshing...
-            </>
-          ) : (
-            <>
-              <FaSyncAlt className="mr-2" /> Refresh Data
-            </>
-          )}
+          {tab.icon}
+          {tab.label}
         </button>
-      </div>
+      ))}
     </div>
-  ), [
-    startDate, 
-    endDate, 
-    prevStartDate, 
-    prevEndDate, 
-    customRange, 
-    handleDatePresetSelect,
-    refreshAllData,
-    refreshing
-  ]);
+  );
 
-  // Render tabs
-  const renderTabs = useCallback(() => (
-    <div className="flex border-b mb-6">
-      <button
-        className={`py-3 px-6 font-medium ${activeTab === 'overview'
-          ? 'border-b-2 border-blue text-blue'
-          : 'text-gray hover:text-blue'}`}
-        onClick={() => handleTabChange('overview')}
-      >
-        Overview
-      </button>
-      <button
-        className={`py-3 px-6 font-medium ${activeTab === 'sales'
-          ? 'border-b-2 border-blue text-blue'
-          : 'text-gray hover:text-blue'}`}
-        onClick={() => handleTabChange('sales')}
-      >
-        Sales Analysis
-      </button>
-      <button
-        className={`py-3 px-6 font-medium ${activeTab === 'inventory'
-          ? 'border-b-2 border-blue text-blue'
-          : 'text-gray hover:text-blue'}`}
-        onClick={() => handleTabChange('inventory')}
-      >
-        Inventory
-      </button>
-    </div>
-  ), [activeTab, handleTabChange]);
-
-  // Render Overview tab
-  const renderOverviewTab = useCallback(() => (
-    <div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <MetricCard
-          title="Total Products Sold"
-          value={loadingTopSellers ? "Loading..." : totalSold.toLocaleString()}
-          icon={<FaBoxOpen />}
-          loading={loadingTopSellers}
-          trend={salesKPIs ? (salesKPIs.changes.invoice_count_change > 0 ? 'up' : 'down') : null}
-          trendValue={salesKPIs?.changes.invoice_count_change || 0}
-          info="Total number of products sold during the selected period"
-        />
+  const renderOverviewTab = () => (
+    <div className="space-y-8">
+      {/* Key Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <MetricCard
           title="Total Revenue"
-          value={loadingTopSellers ? "Loading..." : `$${totalRevenue.toFixed(2)}`}
-          icon={<FaChartLine />}
-          loading={loadingTopSellers}
-          trend={salesKPIs ? (salesKPIs.changes.total_sales_change > 0 ? 'up' : 'down') : null}
-          trendValue={salesKPIs?.changes.total_sales_change || 0}
-          info="Total revenue generated during the selected period"
+          value={salesMetrics ? `$${salesMetrics.total_revenue.toLocaleString()}` : '$0'}
+          subtitle={salesMetrics ? `${salesMetrics.invoice_count} invoices` : '0 invoices'}
+          icon={<FaDollarSign />}
+          trend={periodComparison?.revenue_change !== undefined ? (
+            periodComparison?.revenue_change > 0 ? 'up' : periodComparison?.revenue_change < 0 ? 'down' : 'neutral'
+          ) : 'neutral'}
+          trendValue={periodComparison?.revenue_change || 0}
+          loading={loading}
+          info="Total revenue received (not including outstanding amounts)"
+          color="green"
         />
+        
         <MetricCard
-          title="Inventory Items"
-          value={loadingInventoryValue ? "Loading..." : inventoryItems.toLocaleString()}
-          icon={<FaBoxOpen />}
-          loading={loadingInventoryValue}
-          info="Current total number of items in inventory"
+          title="Outstanding Amount"
+          value={salesMetrics ? `$${salesMetrics.outstanding_amount.toLocaleString()}` : '$0'}
+          subtitle="Unpaid invoices"
+          icon={<FaExclamationTriangle />}
+          loading={loading}
+          info="Total amount pending payment from clients"
+          color="orange"
         />
+        
         <MetricCard
           title="Inventory Value"
-          value={loadingInventoryValue ? "Loading..." : `$${inventoryTotalValue.toFixed(2)}`}
-          icon={<FaChartBar />}
-          loading={loadingInventoryValue}
-          info="Current total value of inventory at retail prices"
+          value={inventoryMetrics ? `$${inventoryMetrics.total_retail_value.toLocaleString()}` : '$0'}
+          subtitle={inventoryMetrics ? `${inventoryMetrics.total_items.toLocaleString()} items` : '0 items'}
+          icon={<FaBoxOpen />}
+          loading={loading}
+          info="Current inventory value at retail prices"
+          color="blue"
         />
+        
+        
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold">Sales and Purchases Over Time</h2>
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Revenue Trend */}
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-bold text-neutral-800">Revenue Trend</h3>
             <button
-              className="text-blue hover:text-indigo-700 text-sm flex items-center"
-              onClick={() => exportToCSV(timeSeriesData, 'sales_purchases_time_series.csv')}
-              disabled={loadingTimeSeries || timeSeriesData.length === 0}
+              className="text-indigo-600 hover:text-indigo-800 text-sm flex items-center gap-1"
+              onClick={() => exportToCSV(inventoryMovement, 'revenue_trend.csv')}
             >
-              <FaDownload className="mr-1" /> Export
+              <FaDownload /> Export
             </button>
           </div>
-          {loadingTimeSeries ? (
+          {loading ? (
             <ChartSkeleton />
           ) : (
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={timeSeriesData}
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
+                <LineChart data={inventoryMovement}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis 
-                    dataKey="date"
-                    tickFormatter={(value) => {
-                      try {
-                        return format(new Date(value), 'MMM d');
-                      } catch (e) {
-                        return value;
-                      }
-                    }}
+                    dataKey="date" 
+                    tickFormatter={(value) => format(new Date(value), 'MMM d')}
+                    stroke="#666"
                   />
-                  <YAxis />
+                  <YAxis stroke="#666" />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend />
                   <Line
                     type="monotone"
-                    dataKey="sales"
+                    dataKey="sales_out"
                     name="Sales"
-                    stroke="#1E1E89"
-                    activeDot={{ r: 8 }}
-                    strokeWidth={2}
+                    stroke="#1E40AF"
+                    strokeWidth={3}
+                    dot={{ r: 4 }}
+                    activeDot={{ r: 6 }}
                   />
                   <Line
                     type="monotone"
-                    dataKey="purchases"
+                    dataKey="purchases_in"
                     name="Purchases"
-                    stroke="#4C5B5C"
+                    stroke="#059669"
+                    strokeWidth={3}
+                    dot={{ r: 4 }}
                     activeDot={{ r: 6 }}
-                    strokeWidth={2}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -901,541 +532,380 @@ export default function AnalyticsDashboard() {
           )}
         </div>
 
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold">Inventory Distribution</h2>
+        {/* Top Products */}
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-bold text-neutral-800">Top Performing Products</h3>
             <button
-              className="text-blue hover:text-indigo-700 text-sm flex items-center"
-              onClick={() => 
-                exportToCSV(
-                  inventoryValue?.by_product.map(p => ({
-                    product_name: p.product_name,
-                    items: p.items,
-                    value: p.value,
-                    cost: p.cost
-                  })) || [], 
-                  'inventory_distribution.csv'
-                )
-              }
-              disabled={loadingInventoryValue || !inventoryValue}
+              className="text-indigo-600 hover:text-indigo-800 text-sm flex items-center gap-1"
+              onClick={() => exportToCSV(productPerformance, 'top_products.csv')}
             >
-              <FaDownload className="mr-1" /> Export
+              <FaDownload /> Export
             </button>
           </div>
-          
-          {loadingInventoryValue ? (
+          {loading ? (
             <ChartSkeleton />
           ) : (
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    activeIndex={activePieIndex}
-                    activeShape={renderActiveShape}
-                    data={inventoryPieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    fill="#1E1E89"
-                    dataKey="value"
-                    onMouseEnter={(_, index) => setActivePieIndex(index)}
+                <BarChart data={productPerformance.slice(0, 10)}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis 
+                    dataKey="product_name" 
+                    angle={-45} 
+                    textAnchor="end" 
+                    height={80}
+                    stroke="#666"
                   />
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold">Top Selling Products</h2>
-            <button
-              className="text-blue hover:text-indigo-700 text-sm flex items-center"
-              onClick={() => exportToCSV(topSellers, 'top_selling_products.csv')}
-              disabled={loadingTopSellers || topSellers.length === 0}
-            >
-              <FaDownload className="mr-1" /> Export
-            </button>
-          </div>
-          <DataTable
-            data={topSellers.slice(0, 5)}
-            columns={topSellerColumns}
-            loading={loadingTopSellers}
-            emptyMessage="No sales data available for the selected period"
-          />
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold">Low Stock Alert</h2>
-            <button
-              className="text-blue hover:text-indigo-700 text-sm flex items-center"
-              onClick={() => exportToCSV(lowStockProducts, 'low_stock_products.csv')}
-              disabled={loadingLowStock || lowStockProducts.length === 0}
-            >
-              <FaDownload className="mr-1" /> Export
-            </button>
-          </div>
-          <DataTable
-            data={lowStockProducts}
-            columns={lowStockColumns}
-            loading={loadingLowStock}
-            emptyMessage="No low stock products found"
-          />
-        </div>
-      </div>
-    </div>
-  ), [
-    loadingTopSellers,
-    loadingInventoryValue,
-    loadingTimeSeries,
-    loadingLowStock,
-    totalSold,
-    totalRevenue,
-    inventoryItems,
-    inventoryTotalValue,
-    timeSeriesData,
-    topSellers,
-    lowStockProducts,
-    topSellerColumns,
-    lowStockColumns,
-    inventoryPieData,
-    activePieIndex,
-    salesKPIs,
-    exportToCSV
-  ]);
-
-  // Render Sales Analysis tab
-  const renderSalesTab = useCallback(() => (
-    <div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <MetricCard
-          title="Total Revenue"
-          value={loadingSalesKPIs || !salesKPIs ? "Loading..." : `$${salesKPIs.current_period.total_sales.toFixed(2)}`}
-          icon={<FaChartLine />}
-          loading={loadingSalesKPIs}
-          trend={salesKPIs?.changes.total_sales_change > 0 ? 'up' : 'down'}
-          trendValue={salesKPIs?.changes.total_sales_change || 0}
-          info="Total revenue during the selected period compared to previous period of same length"
-        />
-        <MetricCard
-          title="Order Count"
-          value={loadingSalesKPIs || !salesKPIs ? "Loading..." : salesKPIs.current_period.invoice_count.toString()}
-          icon={<FaChartBar />}
-          loading={loadingSalesKPIs}
-          trend={salesKPIs?.changes.invoice_count_change > 0 ? 'up' : 'down'}
-          trendValue={salesKPIs?.changes.invoice_count_change || 0}
-          info="Number of orders during the selected period compared to previous period"
-        />
-        <MetricCard
-          title="Average Order Value"
-          value={loadingSalesKPIs || !salesKPIs ? "Loading..." : `$${salesKPIs.current_period.avg_order_value.toFixed(2)}`}
-          icon={<FaChartLine />}
-          loading={loadingSalesKPIs}
-          trend={salesKPIs?.changes.avg_order_value_change > 0 ? 'up' : 'down'}
-          trendValue={salesKPIs?.changes.avg_order_value_change || 0}
-          info="Average value per order during the selected period compared to previous period"
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold">Period Comparison</h2>
-            <div className="text-sm text-neutral-500">
-              Current: {format(startDate, 'MMM d')} - {format(endDate, 'MMM d')} vs. 
-              Previous: {format(prevStartDate, 'MMM d')} - {format(prevEndDate, 'MMM d')}
-            </div>
-          </div>
-          {loadingSalesKPIs ? (
-            <ChartSkeleton />
-          ) : (
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={salesComparisonData}
-                  margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis yAxisId="left" orientation="left" stroke="#1E1E89" />
-                  <YAxis yAxisId="right" orientation="right" stroke="#4C5B5C" />
-                  <Tooltip content={<CustomTooltip valuePrefix="$" />} />
-                  <Legend />
-                  <Bar yAxisId="left" dataKey="sales" name="Sales ($)" fill="#1E1E89" />
-                  <Bar yAxisId="right" dataKey="orders" name="Order Count" fill="#4C5B5C" />
+                  <YAxis stroke="#666" />
+                  <Tooltip content={<CustomTooltip formatter={(value:any) => `$${value.toLocaleString()}`} />} />
+                  <Bar dataKey="total_revenue" fill="#1E40AF" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           )}
         </div>
-
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold">Sales Trend</h2>
-          </div>
-          
-          {loadingTimeSeries ? (
-            <ChartSkeleton />
-          ) : (
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={timeSeriesData}
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="date" 
-                    tickFormatter={(value) => {
-                      try {
-                        return format(new Date(value), 'MMM d');
-                      } catch (e) {
-                        return value;
-                      }
-                    }}
-                  />
-                  <YAxis />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="sales"
-                    name="Sales"
-                    stroke="#1E1E89"
-                    dot={{ r: 3 }}
-                    activeDot={{ r: 8 }}
-                    strokeWidth={2}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold">Top Selling Products</h2>
-          <button
-            className="text-blue hover:text-indigo-700 text-sm flex items-center"
-            onClick={() => exportToCSV(topSellers, 'top_selling_products.csv')}
-            disabled={loadingTopSellers || topSellers.length === 0}
-          >
-            <FaDownload className="mr-1" /> Export
-          </button>
+      {/* Low Stock Alerts */}
+      {lowStockAlerts.length > 0 && (
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <div className="flex items-center gap-2 mb-6">
+            <FaExclamationTriangle className="text-orange-500 text-xl" />
+            <h3 className="text-lg font-bold text-neutral-800">Low Stock Alerts</h3>
+            <span className="bg-orange-100 text-orange-800 text-xs font-medium px-2 py-1 rounded-full">
+              {lowStockAlerts.length}
+            </span>
+          </div>
+          <DataTable
+            data={lowStockAlerts.slice(0, 5)}
+            columns={[
+              { header: 'Product', accessor: 'product_name' },
+              { header: 'Variant', accessor: 'size', render: (row) => `${row.size} - ${row.color}` },
+              { header: 'Current Stock', accessor: 'current_quantity', className: 'font-bold' },
+              { header: 'Days Left', accessor: 'days_of_stock', render: (row) => `${row.days_of_stock} days` },
+              { header: 'Recommended Order', accessor: 'recommended_reorder', className: 'text-indigo-600 font-medium' }
+            ]}
+            loading={loading}
+            emptyMessage="All products are well stocked!"
+            maxHeight="300px"
+          />
         </div>
-        
-        {loadingTopSellers ? (
+      )}
+    </div>
+  );
+
+  const renderSalesTab = () => (
+    <div className="space-y-8">
+      {/* Sales KPIs */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <MetricCard
+          title="Total Invoiced"
+          value={salesMetrics ? `$${salesMetrics.total_invoiced.toLocaleString()}` : '$0'}
+          subtitle="Gross invoices"
+          icon={<FaShoppingCart />}
+          loading={loading}
+          info="Total amount invoiced (including unpaid amounts)"
+          color="blue"
+        />
+        <MetricCard
+          title="Average Invoice"
+          value={salesMetrics ? `$${salesMetrics.avg_invoice_value.toLocaleString()}` : '$0'}
+          subtitle="Per invoice"
+          icon={<FaChartBar />}
+          loading={loading}
+          info="Average value per invoice"
+          color="green"
+        />
+        <MetricCard
+          title="Returns"
+          value={salesMetrics ? `$${salesMetrics.return_amount.toLocaleString()}` : '$0'}
+          subtitle="Return invoices"
+          icon={<BarChart/>}
+          loading={loading}
+          info="Total amount of return invoices"
+          color="red"
+        />
+      </div>
+
+      {/* Period Comparison Chart */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <h3 className="text-lg font-bold text-neutral-800 mb-6">Period Comparison</h3>
+        {loading || !periodComparison ? (
           <ChartSkeleton />
         ) : (
-          <div className="h-80 mb-6">
+          <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
-                data={topSellers.slice(0, 10)}
-                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                data={[
+                  {
+                    name: 'Previous Period',
+                    revenue: periodComparison.previous_period.total_revenue,
+                    invoices: periodComparison.previous_period.invoice_count
+                  },
+                  {
+                    name: 'Current Period',
+                    revenue: periodComparison.current_period.total_revenue,
+                    invoices: periodComparison.current_period.invoice_count
+                  }
+                ]}
+                margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
               >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="product_name" angle={-45} textAnchor="end" height={80} />
-                <YAxis yAxisId="left" orientation="left" stroke="#1E1E89" />
-                <YAxis yAxisId="right" orientation="right" stroke="#4C5B5C" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="name" stroke="#666" />
+                <YAxis yAxisId="left" orientation="left" stroke="#1E40AF" />
+                <YAxis yAxisId="right" orientation="right" stroke="#059669" />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend />
-                <Bar
-                  yAxisId="left"
-                  dataKey="quantity_sold"
-                  name="Quantity Sold"
-                  fill="#1E1E89"
-                />
-                <Bar
-                  yAxisId="right"
-                  dataKey="revenue"
-                  name="Revenue ($)"
-                  fill="#4C5B5C"
-                />
+                <Bar yAxisId="left" dataKey="revenue" name="Revenue ($)" fill="#1E40AF" radius={[4, 4, 0, 0]} />
+                <Bar yAxisId="right" dataKey="invoices" name="Invoice Count" fill="#059669" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         )}
-        
+      </div>
+
+      {/* Product Performance Table */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-lg font-bold text-neutral-800">Product Performance</h3>
+          <button
+            className="text-indigo-600 hover:text-indigo-800 text-sm flex items-center gap-1"
+            onClick={() => exportToCSV(productPerformance, 'product_performance.csv')}
+          >
+            <FaDownload /> Export All
+          </button>
+        </div>
         <DataTable
-          data={topSellers}
-          columns={topSellerColumns}
-          loading={loadingTopSellers}
-          emptyMessage="No sales data available for the selected period"
+          data={productPerformance}
+          columns={[
+            {
+              header: 'Product',
+              accessor: 'product_name',
+              render: (row) => (
+                <div className="flex items-center gap-3">
+                  {row.photo ? (
+                    <img src={row.photo} alt={row.product_name} className="h-12 w-12 object-cover rounded-lg" />
+                  ) : (
+                    <div className="h-12 w-12 bg-neutral-200 rounded-lg flex items-center justify-center">
+                      <FaBoxOpen className="text-neutral-600" />
+                    </div>
+                  )}
+                  <span className="font-medium">{row.product_name}</span>
+                </div>
+              )
+            },
+            { header: 'Sold', accessor: 'total_sold', className: 'text-center' },
+            { header: 'Revenue', accessor: 'total_revenue', render: (row) => `$${row.total_revenue.toLocaleString()}` },
+            { header: 'Avg Price', accessor: 'avg_price', render: (row) => `$${row.avg_price.toFixed(2)}` },
+            { header: 'Margin', accessor: 'profit_margin', render: (row) => `${row.profit_margin.toFixed(1)}%` },
+            { header: 'Stock', accessor: 'current_stock', className: 'text-center font-medium' }
+          ]}
+          loading={loading}
+          emptyMessage="No sales data available for this period"
         />
       </div>
     </div>
-  ), [
-    loadingSalesKPIs,
-    loadingTopSellers,
-    loadingTimeSeries,
-    salesKPIs,
-    topSellers,
-    topSellerColumns,
-    timeSeriesData,
-    salesComparisonData,
-    startDate,
-    endDate,
-    prevStartDate,
-    prevEndDate,
-    exportToCSV
-  ]);
+  );
 
-  // Render Inventory tab
-  const renderInventoryTab = useCallback(() => (
-    <div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+  const renderInventoryTab = () => (
+    <div className="space-y-8">
+      {/* Inventory KPIs */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <MetricCard
           title="Total Items"
-          value={loadingInventoryValue ? "Loading..." : inventoryItems.toLocaleString()}
+          value={inventoryMetrics ? inventoryMetrics.total_items.toLocaleString() : '0'}
+          subtitle="In stock"
           icon={<FaBoxOpen />}
-          loading={loadingInventoryValue}
-          info="Current total number of items in inventory"
+          loading={loading}
+          color="blue"
         />
         <MetricCard
-          title="Total Value (Retail)"
-          value={loadingInventoryValue ? "Loading..." : `$${inventoryValue?.total_value.toFixed(2) || '0.00'}`}
+          title="Retail Value"
+          value={inventoryMetrics ? `$${inventoryMetrics.total_retail_value.toLocaleString()}` : '$0'}
+          subtitle="At selling price"
+          icon={<FaDollarSign />}
+          loading={loading}
+          color="green"
+        />
+        <MetricCard
+          title="Cost Value"
+          value={inventoryMetrics ? `$${inventoryMetrics.total_cost_value.toLocaleString()}` : '$0'}
+          subtitle="At cost price"
           icon={<FaChartBar />}
-          loading={loadingInventoryValue}
-          info="Current total value of inventory at retail prices"
+          loading={loading}
+          color="orange"
         />
         <MetricCard
-          title="Total Cost"
-          value={loadingInventoryValue ? "Loading..." : `$${inventoryValue?.total_cost.toFixed(2) || '0.00'}`}
-          icon={<FaChartLine />}
-          loading={loadingInventoryValue}
-          info="Current total cost of inventory at purchase prices"
-          className={inventoryValue && inventoryValue.total_cost > 0 ? 
-            (inventoryValue.total_value / inventoryValue.total_cost > 2 ? 'border-l-4 border-green-500' : '') : ''}
+          title="Low Stock Items"
+          value={inventoryMetrics ? inventoryMetrics.low_stock_count.toString() : '0'}
+          subtitle="Need attention"
+          icon={<FaExclamationTriangle />}
+          loading={loading}
+          color="red"
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold">Inventory Distribution</h2>
-            <button
-              className="text-blue hover:text-indigo-700 text-sm flex items-center"
-              onClick={() => 
-                exportToCSV(
-                  inventoryValue?.by_product.map(p => ({
-                    product_name: p.product_name,
-                    items: p.items,
-                    value: p.value,
-                    cost: p.cost
-                  })) || [], 
-                  'inventory_distribution.csv'
-                )
-              }
-              disabled={loadingInventoryValue || !inventoryValue}
-            >
-              <FaDownload className="mr-1" /> Export
-            </button>
-          </div>
-          
-          {loadingInventoryValue ? (
-            <ChartSkeleton />
-          ) : (
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    activeIndex={activePieIndex}
-                    activeShape={renderActiveShape}
-                    data={inventoryPieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    fill="#1E1E89"
-                    dataKey="value"
-                    onMouseEnter={(_, index) => setActivePieIndex(index)}
-                  />
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-          
-          <div className="mt-4">
-            <h3 className="font-semibold text-sm mb-2">Top 5 Products by Quantity</h3>
-            <div className="space-y-2">
-              {loadingInventoryValue ? (
-                <div className="animate-pulse space-y-2">
-                  <div className="h-4 bg-neutral-200 rounded"></div>
-                  <div className="h-4 bg-neutral-200 rounded"></div>
-                  <div className="h-4 bg-neutral-200 rounded"></div>
-                  <div className="h-4 bg-neutral-200 rounded"></div>
-                  <div className="h-4 bg-neutral-200 rounded"></div>
-                </div>
-              ) : (
-                inventoryValue?.by_product
-                  .sort((a, b) => b.items - a.items)
-                  .slice(0, 5)
-                  .map((product, index) => (
-                    <div key={index} className="flex justify-between text-sm">
-                      <span>{product.product_name}</span>
-                      <span>{product.items} items (${product.value.toFixed(2)})</span>
-                    </div>
-                  ))
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold">Inventory Movement</h2>
-          </div>
-          
-          {loadingTimeSeries ? (
-            <ChartSkeleton />
-          ) : (
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={timeSeriesData}
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="date" 
-                    tickFormatter={(value) => {
-                      try {
-                        return format(new Date(value), 'MMM d');
-                      } catch (e) {
-                        return value;
-                      }
-                    }}
-                  />
-                  <YAxis />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="purchases"
-                    name="Purchases (In)"
-                    stroke="#3B7302"
-                    dot={{ r: 3 }}
-                    activeDot={{ r: 8 }}
-                    strokeWidth={2}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="sales"
-                    name="Sales (Out)"
-                    stroke="#CB3234"
-                    dot={{ r: 3 }}
-                    activeDot={{ r: 8 }}
-                    strokeWidth={2}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-          
-          <div className="mt-4">
-            <h3 className="font-semibold text-sm mb-2">Inventory Movement Summary</h3>
-            {loadingTimeSeries ? (
-              <div className="animate-pulse space-y-2">
-                <div className="h-4 bg-neutral-200 rounded"></div>
-                <div className="h-4 bg-neutral-200 rounded"></div>
-              </div>
-            ) : (
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span>Total Items Purchased:</span>
-                  <span className="font-medium">{timeSeriesData.reduce((sum, day) => sum + day.purchases, 0)} items</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Total Items Sold:</span>
-                  <span className="font-medium">{timeSeriesData.reduce((sum, day) => sum + day.sales, 0)} items</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Net Inventory Change:</span>
-                  <span className={`font-medium ${
-                    timeSeriesData.reduce((sum, day) => sum + day.purchases - day.sales, 0) >= 0 ? 
-                    'text-green-600' : 'text-red-600'
-                  }`}>
-                    {timeSeriesData.reduce((sum, day) => sum + day.purchases - day.sales, 0)} items
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg shadow-md p-4">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="flex items-center text-lg font-semibold">
-            <FaExclamationTriangle className="text-yellow-500 mr-2" /> 
-            Low Stock Products
-          </h2>
+      {/* Inventory Movement Chart */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-lg font-bold text-neutral-800">Inventory Movement</h3>
           <button
-            className="text-blue hover:text-indigo-700 text-sm flex items-center"
-            onClick={() => exportToCSV(lowStockProducts, 'low_stock_products.csv')}
-            disabled={loadingLowStock || lowStockProducts.length === 0}
+            className="text-indigo-600 hover:text-indigo-800 text-sm flex items-center gap-1"
+            onClick={() => exportToCSV(inventoryMovement, 'inventory_movement.csv')}
           >
-            <FaDownload className="mr-1" /> Export
+            <FaDownload /> Export
           </button>
         </div>
-        
-        <DataTable
-          data={lowStockProducts}
-          columns={lowStockColumns}
-          loading={loadingLowStock}
-          emptyMessage="No low stock products found - inventory levels are healthy"
-        />
-        
-        {!loadingLowStock && lowStockProducts.length > 0 && (
-          <div className="mt-4 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800">
-            <h3 className="font-bold">Restock Recommendation</h3>
-            <p className="text-sm mt-1">
-              You have {lowStockProducts.length} product variants with low stock levels. 
-              Consider restocking these items soon to avoid stockouts.
-            </p>
+        {loading ? (
+          <ChartSkeleton />
+        ) : (
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={inventoryMovement}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis 
+                  dataKey="date" 
+                  tickFormatter={(value) => format(new Date(value), 'MMM d')}
+                  stroke="#666"
+                />
+                <YAxis stroke="#666" />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend />
+                <Bar dataKey="purchases_in" name="Purchases In" fill="#059669" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="sales_out" name="Sales Out" fill="#DC2626" radius={[2, 2, 0, 0]} />
+                <Line type="monotone" dataKey="net_change" name="Net Change" stroke="#1E40AF" strokeWidth={3} />
+              </ComposedChart>
+            </ResponsiveContainer>
           </div>
         )}
       </div>
+
+      {/* Low Stock Alerts */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className="flex items-center gap-2 mb-6">
+          <FaExclamationTriangle className="text-orange-500 text-xl" />
+          <h3 className="text-lg font-bold text-neutral-800">Stock Alerts & Recommendations</h3>
+        </div>
+        <DataTable
+          data={lowStockAlerts}
+          columns={[
+            { header: 'Product', accessor: 'product_name', className: 'font-medium' },
+            { header: 'Variant', accessor: 'size', render: (row) => `${row.size} - ${row.color}` },
+            { 
+              header: 'Current Stock', 
+              accessor: 'current_quantity',
+              className: 'text-center',
+              render: (row) => (
+                <span className={`font-bold ${row.current_quantity === 0 ? 'text-red-600' : row.current_quantity <= 2 ? 'text-orange-600' : 'text-neutral-900'}`}>
+                  {row.current_quantity}
+                </span>
+              )
+            },
+            { 
+              header: 'Days of Stock', 
+              accessor: 'days_of_stock',
+              className: 'text-center',
+              render: (row) => (
+                <span className={`${row.days_of_stock <= 7 ? 'text-red-600 font-bold' : row.days_of_stock <= 14 ? 'text-orange-600' : 'text-neutral-900'}`}>
+                  {row.days_of_stock} days
+                </span>
+              )
+            },
+            { 
+              header: 'Recommended Order', 
+              accessor: 'recommended_reorder',
+              className: 'text-center text-indigo-600 font-medium'
+            }
+          ]}
+          loading={loading}
+          emptyMessage="All products are well stocked!"
+        />
+      </div>
     </div>
-  ), [
-    loadingInventoryValue,
-    loadingLowStock,
-    loadingTimeSeries,
-    inventoryItems,
-    inventoryValue,
-    lowStockProducts,
-    lowStockColumns,
-    inventoryPieData,
-    activePieIndex,
-    timeSeriesData,
-    exportToCSV
-  ]);
+  );
+
+  const renderClientsTab = () => (
+    <div className="space-y-8">
+      {/* Client Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      
+        <MetricCard
+          title="Total Outstanding"
+          value={`$${clientMetrics.reduce((sum, client) => sum + client.outstanding_balance, 0).toLocaleString()}`}
+          subtitle="Across all clients"
+          icon={<FaExclamationTriangle />}
+          loading={loading}
+          color="orange"
+        />
+        <MetricCard
+          title="Average Invoice Value"
+          value={`$${clientMetrics.length > 0 ? (clientMetrics.reduce((sum, client) => sum + client.total_invoiced, 0) / clientMetrics.reduce((sum, client) => sum + client.invoice_count, 0)).toFixed(0) : '0'}`}
+          subtitle="Per invoice"
+          icon={<FaChartBar />}
+          loading={loading}
+          color="green"
+        />
+      </div>
+
+      {/* Client Performance Table */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-lg font-bold text-neutral-800">Client Performance</h3>
+          <button
+            className="text-indigo-600 hover:text-indigo-800 text-sm flex items-center gap-1"
+            onClick={() => exportToCSV(clientMetrics, 'client_performance.csv')}
+          >
+            <FaDownload /> Export
+          </button>
+        </div>
+        <DataTable
+          data={clientMetrics}
+          columns={[
+            { header: 'Client', accessor: 'client_name', className: 'font-medium' },
+            { header: 'Total Invoiced', accessor: 'total_invoiced', render: (row) => `$${row.total_invoiced.toLocaleString()}` },
+            { header: 'Paid', accessor: 'total_paid', render: (row) => `$${row.total_paid.toLocaleString()}` },
+            { 
+              header: 'Outstanding', 
+              accessor: 'outstanding_balance',
+              render: (row) => (
+                <span className={`font-medium ${row.outstanding_balance > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                  ${row.outstanding_balance.toLocaleString()}
+                </span>
+              )
+            },
+            { header: 'Invoices', accessor: 'invoice_count', className: 'text-center' },
+            { 
+              header: 'Last Invoice', 
+              accessor: 'last_invoice_date',
+              render: (row) => format(new Date(row.last_invoice_date), 'MMM d, yyyy')
+            }
+          ]}
+          loading={loading}
+          emptyMessage="No client activity in this period"
+        />
+      </div>
+    </div>
+  );
 
   return (
-    <div className="p-6 text-gray max-w-7xl mx-auto bg-neutral-400">
-      <h1 className="text-3xl font-bold mb-6">Inventory Analytics</h1>
-      
-      {renderDateSelector()}
-      {renderTabs()}
-      
-      <TabPanel value={activeTab} index="overview">
-        {renderOverviewTab()}
-      </TabPanel>
-      
-      <TabPanel value={activeTab} index="sales">
-        {renderSalesTab()}
-      </TabPanel>
-      
-      <TabPanel value={activeTab} index="inventory">
-        {renderInventoryTab()}
-      </TabPanel>
+    <div className="min-h-screen bg-neutral-50">
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-neutral-900 mb-2">Business Analytics</h1>
+          <p className="text-neutral-600">Comprehensive insights into your business performance</p>
+        </div>
+        
+        {renderDateSelector()}
+        {renderTabs()}
+        
+        {/* Tab Content */}
+        {activeTab === 'overview' && renderOverviewTab()}
+        {activeTab === 'sales' && renderSalesTab()}
+        {activeTab === 'inventory' && renderInventoryTab()}
+        {activeTab === 'clients' && renderClientsTab()}
+      </div>
     </div>
   );
 }
