@@ -498,7 +498,8 @@ const QuotationsPage: React.FC = () => {
         payment_term: quotation.payment_term || '30% deposit 70% before shipping',
         delivery_date: quotation.delivery_date || new Date().toISOString(),
         payment_info: 'frisson_llc',
-        shipping_fee: quotation.shipping_fee || 0
+        shipping_fee: quotation.shipping_fee || 0,
+        quotation_id: quotation.id // Add the quotation_id reference
       };
     
       const { data: createdInvoice, error: invoiceError } = await supabase
@@ -547,54 +548,49 @@ const QuotationsPage: React.FC = () => {
 
   const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
     try {
-      if (!quotation.id || !quotation.client_id || !quotation.order_number) {
-        throw new Error('Missing required quotation data for invoice update');
+      if (!quotation.id) {
+        throw new Error('Missing quotation ID for invoice update');
       }
 
-      const { data: relatedInvoices, error: fetchError } = await supabase
+      // Find invoice by quotation_id instead of order_number
+      const { data: relatedInvoice, error: fetchError } = await supabase
         .from('ClientInvoices')
         .select('*')
-        .eq('client_id', quotation.client_id)
-        .eq('order_number', quotation.order_number);
+        .eq('quotation_id', quotation.id)
+        .single();
 
-      if (fetchError) {
-        throw new Error(`Error finding related invoices: ${fetchError.message}`);
-      }
-
-      if (!relatedInvoices || relatedInvoices.length === 0) {
-        toast.error('No related invoices found for this order. Creating a new invoice.');
-        await createInvoiceFromQuotation(quotation as Quotation);
+      if (fetchError || !relatedInvoice) {
+        console.log('No related invoice found for this quotation, which is expected for newly accepted quotations');
         return;
       }
 
-      for (const invoice of relatedInvoices) {
-        const updatedInvoiceData = {
-          total_price: quotation.total_price || 0,
-          products: quotation.products || [],
-          remaining_amount: calculateRemainingAmount(invoice, quotation.total_price),
-          include_vat: quotation.include_vat || false,
-          vat_amount: quotation.vat_amount || 0,
-          discounts: quotation.discounts || {},
-          currency: quotation.currency || 'usd',
-          payment_term: quotation.payment_term || '30% deposit 70% before shipping',
-          delivery_date: quotation.delivery_date || new Date().toISOString(),
-          shipping_fee: quotation.shipping_fee || 0
-        };
+      const updatedInvoiceData = {
+        total_price: quotation.total_price || 0,
+        products: quotation.products || [],
+        remaining_amount: calculateRemainingAmount(relatedInvoice, quotation.total_price),
+        include_vat: quotation.include_vat || false,
+        vat_amount: quotation.vat_amount || 0,
+        discounts: quotation.discounts || {},
+        currency: quotation.currency || 'usd',
+        payment_term: quotation.payment_term || '30% deposit 70% before shipping',
+        delivery_date: quotation.delivery_date || new Date().toISOString(),
+        shipping_fee: quotation.shipping_fee || 0,
+        order_number: quotation.order_number || '0'
+      };
 
-        const { error: updateError } = await supabase
-          .from('ClientInvoices')
-          .update(updatedInvoiceData)
-          .eq('id', invoice.id);
+      const { error: updateError } = await supabase
+        .from('ClientInvoices')
+        .update(updatedInvoiceData)
+        .eq('id', relatedInvoice.id);
 
-        if (updateError) {
-          throw new Error(`Error updating related invoice: ${updateError.message}`);
-        }
+      if (updateError) {
+        throw new Error(`Error updating related invoice: ${updateError.message}`);
       }
 
-      toast.success(`Updated ${relatedInvoices.length > 1 ? 'invoices' : 'invoice'} related to this order`);
+      toast.success('Updated invoice related to this order');
     } catch (error) {
-      console.error('Error updating related invoices:', error)
-      throw error
+      console.error('Error updating related invoice:', error)
+      // Don't throw here as it's not critical if the invoice doesn't exist yet
     }
   };
 
@@ -701,44 +697,43 @@ const QuotationsPage: React.FC = () => {
       }
 
       if (quotation && quotation.status === 'accepted') {
-        const { data: relatedInvoices, error: invoiceFetchError } = await supabase
+        // Find invoice by quotation_id
+        const { data: relatedInvoice, error: invoiceFetchError } = await supabase
           .from('ClientInvoices')
           .select('*')
-          .eq('client_id', quotation.client_id)
-          .eq('order_number', quotation.order_number);
+          .eq('quotation_id', quotation.id)
+          .single();
 
-        if (invoiceFetchError) {
-          throw new Error(`Error finding related invoices: ${invoiceFetchError.message}`);
+        if (invoiceFetchError && invoiceFetchError.code !== 'PGRST116') {
+          throw new Error(`Error finding related invoice: ${invoiceFetchError.message}`);
         }
 
-        if (relatedInvoices && relatedInvoices.length > 0) {
-          for (const invoice of relatedInvoices) {
-            const { data: receipts, error: receiptsError } = await supabase
-              .from('ClientReceipts')
-              .select('id')
-              .eq('invoice_id', invoice.id);
+        if (relatedInvoice) {
+          const { data: receipts, error: receiptsError } = await supabase
+            .from('ClientReceipts')
+            .select('id')
+            .eq('invoice_id', relatedInvoice.id);
 
-            if (receiptsError) {
-              throw new Error(`Error checking for receipts: ${receiptsError.message}`);
-            }
-
-            if (receipts && receipts.length > 0) {
-              toast.error('Cannot delete: This order has related invoices with payments');
-              updateLoadingState('isOrderDeleting', false);
-              return;
-            }
-
-            const { error: invoiceDeleteError } = await supabase
-              .from('ClientInvoices')
-              .delete()
-              .eq('id', invoice.id);
-
-            if (invoiceDeleteError) {
-              throw new Error(`Error deleting related invoice: ${invoiceDeleteError.message}`);
-            }
+          if (receiptsError) {
+            throw new Error(`Error checking for receipts: ${receiptsError.message}`);
           }
 
-          toast.success(`Related ${relatedInvoices.length > 1 ? 'invoices were' : 'invoice was'} also deleted`);
+          if (receipts && receipts.length > 0) {
+            toast.error('Cannot delete: This order has related invoice with payments');
+            updateLoadingState('isOrderDeleting', false);
+            return;
+          }
+
+          const { error: invoiceDeleteError } = await supabase
+            .from('ClientInvoices')
+            .delete()
+            .eq('id', relatedInvoice.id);
+
+          if (invoiceDeleteError) {
+            throw new Error(`Error deleting related invoice: ${invoiceDeleteError.message}`);
+          }
+
+          toast.success('Related invoice was also deleted');
         }
       }
 

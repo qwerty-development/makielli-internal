@@ -25,7 +25,9 @@ import {
 	FaInfoCircle,
 	FaSearch,
 	FaSpinner,
-	FaExclamationTriangle
+	FaExclamationTriangle,
+	FaLink,
+	FaFileInvoice
 } from 'react-icons/fa'
 import { generatePDF } from '@/utils/pdfGenerator'
 import { debounce } from 'lodash'
@@ -74,6 +76,7 @@ interface Invoice {
 	delivery_date: string
 	payment_info: PaymentInfoOption
 	shipping_fee: number
+	quotation_id?: number | null // New field for quotation linkage
 }
 
 type PaymentInfoOption = 'frisson_llc' | 'frisson_sarl_chf' | 'frisson_sarl_usd'
@@ -225,10 +228,7 @@ const ValidationUtils = {
 				return
 			}
 
-			// Check if variant has sufficient stock for client invoices
-			if (variant.quantity < product.quantity) {
-				warnings.push(`Product ${index + 1}: "${parentProduct.name}" (${SafeDataAccess.formatVariantDisplay(variant)}) - Requested quantity (${product.quantity}) exceeds available stock (${variant.quantity})`)
-			}
+		
 		})
 
 		return { isValid: errors.length === 0, errors, warnings }
@@ -374,6 +374,7 @@ const InvoicesPage: React.FC = () => {
 	const [filterStartDate, setFilterStartDate] = useState<any>(null)
 	const [filterEndDate, setFilterEndDate] = useState<any>(null)
 	const [filterEntity, setFilterEntity] = useState<number | string | null>(null)
+	const [filterQuotationLinked, setFilterQuotationLinked] = useState<string | null>(null) // New filter
 	const [totalInvoices, setTotalInvoices] = useState(0)
 
 	const formRef = useRef<HTMLFormElement>(null)
@@ -410,7 +411,8 @@ const InvoicesPage: React.FC = () => {
 		payment_term: '30% deposit 70% before shipping',
 		delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(),
 		payment_info: 'frisson_llc',
-		shipping_fee: 0
+		shipping_fee: 0,
+		quotation_id: null // Will be null for direct invoice creation
 	})
 	const [selectedFile, setSelectedFile] = useState<File | null>(null)
 	const [uploadingFile, setUploadingFile] = useState(false)
@@ -449,6 +451,7 @@ const InvoicesPage: React.FC = () => {
 		filterStartDate,
 		filterEndDate,
 		filterEntity,
+		filterQuotationLinked,
 		orderNumberSearch
 	])
 
@@ -538,7 +541,8 @@ const InvoicesPage: React.FC = () => {
 		updateLoadingState('isMainLoading', true)
 		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
 		try {
-			let query = supabase.from(table).select('*', { count: 'exact' })
+			// Updated query to include quotation_id
+			let query = supabase.from(table).select('*, quotation_id', { count: 'exact' })
 
 			if (filterStartDate) {
 				query = query.gte('created_at', filterStartDate.toISOString())
@@ -552,6 +556,15 @@ const InvoicesPage: React.FC = () => {
 			}
 			if (orderNumberSearch) {
 				query = query.ilike('order_number', `%${orderNumberSearch}%`)
+			}
+			
+			// New filter for quotation linkage
+			if (filterQuotationLinked) {
+				if (filterQuotationLinked === 'linked') {
+					query = query.not('quotation_id', 'is', null)
+				} else if (filterQuotationLinked === 'direct') {
+					query = query.is('quotation_id', null)
+				}
 			}
 
 			if (sortField !== 'entity_name') {
@@ -711,7 +724,8 @@ const InvoicesPage: React.FC = () => {
 				currency: newInvoice.currency || 'usd',
 				payment_term: newInvoice.payment_term,
 				delivery_date: newInvoice.delivery_date,
-				payment_info: newInvoice.payment_info || 'frisson_llc'
+				payment_info: newInvoice.payment_info || 'frisson_llc',
+				quotation_id: newInvoice.quotation_id || null // Ensure quotation_id is handled
 			}
 
 			if (!isClientInvoice) {
@@ -969,7 +983,8 @@ const InvoicesPage: React.FC = () => {
 				discounts: { ...(currentInvoice.discounts || {}) },
 				type: currentInvoice.type,
 				payment_info: currentInvoice.payment_info || 'frisson_llc',
-				shipping_fee: currentInvoice.shipping_fee || 0
+				shipping_fee: currentInvoice.shipping_fee || 0,
+				quotation_id: currentInvoice.quotation_id || null
 			})
 
 			const updatedInvoice = {
@@ -992,7 +1007,8 @@ const InvoicesPage: React.FC = () => {
 				payment_info: currentInvoice.payment_info || 'frisson_llc',
 				client_id: isClientInvoice ? entityId : undefined,
 				supplier_id: !isClientInvoice ? entityId : undefined,
-				shipping_fee: currentInvoice.shipping_fee || 0
+				shipping_fee: currentInvoice.shipping_fee || 0,
+				quotation_id: currentInvoice.quotation_id || null
 			}
 
 			setNewInvoice(updatedInvoice)
@@ -1404,7 +1420,8 @@ const InvoicesPage: React.FC = () => {
 			client_id: undefined,
 			supplier_id: undefined,
 			payment_info: 'frisson_llc',
-			shipping_fee: 0
+			shipping_fee: 0,
+			quotation_id: null // Reset to null for new invoices
 		})
 		setSelectedProduct(null)
 		setSelectedVariants([])
@@ -1478,6 +1495,7 @@ const InvoicesPage: React.FC = () => {
 								onClick={() => handleSort('order_number')}>
 								Order Number {sortField === 'order_number' && <FaSort className='inline' />}
 							</th>
+							<th className='py-3 px-6 text-center'>Source</th> {/* New column for quotation linkage */}
 							<th className='py-3 px-6 text-center'>Files</th>
 							<th className='py-3 px-6 text-center'>Actions</th>
 							<th className='py-3 px-6 text-center'>Type</th>
@@ -1520,6 +1538,24 @@ const InvoicesPage: React.FC = () => {
 										${(invoice.remaining_amount || 0).toFixed(2)}
 									</td>
 									<td className='py-3 px-6 text-left'>{invoice.order_number || '-'}</td>
+									<td className='py-3 px-6 text-center'>
+										{/* Show quotation linkage indicator */}
+										{invoice.quotation_id ? (
+											<div className="flex items-center justify-center">
+												<FaLink className="text-blue mr-1" />
+												<span className="text-blue text-xs" title={`Created from Quotation #${invoice.quotation_id}`}>
+													Q#{invoice.quotation_id}
+												</span>
+											</div>
+										) : (
+											<div className="flex items-center justify-center">
+												<FaFileInvoice className="text-neutral-500 mr-1" />
+												<span className="text-neutral-500 text-xs" title="Direct Invoice">
+													Direct
+												</span>
+											</div>
+										)}
+									</td>
 									<td className='py-3 px-6 text-center'>
 										{invoice.files && invoice.files.length > 0 ? (
 											<FaFile className='inline text-blue' />
@@ -1670,6 +1706,20 @@ const InvoicesPage: React.FC = () => {
 				idField={activeTab === 'client' ? 'client_id' : 'id'}
 				className="flex-grow"
 			/>
+
+			{/* New filter for quotation linkage */}
+			<select
+				value={filterQuotationLinked || ''}
+				onChange={(e) => {
+					setFilterQuotationLinked(e.target.value || null)
+					setCurrentPage(1)
+				}}
+				className='block min-w-[180px] pl-3 pr-10 py-2 text-base border-gray rounded-md focus:outline-none focus:ring-blue sm:text-sm'
+			>
+				<option value=''>All Sources</option>
+				<option value='linked'>From Quotation</option>
+				<option value='direct'>Direct Invoice</option>
+			</select>
 		</div>
 	)
 
@@ -1690,6 +1740,18 @@ const InvoicesPage: React.FC = () => {
 						<h3 className='text-lg leading-6 font-medium text-gray mb-4'>
 							{newInvoice.id ? 'Edit Invoice' : 'Create New Invoice'}
 						</h3>
+
+						{/* Show quotation linkage info for existing invoices */}
+						{newInvoice.id && newInvoice.quotation_id && (
+							<div className="mb-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-blue-700">
+								<div className="flex items-center">
+									<FaLink className="mr-2" />
+									<p className="text-sm font-medium">
+										This invoice was created from Quotation #{newInvoice.quotation_id}
+									</p>
+								</div>
+							</div>
+						)}
 
 						{/* Enhanced Error Display */}
 						<ErrorDisplay 
@@ -2189,7 +2251,7 @@ const InvoicesPage: React.FC = () => {
 		</div>
 	)
 
-	const renderInvoiceDetails = () => {
+const renderInvoiceDetails = () => {
 		if (!selectedInvoice) return null
 
 		const isClientInvoice = activeTab === 'client'
@@ -2309,6 +2371,15 @@ const InvoicesPage: React.FC = () => {
 									<p className='text-red-600 font-semibold'>Return Invoice</p>
 								</div>
 							)}
+
+							{/* Show quotation reference if invoice was created from a quotation */}
+							{selectedInvoice.quotation_id && (
+								<div className='mt-2 bg-blue-50 p-2 rounded-md'>
+									<p className='text-blue-600 text-sm font-medium'>
+										📋 Created from Order #{selectedInvoice.quotation_id}
+									</p>
+								</div>
+							)}
 						</div>
 
 						<div className='flex justify-between mb-6'>
@@ -2326,6 +2397,9 @@ const InvoicesPage: React.FC = () => {
 								<p className='text-sm'>Invoice Number: {selectedInvoice.id || 'N/A'}</p>
 								<p className='text-sm'>Date: {selectedInvoice.created_at ? format(new Date(selectedInvoice.created_at), 'PP') : 'N/A'}</p>
 								<p className='text-sm'>Order Number: {selectedInvoice.order_number || 'N/A'}</p>
+								{selectedInvoice.quotation_id && (
+									<p className='text-sm text-blue-600'>Source Order: #{selectedInvoice.quotation_id}</p>
+								)}
 								{selectedInvoice.delivery_date && (
 									<p className='text-sm'>Delivery Date: {format(new Date(selectedInvoice.delivery_date), 'PP')}</p>
 								)}
@@ -2598,7 +2672,8 @@ const InvoicesPage: React.FC = () => {
 						client_id: undefined,
 						supplier_id: undefined,
 						payment_info: 'frisson_llc',
-						shipping_fee: 0
+						shipping_fee: 0,
+						quotation_id: null // Set to null for direct invoice creation
 					})
 					setShowModal(true)
 				}}>
