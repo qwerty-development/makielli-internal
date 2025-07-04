@@ -4,7 +4,8 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { 
   FaChartLine, FaBoxOpen, FaChartBar, FaExclamationTriangle, 
   FaSearch, FaDownload, FaSyncAlt, FaArrowUp, FaArrowDown,
-  FaEquals, FaInfoCircle, FaDollarSign, FaUsers, FaShoppingCart, FaEye
+  FaEquals, FaInfoCircle, FaDollarSign, FaUsers, FaShoppingCart, FaEye,
+  FaHistory, FaBoxes, FaEdit, FaPalette, FaPlus, FaTrash, FaClock
 } from 'react-icons/fa'
 import { 
   analyticsService,
@@ -16,6 +17,12 @@ import {
   LowStockAlert,
   PeriodComparison
 } from '@/utils/functions/analytics'
+import { 
+  analyticsFunctions, 
+  ProductHistoryEntry, 
+  ProductHistorySummary 
+} from '@/utils/functions/product-history'
+import { productFunctions, Product } from '@/utils/functions/products'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import {
@@ -25,11 +32,31 @@ import {
 } from 'recharts'
 import { 
   format, subMonths, subWeeks, startOfMonth, endOfMonth, 
-  differenceInDays, addDays
+  differenceInDays, addDays, subDays
 } from 'date-fns'
 
 // Enhanced color palette
 const COLORS = ['#1E40AF', '#7C3AED', '#059669', '#DC2626', '#F59E0B', '#8B5CF6', '#10B981', '#EF4444'];
+
+// Enhanced interfaces for product history dashboard data
+interface ActivityData {
+  date: string
+  inventory: number
+  price: number
+  details: number
+  variant: number
+  creation: number
+  deletion: number
+  total: number
+}
+
+interface DashboardStats {
+  totalProducts: number
+  totalVariants: number
+  totalInventoryValue: number
+  lowStockItems: number
+  recentChanges: number
+}
 
 // Enhanced skeleton components
 const MetricCardSkeleton = () => (
@@ -144,8 +171,6 @@ const MetricCard = React.memo(({
   );
 });
 
-
-
 MetricCard.displayName = 'MetricCard';
 
 // Enhanced data table
@@ -249,11 +274,11 @@ export default function AnalyticsDashboard() {
   // State management
   const [startDate, setStartDate] = useState<Date>(subMonths(new Date(), 1));
   const [endDate, setEndDate] = useState<Date>(new Date());
-  const [activeTab, setActiveTab] = useState<'overview' | 'sales' | 'inventory' | 'clients'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'sales' | 'inventory' | 'clients' | 'activity'>('overview');
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   
-  // Data state
+  // Analytics service data state
   const [salesMetrics, setSalesMetrics] = useState<SalesMetrics | null>(null);
   const [inventoryMetrics, setInventoryMetrics] = useState<InventoryMetrics | null>(null);
   const [productPerformance, setProductPerformance] = useState<ProductPerformance[]>([]);
@@ -261,6 +286,18 @@ export default function AnalyticsDashboard() {
   const [clientMetrics, setClientMetrics] = useState<ClientMetrics[]>([]);
   const [lowStockAlerts, setLowStockAlerts] = useState<LowStockAlert[]>([]);
   const [periodComparison, setPeriodComparison] = useState<PeriodComparison | null>(null);
+
+  // Product history data state
+  const [products, setProducts] = useState<Product[]>([])
+  const [recentHistory, setRecentHistory] = useState<ProductHistoryEntry[]>([])
+  const [activityData, setActivityData] = useState<ActivityData[]>([])
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
+    totalProducts: 0,
+    totalVariants: 0,
+    totalInventoryValue: 0,
+    lowStockItems: 0,
+    recentChanges: 0
+  })
 
   // Format dates for API
   const formattedStartDate = useMemo(() => startDate.toISOString(), [startDate]);
@@ -280,11 +317,9 @@ export default function AnalyticsDashboard() {
     };
   }, [startDate, endDate]);
 
-  // Data fetching functions
-  const fetchAllData = useCallback(async (forceRefresh = false) => {
+  // Enhanced data fetching functions
+  const fetchAnalyticsData = useCallback(async (forceRefresh = false) => {
     try {
-      setLoading(true);
-      
       const [
         salesData,
         inventoryData,
@@ -312,10 +347,98 @@ export default function AnalyticsDashboard() {
       setPeriodComparison(comparisonData);
     } catch (error) {
       console.error('Error fetching analytics data:', error);
+    }
+  }, [formattedStartDate, formattedEndDate, prevStartDate, prevEndDate]);
+
+  const fetchProductHistoryData = useCallback(async () => {
+    try {
+      // Fetch all products
+      const productsData = await productFunctions.getAllProducts()
+      setProducts(productsData)
+
+      // Calculate product-based stats
+      let totalVariants = 0
+      let totalValue = 0
+      let lowStock = 0
+
+      productsData.forEach(product => {
+        totalVariants += product.variants?.length || 0
+        product.variants?.forEach(variant => {
+          totalValue += variant.quantity * product.price
+          if (variant.quantity <= 5) lowStock++
+        })
+      })
+
+      // Fetch recent history for all products (limited timeframe for performance)
+      const dateRange = differenceInDays(endDate, startDate)
+      const historyPromises = productsData.map(p => 
+        analyticsFunctions.getProductHistory(p.id, {
+          startDate: startDate,
+          endDate: endDate,
+          limit: 50
+        })
+      )
+      
+      const allHistory = (await Promise.all(historyPromises)).flat()
+      const sortedHistory = allHistory.sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )
+      
+      setRecentHistory(sortedHistory.slice(0, 20))
+
+      // Process activity data for chart
+      const activityMap = new Map<string, ActivityData>()
+      
+      for (let i = 0; i <= dateRange; i++) {
+        const date = format(addDays(startDate, i), 'yyyy-MM-dd')
+        activityMap.set(date, {
+          date: format(addDays(startDate, i), 'MMM dd'),
+          inventory: 0,
+          price: 0,
+          details: 0,
+          variant: 0,
+          creation: 0,
+          deletion: 0,
+          total: 0
+        })
+      }
+
+      allHistory.forEach(entry => {
+        const date = format(new Date(entry.created_at), 'yyyy-MM-dd')
+        const activity = activityMap.get(date)
+        if (activity) {
+          activity[entry.change_type as keyof ActivityData]++
+          activity.total++
+        }
+      })
+
+      setActivityData(Array.from(activityMap.values()))
+
+      setDashboardStats({
+        totalProducts: productsData.length,
+        totalVariants,
+        totalInventoryValue: totalValue,
+        lowStockItems: lowStock,
+        recentChanges: allHistory.length
+      })
+    } catch (error) {
+      console.error('Error fetching product history data:', error)
+    }
+  }, [startDate, endDate])
+
+  const fetchAllData = useCallback(async (forceRefresh = false) => {
+    setLoading(true);
+    try {
+      await Promise.all([
+        fetchAnalyticsData(forceRefresh),
+        fetchProductHistoryData()
+      ]);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
     }
-  }, [formattedStartDate, formattedEndDate, prevStartDate, prevEndDate]);
+  }, [fetchAnalyticsData, fetchProductHistoryData]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -333,6 +456,51 @@ export default function AnalyticsDashboard() {
   useEffect(() => {
     fetchAllData();
   }, [fetchAllData]);
+
+  // Enhanced helper functions for product history
+  const getTopMovingProducts = useCallback(() => {
+    const productMovement = new Map<string, { product: Product, changes: number }>()
+    
+    recentHistory.forEach(entry => {
+      if (entry.change_type === 'inventory') {
+        const product = products.find(p => p.id === entry.product_id)
+        if (product) {
+          const current = productMovement.get(product.id) || { product, changes: 0 }
+          current.changes += Math.abs(entry.quantity_change || 0)
+          productMovement.set(product.id, current)
+        }
+      }
+    })
+
+    return Array.from(productMovement.values())
+      .sort((a, b) => b.changes - a.changes)
+      .slice(0, 5)
+  }, [recentHistory, products])
+
+  const getChangeIcon = (changeType: string) => {
+    switch (changeType) {
+      case 'inventory': return <FaBoxes />
+      case 'price': return <FaDollarSign />
+      case 'details': return <FaEdit />
+      case 'variant': return <FaPalette />
+      case 'creation': return <FaPlus />
+      case 'deletion': return <FaTrash />
+      default: return <FaHistory />
+    }
+  }
+
+  const getChangeColor = (changeType: string) => {
+    const display = analyticsFunctions.getChangeTypeDisplay(changeType as any)
+    switch (display.color) {
+      case 'blue': return 'bg-blue-100 text-blue-600'
+      case 'green': return 'bg-green-100 text-green-600'
+      case 'purple': return 'bg-purple-100 text-purple-600'
+      case 'orange': return 'bg-orange-100 text-orange-600'
+      case 'teal': return 'bg-teal-100 text-teal-600'
+      case 'red': return 'bg-red-100 text-red-600'
+      default: return 'bg-gray-100 text-gray-600'
+    }
+  }
 
   // Export functions
   const exportToCSV = useCallback((data: any[], filename: string) => {
@@ -426,7 +594,8 @@ export default function AnalyticsDashboard() {
         { key: 'overview', label: 'Overview', icon: <FaChartLine /> },
         { key: 'sales', label: 'Sales Analysis', icon: <FaDollarSign /> },
         { key: 'inventory', label: 'Inventory', icon: <FaBoxOpen /> },
-        { key: 'clients', label: 'Clients', icon: <FaUsers /> }
+        { key: 'clients', label: 'Clients', icon: <FaUsers /> },
+        { key: 'activity', label: 'Product Activity', icon: <FaHistory /> }
       ].map((tab) => (
         <button
           key={tab.key}
@@ -474,14 +643,23 @@ export default function AnalyticsDashboard() {
         
         <MetricCard
           title="Inventory Value"
-          value={inventoryMetrics ? `$${inventoryMetrics.total_retail_value.toLocaleString()}` : '$0'}
-          subtitle={inventoryMetrics ? `${inventoryMetrics.total_items.toLocaleString()} items` : '0 items'}
+          value={`$${dashboardStats.totalInventoryValue.toLocaleString()}`}
+          subtitle={`${dashboardStats.totalVariants.toLocaleString()} variants`}
           icon={<FaBoxOpen />}
           loading={loading}
           info="Current inventory value at retail prices"
           color="blue"
         />
         
+        <MetricCard
+          title="Recent Activity"
+          value={dashboardStats.recentChanges.toString()}
+          subtitle="Product changes"
+          icon={<FaHistory />}
+          loading={loading}
+          info="Total product changes in selected period"
+          color="purple"
+        />
       </div>
 
       {/* Charts */}
@@ -536,13 +714,13 @@ export default function AnalyticsDashboard() {
           )}
         </div>
 
-        {/* Top Products */}
+        {/* Product Activity Timeline */}
         <div className="bg-white rounded-xl shadow-lg p-6">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-bold text-neutral-800">Top Performing Products</h3>
+            <h3 className="text-lg font-bold text-neutral-800">Product Activity Timeline</h3>
             <button
               className="text-indigo-600 hover:text-indigo-800 text-sm flex items-center gap-1"
-              onClick={() => exportToCSV(productPerformance, 'top_products.csv')}
+              onClick={() => exportToCSV(activityData, 'product_activity.csv')}
             >
               <FaDownload /> Export
             </button>
@@ -552,22 +730,41 @@ export default function AnalyticsDashboard() {
           ) : (
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={productPerformance.slice(0, 10)}>
+                <AreaChart data={activityData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis 
-                    dataKey="product_name" 
-                    angle={-45} 
-                    textAnchor="end" 
-                    height={80}
-                    stroke="#666"
-                  />
+                  <XAxis dataKey="date" stroke="#666" />
                   <YAxis stroke="#666" />
-                  <Tooltip content={<CustomTooltip formatter={(value:any) => `$${value.toLocaleString()}`} />} />
-                  <Bar dataKey="total_revenue" fill="#1E40AF" radius={[4, 4, 0, 0]} />
-                </BarChart>
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend />
+                  <Area type="monotone" dataKey="inventory" stackId="1" stroke="#3B82F6" fill="#3B82F6" name="Inventory" />
+                  <Area type="monotone" dataKey="price" stackId="1" stroke="#10B981" fill="#10B981" name="Price Changes" />
+                  <Area type="monotone" dataKey="details" stackId="1" stroke="#8B5CF6" fill="#8B5CF6" name="Detail Updates" />
+                  <Area type="monotone" dataKey="variant" stackId="1" stroke="#F59E0B" fill="#F59E0B" name="Variant Changes" />
+                </AreaChart>
               </ResponsiveContainer>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Top Moving Products */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <h3 className="text-lg font-bold text-neutral-800 mb-6">Top Moving Products</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {getTopMovingProducts().map((item, index) => (
+            <div key={item.product.id} className="flex items-center gap-3 p-4 bg-neutral-50 rounded-lg">
+              <div 
+                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
+                style={{ backgroundColor: COLORS[index % COLORS.length] }}
+              >
+                {index + 1}
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-neutral-900">{item.product.name}</p>
+                <p className="text-sm text-neutral-600">{item.changes} units moved</p>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -851,7 +1048,7 @@ export default function AnalyticsDashboard() {
         />
         <MetricCard
           title="Average Invoice Value"
-          value={`${salesMetrics?.avg_invoice_value.toFixed(0) || '0'}`}
+          value={`$${salesMetrics?.avg_invoice_value.toFixed(0) || '0'}`}
           subtitle="Per invoice"
           icon={<FaChartBar />}
           loading={loading}
@@ -899,13 +1096,186 @@ export default function AnalyticsDashboard() {
     </div>
   );
 
+  const renderActivityTab = () => (
+    <div className="space-y-8">
+      {/* Product Activity Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <MetricCard
+          title="Total Products"
+          value={dashboardStats.totalProducts.toString()}
+          subtitle="In catalog"
+          icon={<FaBoxes />}
+          loading={loading}
+          color="blue"
+        />
+        <MetricCard
+          title="Total Variants"
+          value={dashboardStats.totalVariants.toString()}
+          subtitle="Product variants"
+          icon={<FaPalette />}
+          loading={loading}
+          color="purple"
+        />
+        <MetricCard
+          title="Recent Changes"
+          value={dashboardStats.recentChanges.toString()}
+          subtitle="In selected period"
+          icon={<FaHistory />}
+          loading={loading}
+          color="orange"
+        />
+        <MetricCard
+          title="Low Stock Items"
+          value={dashboardStats.lowStockItems.toString()}
+          subtitle="Need attention"
+          icon={<FaExclamationTriangle />}
+          loading={loading}
+          color="red"
+        />
+      </div>
+
+      {/* Activity Timeline Chart */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-lg font-bold text-neutral-800">Product Activity Breakdown</h3>
+          <button
+            className="text-indigo-600 hover:text-indigo-800 text-sm flex items-center gap-1"
+            onClick={() => exportToCSV(activityData, 'activity_breakdown.csv')}
+          >
+            <FaDownload /> Export
+          </button>
+        </div>
+        {loading ? (
+          <ChartSkeleton />
+        ) : (
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={activityData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="date" stroke="#666" />
+                <YAxis stroke="#666" />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend />
+                <Bar dataKey="inventory" name="Inventory Changes" fill="#3B82F6" stackId="a" />
+                <Bar dataKey="price" name="Price Changes" fill="#10B981" stackId="a" />
+                <Bar dataKey="details" name="Detail Updates" fill="#8B5CF6" stackId="a" />
+                <Bar dataKey="variant" name="Variant Changes" fill="#F59E0B" stackId="a" />
+                <Bar dataKey="creation" name="New Products" fill="#06B6D4" stackId="a" />
+                <Bar dataKey="deletion" name="Deletions" fill="#EF4444" stackId="a" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      {/* Recent Product Activity */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-lg font-bold text-neutral-800">Recent Product Activity</h3>
+          <button
+            className="text-indigo-600 hover:text-indigo-800 text-sm flex items-center gap-1"
+            onClick={() => exportToCSV(recentHistory, 'recent_activity.csv')}
+          >
+            <FaDownload /> Export
+          </button>
+        </div>
+        <div className="space-y-3 max-h-96 overflow-y-auto">
+          {recentHistory.length === 0 ? (
+            <div className="text-center py-8 text-neutral-500">
+              <FaHistory className="mx-auto text-4xl mb-4 text-neutral-600" />
+              No recent activity found
+            </div>
+          ) : (
+            recentHistory.map((entry) => {
+              const product = products.find(p => p.id === entry.product_id)
+              
+              return (
+                <div key={entry.id} className="flex items-center justify-between py-3 border-b border-neutral-100 last:border-b-0">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getChangeColor(entry.change_type)}`}>
+                      {getChangeIcon(entry.change_type)}
+                    </div>
+                    <div>
+                      <p className="font-medium text-neutral-900">{product?.name || 'Unknown Product'}</p>
+                      <p className="text-sm text-neutral-600">
+                        {analyticsFunctions.formatHistoryEntry(entry)}
+                      </p>
+                      {entry.source_reference && (
+                        <p className="text-xs text-neutral-500">
+                          Source: {entry.source_reference}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-neutral-500">
+                      {format(new Date(entry.created_at), 'MMM dd, HH:mm')}
+                    </p>
+                    {entry.user_email && (
+                      <p className="text-xs text-neutral-400">{entry.user_email}</p>
+                    )}
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
+
+      {/* Top Moving Products in Activity Tab */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <h3 className="text-lg font-bold text-neutral-800 mb-6">Most Active Products</h3>
+        {getTopMovingProducts().length === 0 ? (
+          <div className="text-center py-8 text-neutral-500">
+            <FaBoxes className="mx-auto text-4xl mb-4 text-neutral-600" />
+            No product movement data available
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {getTopMovingProducts().map((item, index) => (
+              <div key={item.product.id} className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
+                    style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                  >
+                    {index + 1}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {item.product.photo ? (
+                      <img src={item.product.photo} alt={item.product.name} className="h-12 w-12 object-cover rounded-lg" />
+                    ) : (
+                      <div className="h-12 w-12 bg-neutral-200 rounded-lg flex items-center justify-center">
+                        <FaBoxes className="text-neutral-600" />
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-medium text-neutral-900">{item.product.name}</p>
+                      <p className="text-sm text-neutral-600">{item.changes} units moved</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-neutral-900">
+                    ${(item.product.price * item.changes).toLocaleString()}
+                  </p>
+                  <p className="text-xs text-neutral-500">total value</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-neutral-50">
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-neutral-900 mb-2">Business Analytics</h1>
-          <p className="text-neutral-600">Comprehensive insights into your business performance</p>
+          <p className="text-neutral-600">Comprehensive insights into your business performance and product activity</p>
         </div>
         
         {renderDateSelector()}
@@ -916,6 +1286,7 @@ export default function AnalyticsDashboard() {
         {activeTab === 'sales' && renderSalesTab()}
         {activeTab === 'inventory' && renderInventoryTab()}
         {activeTab === 'clients' && renderClientsTab()}
+        {activeTab === 'activity' && renderActivityTab()}
       </div>
     </div>
   );

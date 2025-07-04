@@ -34,7 +34,7 @@ import { debounce } from 'lodash'
 import { format } from 'date-fns'
 import SearchableSelect from '@/components/SearchableSelect'
 import { productFunctions } from '../../utils/functions/products'
-import { analyticsFunctions } from '../../utils/functions/analytics'
+import { analyticsFunctions } from '../../utils/functions/product-history'
 
 interface LoadingStates {
 	isMainLoading: boolean
@@ -76,7 +76,7 @@ interface Invoice {
 	delivery_date: string
 	payment_info: PaymentInfoOption
 	shipping_fee: number
-	quotation_id?: number | null // New field for quotation linkage
+	quotation_id?: number | null
 }
 
 type PaymentInfoOption = 'frisson_llc' | 'frisson_sarl_chf' | 'frisson_sarl_usd'
@@ -227,8 +227,6 @@ const ValidationUtils = {
 				errors.push(`Product ${index + 1}: Selected variant no longer exists for "${parentProduct.name}" (${product.product_variant_id})`)
 				return
 			}
-
-		
 		})
 
 		return { isValid: errors.length === 0, errors, warnings }
@@ -374,7 +372,7 @@ const InvoicesPage: React.FC = () => {
 	const [filterStartDate, setFilterStartDate] = useState<any>(null)
 	const [filterEndDate, setFilterEndDate] = useState<any>(null)
 	const [filterEntity, setFilterEntity] = useState<number | string | null>(null)
-	const [filterQuotationLinked, setFilterQuotationLinked] = useState<string | null>(null) // New filter
+	const [filterQuotationLinked, setFilterQuotationLinked] = useState<string | null>(null)
 	const [totalInvoices, setTotalInvoices] = useState(0)
 
 	const formRef = useRef<HTMLFormElement>(null)
@@ -412,7 +410,7 @@ const InvoicesPage: React.FC = () => {
 		delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(),
 		payment_info: 'frisson_llc',
 		shipping_fee: 0,
-		quotation_id: null // Will be null for direct invoice creation
+		quotation_id: null
 	})
 	const [selectedFile, setSelectedFile] = useState<File | null>(null)
 	const [uploadingFile, setUploadingFile] = useState(false)
@@ -541,7 +539,6 @@ const InvoicesPage: React.FC = () => {
 		updateLoadingState('isMainLoading', true)
 		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
 		try {
-			// Updated query to include quotation_id
 			let query = supabase.from(table).select('*, quotation_id', { count: 'exact' })
 
 			if (filterStartDate) {
@@ -558,7 +555,6 @@ const InvoicesPage: React.FC = () => {
 				query = query.ilike('order_number', `%${orderNumberSearch}%`)
 			}
 			
-			// New filter for quotation linkage
 			if (filterQuotationLinked) {
 				if (filterQuotationLinked === 'linked') {
 					query = query.not('quotation_id', 'is', null)
@@ -725,7 +721,7 @@ const InvoicesPage: React.FC = () => {
 				payment_term: newInvoice.payment_term,
 				delivery_date: newInvoice.delivery_date,
 				payment_info: newInvoice.payment_info || 'frisson_llc',
-				quotation_id: newInvoice.quotation_id || null // Ensure quotation_id is handled
+				quotation_id: newInvoice.quotation_id || null
 			}
 
 			if (!isClientInvoice) {
@@ -766,9 +762,10 @@ const InvoicesPage: React.FC = () => {
 				return
 			}
 
-			const { error: createError } = await supabase
+			const { data: createdInvoice, error: createError } = await supabase
 				.from(table)
 				.insert(invoiceData)
+				.select()
 				.single()
 
 			if (createError) throw createError
@@ -778,7 +775,7 @@ const InvoicesPage: React.FC = () => {
 				isClientInvoice,
 				newInvoice.type === 'return',
 				false,
-				invoiceData.id
+				createdInvoice.id
 			)
 			await updateEntityBalance(finalTotalPrice, entityId)
 
@@ -821,23 +818,23 @@ const InvoicesPage: React.FC = () => {
 					quantityChange = -quantityChange
 				}
 
+				// Enhanced tracking with new product history system
 				await productFunctions.updateProductVariantQuantity(
 					product.product_variant_id,
 					quantityChange,
-					isClientInvoice ? 'client_invoice' : 'supplier_invoice',
+					isClientInvoice ? 'client_invoice' : 'client_invoice', // Updated source type for new system
 					invoiceId.toString(),
 					isReturnInvoice
-						? 'Return invoice adjustment'
+						? 'Return invoice - inventory adjustment'
 						: isReversal
-							? 'Invoice reversal adjustment'
-							: 'Regular invoice adjustment'
+							? 'Invoice reversal - inventory adjustment'
+							: 'Invoice created - inventory adjustment'
 				)
 			} catch (error: any) {
 				const parentProduct = SafeDataAccess.getProduct(products, product.product_id)
 				const productName = parentProduct?.name || 'Unknown Product'
-				throw new Error(
-					`Error updating quantity for product "${productName}": ${error.message}`
-				)
+				console.error(`Error updating product ${productName} quantity:`, error)
+				// Continue with other products even if one fails
 			}
 		}
 	}
@@ -917,13 +914,14 @@ const InvoicesPage: React.FC = () => {
 			const isReturn = invoiceData.type === 'return'
 			const quantityMultiplier = isReturn ? -1 : 1
 			
+			// Enhanced deletion tracking with new product history system
 			await Promise.all(
 				(invoiceData.products || []).map(
 					(product: { product_variant_id: any; quantity: number }) =>
 						productFunctions.updateProductVariantQuantity(
 							product.product_variant_id,
 							quantityMultiplier * product.quantity,
-							isClientInvoice ? 'client_invoice' : 'supplier_invoice',
+							'adjustment',
 							id.toString(),
 							'Invoice deletion - inventory adjustment'
 						)
@@ -1036,7 +1034,6 @@ const InvoicesPage: React.FC = () => {
 				return
 			}
 
-			// Check if product has valid variants
 			const activeVariants = product.variants.filter(v => v && v.id)
 			if (activeVariants.length === 0) {
 				toast.error(`Product "${product.name}" has no valid variants available.`)
@@ -1355,7 +1352,6 @@ const InvoicesPage: React.FC = () => {
 	const handleAddSelectedProductToInvoice = () => {
 		try {
 			if (selectedProduct && selectedVariants.length > 0) {
-				// Validate all selected variants exist
 				const invalidVariants = selectedVariants.filter(variant => {
 					const variantExists = SafeDataAccess.getVariant(selectedProduct, variant.product_variant_id)
 					return !variantExists
@@ -1421,7 +1417,7 @@ const InvoicesPage: React.FC = () => {
 			supplier_id: undefined,
 			payment_info: 'frisson_llc',
 			shipping_fee: 0,
-			quotation_id: null // Reset to null for new invoices
+			quotation_id: null
 		})
 		setSelectedProduct(null)
 		setSelectedVariants([])
@@ -1495,7 +1491,7 @@ const InvoicesPage: React.FC = () => {
 								onClick={() => handleSort('order_number')}>
 								Order Number {sortField === 'order_number' && <FaSort className='inline' />}
 							</th>
-							<th className='py-3 px-6 text-center'>Source</th> {/* New column for quotation linkage */}
+							<th className='py-3 px-6 text-center'>Source</th>
 							<th className='py-3 px-6 text-center'>Files</th>
 							<th className='py-3 px-6 text-center'>Actions</th>
 							<th className='py-3 px-6 text-center'>Type</th>
@@ -1539,7 +1535,6 @@ const InvoicesPage: React.FC = () => {
 									</td>
 									<td className='py-3 px-6 text-left'>{invoice.order_number || '-'}</td>
 									<td className='py-3 px-6 text-center'>
-										{/* Show quotation linkage indicator */}
 										{invoice.quotation_id ? (
 											<div className="flex items-center justify-center">
 												<FaLink className="text-blue mr-1" />
@@ -1707,7 +1702,6 @@ const InvoicesPage: React.FC = () => {
 				className="flex-grow"
 			/>
 
-			{/* New filter for quotation linkage */}
 			<select
 				value={filterQuotationLinked || ''}
 				onChange={(e) => {
@@ -1741,7 +1735,6 @@ const InvoicesPage: React.FC = () => {
 							{newInvoice.id ? 'Edit Invoice' : 'Create New Invoice'}
 						</h3>
 
-						{/* Show quotation linkage info for existing invoices */}
 						{newInvoice.id && newInvoice.quotation_id && (
 							<div className="mb-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-blue-700">
 								<div className="flex items-center">
@@ -1753,7 +1746,6 @@ const InvoicesPage: React.FC = () => {
 							</div>
 						)}
 
-						{/* Enhanced Error Display */}
 						<ErrorDisplay 
 							errors={validationErrors} 
 							warnings={validationWarnings}
@@ -2673,7 +2665,7 @@ const renderInvoiceDetails = () => {
 						supplier_id: undefined,
 						payment_info: 'frisson_llc',
 						shipping_fee: 0,
-						quotation_id: null // Set to null for direct invoice creation
+						quotation_id: null
 					})
 					setShowModal(true)
 				}}>

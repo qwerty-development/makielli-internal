@@ -1,16 +1,29 @@
 import { supabase } from '../supabase';
 
 export interface ProductHistoryEntry {
-  id: string;
-  product_id: string;
-  variant_id: string;
-  quantity_change: number;
-  previous_quantity: number;
-  new_quantity: number;
-  source_type: 'client_invoice' | 'supplier_invoice' | 'adjustment' | 'manual' | 'quotation';
-  source_id: string;
-  created_at: string;
-  notes: string;
+  id: string
+  product_id: string
+  variant_id?: string
+  change_type: 'inventory' | 'price' | 'details' | 'variant' | 'creation' | 'deletion'
+  field_name?: string // For detail changes (e.g., 'name', 'description', 'cost')
+  old_value?: string | number
+  new_value?: string | number
+  quantity_change?: number
+  source_type: 'manual' | 'invoice' | 'order' | 'return' | 'adjustment' | 'import' | 'system'
+  source_id?: string
+  source_reference?: string // e.g., "Invoice #123", "Order #456"
+  user_id?: string
+  user_email?: string
+  notes?: string
+  created_at: string
+}
+
+export interface ProductHistorySummary {
+  total_in: number
+  total_out: number
+  current_quantity: number
+  last_updated: string
+  total_transactions: number
 }
 
 export interface SalesMetrics {

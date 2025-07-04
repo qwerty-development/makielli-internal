@@ -209,7 +209,6 @@ const QuotationsPage: React.FC = () => {
     }
   }, [clients])
 
-  // Fetch data on mount and when filters change
   useEffect(() => {
     try {
       fetchQuotations()
@@ -252,7 +251,7 @@ const QuotationsPage: React.FC = () => {
     }
   }, 300)
 
-  const handleEditExistingProduct = (index: number) => {
+ const handleEditExistingProduct = (index: number) => {
     try {
       if (!newQuotation.products || !Array.isArray(newQuotation.products)) return
       
@@ -366,7 +365,7 @@ const QuotationsPage: React.FC = () => {
     }
   }
 
-  const calculateTotalPrice = (
+ const calculateTotalPrice = (
     quotationProducts: QuotationProduct[],
     discounts: { [productId: string]: number },
     includeVAT: boolean,
@@ -476,6 +475,7 @@ const QuotationsPage: React.FC = () => {
     }
   };
 
+  // Enhanced invoice creation with new product history system
   const createInvoiceFromQuotation = async (quotation: Quotation) => {
     try {
       if (!quotation || !quotation.client_id) {
@@ -512,14 +512,21 @@ const QuotationsPage: React.FC = () => {
         throw new Error(`Error creating invoice: ${invoiceError.message}`);
       }
     
-      await updateInventoryForInvoice(quotation.products || [], createdInvoice.id);
+      await updateInventoryForInvoice(quotation.products || [], createdInvoice.id, quotation.id);
+      
+      return createdInvoice;
     } catch (error) {
       console.error('Error creating invoice from quotation:', error)
       throw error
     }
   };
   
-  const updateInventoryForInvoice = async (products: QuotationProduct[], invoiceId: number) => {
+  // Enhanced inventory update with new product history system
+  const updateInventoryForInvoice = async (
+    products: QuotationProduct[], 
+    invoiceId: number, 
+    quotationId: number
+  ) => {
     try {
       if (!Array.isArray(products)) return
       
@@ -529,23 +536,29 @@ const QuotationsPage: React.FC = () => {
           
           const quantityChange = -product.quantity;
           
+          // Enhanced tracking with new product history system
           await productFunctions.updateProductVariantQuantity(
             product.product_variant_id,
             quantityChange,
-            'client_invoice',
+            'quotation', // Updated source type for new system
             invoiceId.toString(),
-            'Invoice created from quotation'
+            `Invoice #${invoiceId} created from Quotation #${quotationId} - inventory reduction`
           );
         } catch (error: any) {
           console.error(`Error updating product ${product?.product_id} quantity:`, error);
+          // Log the error but continue with other products
+          const parentProduct = findProductSafely(product?.product_id || '')
+          const productName = parentProduct?.name || 'Unknown Product'
+          console.warn(`Failed to update inventory for product "${productName}" during quotation-to-invoice conversion`)
         }
       }
     } catch (error) {
-      console.error('Error updating inventory:', error)
+      console.error('Error updating inventory for invoice:', error)
       throw error
     }
   };
 
+  // Enhanced invoice update with new product history system
   const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
     try {
       if (!quotation.id) {
@@ -564,9 +577,13 @@ const QuotationsPage: React.FC = () => {
         return;
       }
 
+      // Store original products for inventory adjustment
+      const originalProducts = relatedInvoice.products || [];
+      const newProducts = quotation.products || [];
+
       const updatedInvoiceData = {
         total_price: quotation.total_price || 0,
-        products: quotation.products || [],
+        products: newProducts,
         remaining_amount: calculateRemainingAmount(relatedInvoice, quotation.total_price),
         include_vat: quotation.include_vat || false,
         vat_amount: quotation.vat_amount || 0,
@@ -587,10 +604,53 @@ const QuotationsPage: React.FC = () => {
         throw new Error(`Error updating related invoice: ${updateError.message}`);
       }
 
-      toast.success('Updated invoice related to this order');
+      // Enhanced inventory adjustment with new product history system
+      // First, reverse the original inventory changes
+      await reverseInventoryChanges(originalProducts, relatedInvoice.id, quotation.id);
+      
+      // Then apply the new inventory changes
+      await updateInventoryForInvoice(newProducts, relatedInvoice.id, quotation.id);
+
+      toast.success('Updated invoice and inventory for related order');
     } catch (error) {
       console.error('Error updating related invoice:', error)
       // Don't throw here as it's not critical if the invoice doesn't exist yet
+    }
+  };
+
+  // Enhanced function to reverse inventory changes with new product history system
+  const reverseInventoryChanges = async (
+    originalProducts: QuotationProduct[], 
+    invoiceId: number, 
+    quotationId: number
+  ) => {
+    try {
+      if (!Array.isArray(originalProducts)) return
+
+      for (const product of originalProducts) {
+        try {
+          if (!product || !product.product_variant_id || !product.quantity) continue
+          
+          // Reverse the original quantity change (add back to inventory)
+          const quantityChange = product.quantity;
+          
+          await productFunctions.updateProductVariantQuantity(
+            product.product_variant_id,
+            quantityChange,
+            'adjustment', // Use adjustment for reversal
+            invoiceId.toString(),
+            `Quotation #${quotationId} update - reversing previous inventory changes`
+          );
+        } catch (error: any) {
+          console.error(`Error reversing inventory for product ${product?.product_id}:`, error);
+          const parentProduct = findProductSafely(product?.product_id || '')
+          const productName = parentProduct?.name || 'Unknown Product'
+          console.warn(`Failed to reverse inventory for product "${productName}" during quotation update`)
+        }
+      }
+    } catch (error) {
+      console.error('Error reversing inventory changes:', error)
+      throw error
     }
   };
 
@@ -677,6 +737,7 @@ const QuotationsPage: React.FC = () => {
     }
   };
 
+  // Enhanced deletion with new product history system
   const handleDeleteQuotation = async (id: number) => {
     if (!window.confirm('Are you sure you want to delete this Order?')) {
       return;
@@ -724,6 +785,13 @@ const QuotationsPage: React.FC = () => {
             return;
           }
 
+          // Enhanced inventory reversal with new product history system
+          await reverseInventoryChanges(
+            relatedInvoice.products || [], 
+            relatedInvoice.id, 
+            quotation.id
+          );
+
           const { error: invoiceDeleteError } = await supabase
             .from('ClientInvoices')
             .delete()
@@ -733,7 +801,7 @@ const QuotationsPage: React.FC = () => {
             throw new Error(`Error deleting related invoice: ${invoiceDeleteError.message}`);
           }
 
-          toast.success('Related invoice was also deleted');
+          toast.success('Related invoice and inventory changes were reversed');
         }
       }
 
@@ -755,19 +823,6 @@ const QuotationsPage: React.FC = () => {
     }
   };
 
-  const handleSort = (field: any) => {
-    try {
-      if (field === sortField) {
-        setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
-      } else {
-        setSortField(field)
-        setSortOrder('asc')
-      }
-    } catch (error) {
-      console.error('Error handling sort:', error)
-    }
-  }
-
   const handleEditQuotation = (quotation: Quotation) => {
     try {
       if (!quotation) {
@@ -785,14 +840,6 @@ const QuotationsPage: React.FC = () => {
     } catch (error) {
       console.error('Error editing quotation:', error)
       toast.error('Failed to edit quotation')
-    }
-  }
-
-  const handleQuotationClick = (quotation: Quotation) => {
-    try {
-      setSelectedQuotation(quotation)
-    } catch (error) {
-      console.error('Error selecting quotation:', error)
     }
   }
 
@@ -892,6 +939,33 @@ const QuotationsPage: React.FC = () => {
       toast.error('Failed to add product to order')
     }
   }
+  
+
+
+  const handleSort = (field: any) => {
+    try {
+      if (field === sortField) {
+        setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+      } else {
+        setSortField(field)
+        setSortOrder('asc')
+      }
+    } catch (error) {
+      console.error('Error handling sort:', error)
+    }
+  }
+
+
+
+  const handleQuotationClick = (quotation: Quotation) => {
+    try {
+      setSelectedQuotation(quotation)
+    } catch (error) {
+      console.error('Error selecting quotation:', error)
+    }
+  }
+
+
 
   const handlePDFGeneration = async (quotation: Quotation) => {
     updateLoadingState('isPDFGenerating', true)
