@@ -164,33 +164,228 @@ const ReceiptsPage: React.FC = () => {
 		return invoice?.currency || 'usd'
 	}
 
+	// Add this new function to handle receipt updates properly
+	const updateInvoiceAndEntityBalanceForEdit = async (
+		originalReceipt: Receipt,
+		updatedReceipt: Partial<Receipt>
+	) => {
+		const invoiceTable = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
+		const entityTable = activeTab === 'client' ? 'Clients' : 'Suppliers'
+		const idField = activeTab === 'client' ? 'client_id' : 'supplier_id'
+		const entityPkField = activeTab === 'client' ? 'client_id' : 'id'
+
+		try {
+			// If invoice changed, handle both original and new invoice
+			if (originalReceipt.invoice_id !== updatedReceipt.invoice_id) {
+				// 1. Restore the original invoice's remaining amount
+				const { data: originalInvoiceData, error: originalInvoiceError } = await supabase
+					.from(invoiceTable)
+					.select('remaining_amount')
+					.eq('id', originalReceipt.invoice_id)
+					.single()
+
+				if (originalInvoiceError) {
+					throw new Error(`Error fetching original invoice: ${originalInvoiceError.message}`)
+				}
+
+				// Restore original invoice (add back the payment)
+				const restoredAmount = originalInvoiceData.remaining_amount + (originalReceipt.amount || 0)
+				const { error: restoreError } = await supabase
+					.from(invoiceTable)
+					.update({ remaining_amount: restoredAmount })
+					.eq('id', originalReceipt.invoice_id)
+
+				if (restoreError) {
+					throw new Error(`Error restoring original invoice: ${restoreError.message}`)
+				}
+
+				// 2. Apply payment to new invoice
+				const { data: newInvoiceData, error: newInvoiceError } = await supabase
+					.from(invoiceTable)
+					.select('remaining_amount')
+					.eq('id', updatedReceipt.invoice_id)
+					.single()
+
+				if (newInvoiceError) {
+					throw new Error(`Error fetching new invoice: ${newInvoiceError.message}`)
+				}
+
+				// Apply to new invoice (subtract the payment)
+				const newRemainingAmount = newInvoiceData.remaining_amount - (updatedReceipt.amount || 0)
+				const { error: applyError } = await supabase
+					.from(invoiceTable)
+					.update({ remaining_amount: newRemainingAmount })
+					.eq('id', updatedReceipt.invoice_id)
+
+				if (applyError) {
+					throw new Error(`Error applying payment to new invoice: ${applyError.message}`)
+				}
+			} else {
+				// Same invoice, but amount might have changed
+				const amountDifference = (updatedReceipt.amount || 0) - (originalReceipt.amount || 0)
+				
+				if (amountDifference !== 0) {
+					const { data: invoiceData, error: invoiceError } = await supabase
+						.from(invoiceTable)
+						.select('remaining_amount')
+						.eq('id', updatedReceipt.invoice_id)
+						.single()
+
+					if (invoiceError) {
+						throw new Error(`Error fetching invoice: ${invoiceError.message}`)
+					}
+
+					// Adjust remaining amount by the difference
+					const newRemainingAmount = invoiceData.remaining_amount - amountDifference
+					const { error: updateError } = await supabase
+						.from(invoiceTable)
+						.update({ remaining_amount: newRemainingAmount })
+						.eq('id', updatedReceipt.invoice_id)
+
+					if (updateError) {
+						throw new Error(`Error updating invoice amount: ${updateError.message}`)
+					}
+				}
+			}
+
+			// 3. Handle entity balance changes
+			const originalEntityId = originalReceipt[idField as keyof Receipt]
+			const newEntityId = updatedReceipt[idField as keyof Receipt]
+			const amountDifference = (updatedReceipt.amount || 0) - (originalReceipt.amount || 0)
+
+			if (originalEntityId !== newEntityId) {
+				// Entity changed - restore balance to original entity
+				if (originalEntityId) {
+					const { data: originalEntityData, error: originalEntityError } = await supabase
+						.from(entityTable)
+						.select('balance')
+						.eq(entityPkField, originalEntityId)
+						.single()
+
+					if (originalEntityError) {
+						throw new Error(`Error fetching original ${activeTab}: ${originalEntityError.message}`)
+					}
+
+					// Restore original entity balance (add back the payment)
+					const restoredBalance = originalEntityData.balance + (originalReceipt.amount || 0)
+					const { error: restoreEntityError } = await supabase
+						.from(entityTable)
+						.update({ balance: restoredBalance })
+						.eq(entityPkField, originalEntityId)
+
+					if (restoreEntityError) {
+						throw new Error(`Error restoring original ${activeTab} balance: ${restoreEntityError.message}`)
+					}
+				}
+
+				// Apply to new entity
+				if (newEntityId) {
+					const { data: newEntityData, error: newEntityError } = await supabase
+						.from(entityTable)
+						.select('balance')
+						.eq(entityPkField, newEntityId)
+						.single()
+
+					if (newEntityError) {
+						throw new Error(`Error fetching new ${activeTab}: ${newEntityError.message}`)
+					}
+
+					// Apply payment to new entity (subtract the payment)
+					const newBalance = newEntityData.balance - (updatedReceipt.amount || 0)
+					const { error: applyEntityError } = await supabase
+						.from(entityTable)
+						.update({ balance: newBalance })
+						.eq(entityPkField, newEntityId)
+
+					if (applyEntityError) {
+						throw new Error(`Error updating new ${activeTab} balance: ${applyEntityError.message}`)
+					}
+				}
+			} else if (amountDifference !== 0) {
+				// Same entity, but amount changed
+				if (newEntityId) {
+					const { data: entityData, error: entityError } = await supabase
+						.from(entityTable)
+						.select('balance')
+						.eq(entityPkField, newEntityId)
+						.single()
+
+					if (entityError) {
+						throw new Error(`Error fetching ${activeTab}: ${entityError.message}`)
+					}
+
+					// Adjust balance by the difference
+					const newBalance = entityData.balance - amountDifference
+					const { error: updateEntityError } = await supabase
+						.from(entityTable)
+						.update({ balance: newBalance })
+						.eq(entityPkField, newEntityId)
+
+					if (updateEntityError) {
+						throw new Error(`Error updating ${activeTab} balance: ${updateEntityError.message}`)
+					}
+				}
+			}
+
+		} catch (error: any) {
+			console.error('Error updating balances:', error)
+			toast.error(error.message || 'Error updating balances')
+			throw error
+		}
+	}
+
 	const handleCreateOrUpdateReceipt = async () => {
 		const table = activeTab === 'client' ? 'ClientReceipts' : 'SupplierReceipts'
-		let result
+		
+		try {
+			if (isEditing && newReceipt.id) {
+				// Get the original receipt data first
+				const { data: originalReceiptData, error: fetchError } = await supabase
+					.from(table)
+					.select('*')
+					.eq('id', newReceipt.id)
+					.single()
 
-		if (isEditing && newReceipt.id) {
-			// Update existing receipt
-			result = await supabase
-				.from(table)
-				.update(newReceipt)
-				.eq('id', newReceipt.id)
-		} else {
-			// Create new receipt
-			result = await supabase.from(table).insert(newReceipt).single()
-		}
+				if (fetchError) {
+					throw new Error(`Error fetching original receipt: ${fetchError.message}`)
+				}
 
-		const { data, error } = result
+				// Update the receipt
+				const { error: updateError } = await supabase
+					.from(table)
+					.update(newReceipt)
+					.eq('id', newReceipt.id)
 
-		if (error) {
-			toast.error(
-				`Error ${isEditing ? 'updating' : 'creating'} receipt: ${error.message}`
-			)
-		} else {
-			toast.success(`Receipt ${isEditing ? 'updated' : 'created'} successfully`)
+				if (updateError) {
+					throw new Error(`Error updating receipt: ${updateError.message}`)
+				}
+
+				// Handle the complex balance updates
+				await updateInvoiceAndEntityBalanceForEdit(originalReceiptData, newReceipt)
+				
+				toast.success('Receipt updated successfully')
+			} else {
+				// Create new receipt (original logic)
+				const { error } = await supabase
+					.from(table)
+					.insert(newReceipt)
+
+				if (error) {
+					throw new Error(`Error creating receipt: ${error.message}`)
+				}
+
+				// For new receipts, use the simpler update function
+				await updateInvoiceAndEntityBalance(newReceipt)
+				toast.success('Receipt created successfully')
+			}
+
 			setShowModal(false)
 			setSelectedEntityId(null)
 			fetchReceipts()
-			await updateInvoiceAndEntityBalance(newReceipt)
+			
+		} catch (error: any) {
+			console.error('Receipt operation error:', error)
+			toast.error(error.message || `Error ${isEditing ? 'updating' : 'creating'} receipt`)
 		}
 	}
 
@@ -252,9 +447,13 @@ const ReceiptsPage: React.FC = () => {
 	}
 
 	const handleDeleteReceipt = async (id: number) => {
-		if (window.confirm('Are you sure you want to delete this receipt?')) {
-			const table =
-				activeTab === 'client' ? 'ClientReceipts' : 'SupplierReceipts'
+		if (!window.confirm('Are you sure you want to delete this receipt?')) {
+			return
+		}
+
+		const table = activeTab === 'client' ? 'ClientReceipts' : 'SupplierReceipts'
+		
+		try {
 			const { data: receiptData, error: fetchError } = await supabase
 				.from(table)
 				.select('*')
@@ -262,30 +461,36 @@ const ReceiptsPage: React.FC = () => {
 				.single()
 
 			if (fetchError) {
-				toast.error(`Error fetching receipt: ${fetchError.message}`)
-				return
+				throw new Error(`Error fetching receipt: ${fetchError.message}`)
 			}
 
-			// Delete associated files
-			for (const fileUrl of receiptData.files) {
+			// Delete associated files first
+			for (const fileUrl of receiptData.files || []) {
 				await handleFileDelete(fileUrl)
 			}
 
+			// Delete the receipt
 			const { error: deleteError } = await supabase
 				.from(table)
 				.delete()
 				.eq('id', id)
 
 			if (deleteError) {
-				toast.error(`Error deleting receipt: ${deleteError.message}`)
-			} else {
-				toast.success('Receipt deleted successfully')
-				fetchReceipts()
-				await updateInvoiceAndEntityBalance({
-					...receiptData,
-					amount: -receiptData.amount
-				})
+				throw new Error(`Error deleting receipt: ${deleteError.message}`)
 			}
+
+			// Restore invoice and entity balances (reverse the receipt effects)
+			await updateInvoiceAndEntityBalance({
+				...receiptData,
+				amount: -receiptData.amount // Negative amount to reverse the effects
+			})
+
+			toast.success('Receipt deleted successfully')
+			fetchReceipts()
+			
+		} catch (error: any) {
+			console.error('Delete receipt error:', error)
+			toast.error(error.message || 'Error deleting receipt')
 		}
 	}
 
@@ -590,22 +795,17 @@ const ReceiptsPage: React.FC = () => {
 					<FaFilter className='h-5 w-5 text-gray' />
 				</div>
 			</div>
-			<select
-				onChange={e =>
-					handleFilterEntityChange(
-						e.target.value ? Number(e.target.value) : null
-					)
-				}
-				className='block w-full pl-3 pr-10 py-2 text-base border-gray focus:outline-none focus:ring-blue focus:border-blue sm:text-sm rounded-md'>
-				<option value=''>
-					All {activeTab === 'client' ? 'Clients' : 'Suppliers'}
-				</option>
-				{entities.map(entity => (
-					<option key={entity.id} value={entity.id?.toString()}>
-						{entity.name}
-					</option>
-				))}
-			</select>
+			
+			{/* Fixed Filter Component */}
+			<SearchableSelect
+				options={entities}
+				value={filterEntity}
+				onChange={handleFilterEntityChange}
+				placeholder={`Filter by ${activeTab === 'client' ? 'Client' : 'Supplier'}`}
+				label={`Filter ${activeTab === 'client' ? 'Client' : 'Supplier'}`}
+				idField={activeTab === 'client' ? 'client_id' : 'id'}
+				className="min-w-[200px]"
+			/>
 		</div>
 	)
 
