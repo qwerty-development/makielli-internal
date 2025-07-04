@@ -85,14 +85,17 @@ export const productFunctions = {
 
 			// Track initial inventory if quantity > 0
 			if (variant.quantity > 0) {
-				await analyticsFunctions.recordInventoryChange(
-					newProduct.id,
-					variant.id,
-					variant.quantity,
-					'manual',
-					'',
-					'Initial stock'
-				)
+				await analyticsFunctions.recordProductChange({
+					productId: newProduct.id,
+					variantId: variant.id,
+					changeType: 'inventory',
+					quantityChange: variant.quantity,
+					oldValue: 0,
+					newValue: variant.quantity,
+					sourceType: 'manual',
+					sourceReference: 'Initial stock',
+					notes: 'Initial stock'
+				})
 			}
 		}
 
@@ -233,14 +236,17 @@ export const productFunctions = {
 					// Track quantity changes
 					if (variant.quantity !== undefined && variant.quantity !== originalVariant.quantity) {
 						const quantityChange = variant.quantity - originalVariant.quantity
-						await analyticsFunctions.recordInventoryChange(
-							id,
-							variant.id,
-							quantityChange,
-							'adjustment',
-							'',
-							'Manual inventory adjustment'
-						)
+						await analyticsFunctions.recordProductChange({
+							productId: id,
+							variantId: variant.id,
+							changeType: 'inventory',
+							quantityChange: quantityChange,
+							oldValue: originalVariant.quantity,
+							newValue: variant.quantity,
+							sourceType: 'adjustment',
+							sourceReference: 'Manual inventory adjustment',
+							notes: 'Manual inventory adjustment'
+						})
 					}
 
 					// Update the variant
@@ -269,14 +275,17 @@ export const productFunctions = {
 					// Update existing variant
 					if (variant.quantity !== undefined && variant.quantity !== existingVariant.quantity) {
 						const quantityChange = variant.quantity - existingVariant.quantity
-						await analyticsFunctions.recordInventoryChange(
-							id,
-							existingVariant.id,
-							quantityChange,
-							'adjustment',
-							'',
-							'Manual inventory adjustment'
-						)
+						await analyticsFunctions.recordProductChange({
+							productId: id,
+							variantId: existingVariant.id,
+							changeType: 'inventory',
+							quantityChange: quantityChange,
+							oldValue: existingVariant.quantity,
+							newValue: variant.quantity,
+							sourceType: 'adjustment',
+							sourceReference: 'Manual inventory adjustment',
+							notes: 'Manual inventory adjustment'
+						})
 
 						const { error } = await supabase
 							.from('ProductVariants')
@@ -312,14 +321,17 @@ export const productFunctions = {
 
 					// Track initial inventory
 					if (variant.quantity && variant.quantity > 0) {
-						await analyticsFunctions.recordInventoryChange(
-							id,
-							newVariant.id,
-							variant.quantity,
-							'manual',
-							'',
-							'Initial stock for new variant'
-						)
+						await analyticsFunctions.recordProductChange({
+							productId: id,
+							variantId: newVariant.id,
+							changeType: 'inventory',
+							quantityChange: variant.quantity,
+							oldValue: 0,
+							newValue: variant.quantity,
+							sourceType: 'manual',
+							sourceReference: 'Initial stock for new variant',
+							notes: 'Initial stock for new variant'
+						})
 					}
 				}
 			}
@@ -342,14 +354,17 @@ export const productFunctions = {
 
 			// Track inventory removal if there was stock
 			if (variantToRemove.quantity > 0) {
-				await analyticsFunctions.recordInventoryChange(
-					id,
-					variantToRemove.id,
-					-variantToRemove.quantity,
-					'adjustment',
-					'',
-					'Stock removed due to variant deletion'
-				)
+				await analyticsFunctions.recordProductChange({
+					productId: id,
+					variantId: variantToRemove.id,
+					changeType: 'inventory',
+					quantityChange: -variantToRemove.quantity,
+					oldValue: variantToRemove.quantity,
+					newValue: 0,
+					sourceType: 'adjustment',
+					sourceReference: 'Stock removed due to variant deletion',
+					notes: 'Stock removed due to variant deletion'
+				})
 			}
 
 			const { error } = await supabase
@@ -411,14 +426,17 @@ export const productFunctions = {
 		// Track deletion of variants and their inventory
 		for (const variant of product.variants || []) {
 			if (variant.quantity > 0) {
-				await analyticsFunctions.recordInventoryChange(
-					id,
-					variant.id,
-					-variant.quantity,
-					'adjustment',
-					'',
-					'Stock removed due to product deletion'
-				)
+				await analyticsFunctions.recordProductChange({
+					productId: id,
+					variantId: variant.id,
+					changeType: 'inventory',
+					quantityChange: -variant.quantity,
+					oldValue: variant.quantity,
+					newValue: 0,
+					sourceType: 'adjustment',
+					sourceReference: 'Stock removed due to product deletion',
+					notes: 'Stock removed due to product deletion'
+				})
 			}
 
 			await analyticsFunctions.recordProductChange({
@@ -487,17 +505,7 @@ export const productFunctions = {
 				sourceReference = sourceType.charAt(0).toUpperCase() + sourceType.slice(1)
 		}
 
-		// Record the change
-		await analyticsFunctions.recordInventoryChange(
-			variant.product_id,
-			variantId,
-			quantityChange,
-			sourceType as any,
-			sourceId,
-			notes
-		)
-
-		// Also record with source reference for better display
+		// Record the change - SINGLE CALL ONLY
 		await analyticsFunctions.recordProductChange({
 			productId: variant.product_id,
 			variantId: variantId,

@@ -558,65 +558,149 @@ const QuotationsPage: React.FC = () => {
     }
   };
 
-  // Enhanced invoice update with new product history system
-  const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
-    try {
-      if (!quotation.id) {
-        throw new Error('Missing quotation ID for invoice update');
-      }
 
-      // Find invoice by quotation_id instead of order_number
-      const { data: relatedInvoice, error: fetchError } = await supabase
-        .from('ClientInvoices')
-        .select('*')
-        .eq('quotation_id', quotation.id)
-        .single();
+  const updateInventoryWithNetChange = async (
+  originalProducts: QuotationProduct[],
+  newProducts: QuotationProduct[],
+  invoiceId: number,
+  quotationId: number
+) => {
+  // Calculate net changes per variant
+  const netChanges = new Map<string, {
+    productId: string,
+    variantId: string,
+    netChange: number,
+    originalQty: number,
+    newQty: number
+  }>()
 
-      if (fetchError || !relatedInvoice) {
-        console.log('No related invoice found for this quotation, which is expected for newly accepted quotations');
-        return;
-      }
-
-      // Store original products for inventory adjustment
-      const originalProducts = relatedInvoice.products || [];
-      const newProducts = quotation.products || [];
-
-      const updatedInvoiceData = {
-        total_price: quotation.total_price || 0,
-        products: newProducts,
-        remaining_amount: calculateRemainingAmount(relatedInvoice, quotation.total_price),
-        include_vat: quotation.include_vat || false,
-        vat_amount: quotation.vat_amount || 0,
-        discounts: quotation.discounts || {},
-        currency: quotation.currency || 'usd',
-        payment_term: quotation.payment_term || '30% deposit 70% before shipping',
-        delivery_date: quotation.delivery_date || new Date().toISOString(),
-        shipping_fee: quotation.shipping_fee || 0,
-        order_number: quotation.order_number || '0'
-      };
-
-      const { error: updateError } = await supabase
-        .from('ClientInvoices')
-        .update(updatedInvoiceData)
-        .eq('id', relatedInvoice.id);
-
-      if (updateError) {
-        throw new Error(`Error updating related invoice: ${updateError.message}`);
-      }
-
-      // Enhanced inventory adjustment with new product history system
-      // First, reverse the original inventory changes
-      await reverseInventoryChanges(originalProducts, relatedInvoice.id, quotation.id);
-      
-      // Then apply the new inventory changes
-      await updateInventoryForInvoice(newProducts, relatedInvoice.id, quotation.id);
-
-      toast.success('Updated invoice and inventory for related order');
-    } catch (error) {
-      console.error('Error updating related invoice:', error)
-      // Don't throw here as it's not critical if the invoice doesn't exist yet
+  // Process original products (reverse their effect - add back to inventory)
+  for (const product of originalProducts || []) {
+    if (!product.product_variant_id) continue
+    
+    const effectiveChange = product.quantity; // Add back to inventory
+    
+    const existing = netChanges.get(product.product_variant_id) || {
+      productId: product.product_id,
+      variantId: product.product_variant_id,
+      netChange: 0,
+      originalQty: product.quantity,
+      newQty: 0
     }
-  };
+    
+    existing.netChange += effectiveChange // Reverse the original reduction
+    netChanges.set(product.product_variant_id, existing)
+  }
+
+  // Process new products (apply their effect - remove from inventory)
+  for (const product of newProducts || []) {
+    if (!product.product_variant_id) continue
+    
+    const effectiveChange = -product.quantity; // Remove from inventory
+    
+    const existing = netChanges.get(product.product_variant_id) || {
+      productId: product.product_id,
+      variantId: product.product_variant_id,
+      netChange: 0,
+      originalQty: 0,
+      newQty: product.quantity
+    }
+    
+    existing.netChange += effectiveChange // Apply the new reduction
+    existing.newQty = product.quantity
+    existing.productId = product.product_id
+    netChanges.set(product.product_variant_id, existing)
+  }
+
+  // Apply net changes
+  for (const [variantId, change] of netChanges) {
+    if (change.netChange === 0) continue // Skip if no net change
+    
+    try {
+      // Build descriptive note
+      let note = ''
+      if (change.originalQty !== change.newQty) {
+        note = `Quotation #${quotationId} update - quantity changed from ${change.originalQty} to ${change.newQty}`
+      } else {
+        note = `Quotation #${quotationId} update - inventory adjustment`
+      }
+      
+      await productFunctions.updateProductVariantQuantity(
+        variantId,
+        change.netChange,
+        'quotation',
+        invoiceId.toString(),
+        note
+      )
+    } catch (error: any) {
+      console.error(`Error updating product ${change.productId} quantity:`, error)
+      const parentProduct = findProductSafely(change.productId)
+      const productName = parentProduct?.name || 'Unknown Product'
+      console.warn(`Failed to update inventory for product "${productName}" during quotation update`)
+    }
+  }
+}
+
+
+const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
+  try {
+    if (!quotation.id) {
+      throw new Error('Missing quotation ID for invoice update');
+    }
+
+    // Find invoice by quotation_id instead of order_number
+    const { data: relatedInvoice, error: fetchError } = await supabase
+      .from('ClientInvoices')
+      .select('*')
+      .eq('quotation_id', quotation.id)
+      .single();
+
+    if (fetchError || !relatedInvoice) {
+      console.log('No related invoice found for this quotation, which is expected for newly accepted quotations');
+      return;
+    }
+
+    // Store original products for inventory adjustment
+    const originalProducts = relatedInvoice.products || [];
+    const newProducts = quotation.products || [];
+
+    const updatedInvoiceData = {
+      total_price: quotation.total_price || 0,
+      products: newProducts,
+      remaining_amount: calculateRemainingAmount(relatedInvoice, quotation.total_price),
+      include_vat: quotation.include_vat || false,
+      vat_amount: quotation.vat_amount || 0,
+      discounts: quotation.discounts || {},
+      currency: quotation.currency || 'usd',
+      payment_term: quotation.payment_term || '30% deposit 70% before shipping',
+      delivery_date: quotation.delivery_date || new Date().toISOString(),
+      shipping_fee: quotation.shipping_fee || 0,
+      order_number: quotation.order_number || '0'
+    };
+
+    const { error: updateError } = await supabase
+      .from('ClientInvoices')
+      .update(updatedInvoiceData)
+      .eq('id', relatedInvoice.id);
+
+    if (updateError) {
+      throw new Error(`Error updating related invoice: ${updateError.message}`);
+    }
+
+    // NEW CODE - SINGLE INVENTORY UPDATE WITH NET CHANGE:
+    await updateInventoryWithNetChange(
+      originalProducts,
+      newProducts,
+      relatedInvoice.id,
+      quotation.id
+    );
+
+    toast.success('Updated invoice and inventory for related order');
+  } catch (error) {
+    console.error('Error updating related invoice:', error)
+    // Don't throw here as it's not critical if the invoice doesn't exist yet
+  }
+};
 
   // Enhanced function to reverse inventory changes with new product history system
   const reverseInventoryChanges = async (

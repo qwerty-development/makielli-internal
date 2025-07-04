@@ -662,6 +662,95 @@ const InvoicesPage: React.FC = () => {
 		return { subtotal, vatAmount, totalPrice }
 	}
 
+	const updateProductQuantitiesWithNetChange = async (
+	originalProducts: InvoiceProduct[],
+	newProducts: InvoiceProduct[],
+	isClientInvoice: boolean,
+	originalIsReturn: boolean,
+	newIsReturn: boolean,
+	invoiceId: number
+) => {
+	// Calculate net changes per variant
+	const netChanges = new Map<string, {
+		productId: string,
+		variantId: string,
+		netChange: number,
+		originalQty: number,
+		newQty: number
+	}>()
+
+	// Process original products (subtract their effect)
+	for (const product of originalProducts || []) {
+		if (!product.product_variant_id) continue
+		
+		let effectiveChange = isClientInvoice ? -product.quantity : product.quantity
+		if (originalIsReturn) {
+			effectiveChange = -effectiveChange
+		}
+		
+		const existing = netChanges.get(product.product_variant_id) || {
+			productId: product.product_id,
+			variantId: product.product_variant_id,
+			netChange: 0,
+			originalQty: product.quantity,
+			newQty: 0
+		}
+		
+		existing.netChange -= effectiveChange // Reverse the original effect
+		netChanges.set(product.product_variant_id, existing)
+	}
+
+	// Process new products (add their effect)
+	for (const product of newProducts || []) {
+		if (!product.product_variant_id) continue
+		
+		let effectiveChange = isClientInvoice ? -product.quantity : product.quantity
+		if (newIsReturn) {
+			effectiveChange = -effectiveChange
+		}
+		
+		const existing = netChanges.get(product.product_variant_id) || {
+			productId: product.product_id,
+			variantId: product.product_variant_id,
+			netChange: 0,
+			originalQty: 0,
+			newQty: product.quantity
+		}
+		
+		existing.netChange += effectiveChange // Add the new effect
+		existing.newQty = product.quantity
+		existing.productId = product.product_id
+		netChanges.set(product.product_variant_id, existing)
+	}
+
+	// Apply net changes
+	for (const [variantId, change] of netChanges) {
+		if (change.netChange === 0) continue // Skip if no net change
+		
+		try {
+			// Build descriptive note
+			let note = ''
+			if (change.originalQty !== change.newQty) {
+				note = `Invoice update - quantity changed from ${change.originalQty} to ${change.newQty}`
+			} else {
+				note = `Invoice update - inventory adjustment`
+			}
+			
+			await productFunctions.updateProductVariantQuantity(
+				variantId,
+				change.netChange,
+				'client_invoice',
+				invoiceId.toString(),
+				note
+			)
+		} catch (error: any) {
+			const parentProduct = SafeDataAccess.getProduct(products, change.productId)
+			const productName = parentProduct?.name || 'Unknown Product'
+			console.error(`Error updating product ${productName} quantity:`, error)
+		}
+	}
+}
+
 	const handleCreateInvoice = async () => {
 		const isUpdate = Boolean(newInvoice.id)
 		updateLoadingState(
@@ -736,30 +825,25 @@ const InvoicesPage: React.FC = () => {
 
 				if (updateError) throw updateError
 
-				await updateProductQuantities(
-					originalInvoiceData.products,
-					isClientInvoice,
-					originalInvoiceData.type === 'return',
-					true,
-					newInvoice.id
-				)
-				await updateProductQuantities(
-					newInvoice.products || [],
-					isClientInvoice,
-					newInvoice.type === 'return',
-					false,
-					newInvoice.id
-				)
+	await updateProductQuantitiesWithNetChange(
+		originalInvoiceData.products || [],
+		newInvoice.products || [],
+		isClientInvoice,
+		originalInvoiceData.type === 'return',
+		newInvoice.type === 'return',
+		newInvoice.id
+	)
 
-				const oldAmount = originalInvoiceData.total_price || 0
-				const balanceChange = finalTotalPrice - oldAmount
-				await updateEntityBalance(balanceChange, entityId)
+	const oldAmount = originalInvoiceData.total_price || 0
+	const balanceChange = finalTotalPrice - oldAmount
+	await updateEntityBalance(balanceChange, entityId)
 
-				toast.success('Invoice updated successfully')
-				setShowModal(false)
-				resetInvoiceState()
-				window.location.reload()
-				return
+	toast.success('Invoice updated successfully')
+	setShowModal(false)
+	resetInvoiceState()
+	window.location.reload()
+	return
+
 			}
 
 			const { data: createdInvoice, error: createError } = await supabase
@@ -820,16 +904,16 @@ const InvoicesPage: React.FC = () => {
 
 				// Enhanced tracking with new product history system
 				await productFunctions.updateProductVariantQuantity(
-					product.product_variant_id,
-					quantityChange,
-					isClientInvoice ? 'client_invoice' : 'client_invoice', // Updated source type for new system
-					invoiceId.toString(),
-					isReturnInvoice
-						? 'Return invoice - inventory adjustment'
-						: isReversal
-							? 'Invoice reversal - inventory adjustment'
-							: 'Invoice created - inventory adjustment'
-				)
+    product.product_variant_id,
+    quantityChange,
+    isClientInvoice ? 'client_invoice' : 'supplier_invoice', // FIXED: Correctly use 'supplier_invoice' for suppliers
+    invoiceId.toString(),
+    isReturnInvoice
+        ? 'Return invoice - inventory adjustment'
+        : isReversal
+            ? 'Invoice reversal - inventory adjustment'
+            : 'Invoice created - inventory adjustment'
+)
 			} catch (error: any) {
 				const parentProduct = SafeDataAccess.getProduct(products, product.product_id)
 				const productName = parentProduct?.name || 'Unknown Product'

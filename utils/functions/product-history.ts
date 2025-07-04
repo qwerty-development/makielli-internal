@@ -10,7 +10,7 @@ export interface ProductHistoryEntry {
   old_value?: string | number
   new_value?: string | number
   quantity_change?: number
-  source_type: 'manual' | 'invoice' | 'order' | 'return' | 'adjustment' | 'import' | 'system'
+  source_type: 'manual' | 'invoice' | 'order' | 'return' | 'adjustment' | 'import' | 'system' | 'client_invoice' | 'supplier_invoice' | 'quotation'
   source_id?: string
   source_reference?: string // e.g., "Invoice #123", "Order #456"
   user_id?: string
@@ -66,14 +66,17 @@ export const analyticsFunctions = {
         .from('ProductHistory')
         .insert(historyEntry)
 
-      if (error) throw error
+      if (error) {
+        console.error('Error inserting product history:', error)
+        throw error
+      }
     } catch (error) {
       console.error('Error recording product change:', error)
       // Don't throw - we don't want history tracking to break the main operation
     }
   },
 
-  // Simplified function for inventory changes
+  // Simplified function for inventory changes - NOW EXPORTED
   async recordInventoryChange(
     productId: string,
     variantId: string,
@@ -82,27 +85,36 @@ export const analyticsFunctions = {
     sourceId: string = '',
     notes: string = ''
   ): Promise<void> {
-    // Get current quantity for the variant
-    const { data: variant } = await supabase
-      .from('ProductVariants')
-      .select('quantity')
-      .eq('id', variantId)
-      .single()
+    try {
+      // Get current quantity for the variant
+      const { data: variant, error: variantError } = await supabase
+        .from('ProductVariants')
+        .select('quantity')
+        .eq('id', variantId)
+        .single()
 
-    const currentQty = variant?.quantity || 0
-    const newQty = currentQty + quantityChange
+      if (variantError) {
+        console.error('Error fetching variant:', variantError)
+        throw variantError
+      }
 
-    await this.recordProductChange({
-      productId,
-      variantId,
-      changeType: 'inventory',
-      quantityChange,
-      oldValue: currentQty,
-      newValue: newQty,
-      sourceType,
-      sourceId,
-      notes
-    })
+      const currentQty = variant?.quantity || 0
+      const newQty = currentQty + quantityChange
+
+      await this.recordProductChange({
+        productId,
+        variantId,
+        changeType: 'inventory',
+        quantityChange,
+        oldValue: currentQty,
+        newValue: newQty,
+        sourceType,
+        sourceId,
+        notes
+      })
+    } catch (error) {
+      console.error('Error in recordInventoryChange:', error)
+    }
   },
 
   // Get product history with better organization
