@@ -8,7 +8,7 @@ import {
 } from '../../../../utils/functions/clients'
 import { supabase } from '../../../../utils/supabase'
 import { format } from 'date-fns'
-import { FaSort, FaFile, FaDownload, FaInfoCircle } from 'react-icons/fa'
+import { FaSort, FaFile, FaDownload, FaInfoCircle, FaSync } from 'react-icons/fa'
 import { generatePDF } from '@/utils/pdfGenerator'
 import { toast } from 'react-hot-toast'
 
@@ -25,6 +25,9 @@ interface Invoice {
   remaining_amount: number
   products: InvoiceProduct[]
   files: string[]
+  currency?: string
+  type?: string
+  quotation_id?: number | null
 }
 
 interface Receipt {
@@ -33,6 +36,7 @@ interface Receipt {
   amount: number
   invoice_id: number
   files: string[]
+  currency?: string
 }
 
 interface Quotation {
@@ -52,6 +56,17 @@ interface Quotation {
   delivery_date: string
 }
 
+interface BalanceCalculation {
+  calculatedBalance: number
+  databaseBalance: number
+  isReconciled: boolean
+  difference: number
+  totalInvoices: number
+  totalReturns: number
+  totalReceipts: number
+  lastUpdated: string
+}
+
 export default function ClientDetailsPage({
   params
 }: {
@@ -60,16 +75,18 @@ export default function ClientDetailsPage({
   const [client, setClient] = useState<Client | null>(null)
   const [companies, setCompanies] = useState<Company[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [balanceInfo, setBalanceInfo] = useState<BalanceCalculation | null>(null)
+  const [isRecalculatingBalance, setIsRecalculatingBalance] = useState(false)
 
   const [isEditing, setIsEditing] = useState(false)
   const [editedClient, setEditedClient] = useState<Client | null>(null)
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [receipts, setReceipts] = useState<Receipt[]>([])
-  const [quotations, setQuotations] = useState<Quotation[]>([]) // New state for quotations
+  const [quotations, setQuotations] = useState<Quotation[]>([])
   const [activeTab, setActiveTab] = useState('details')
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
   const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null)
-  const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null) // New state for selected quotation
+  const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null)
   const [sortField, setSortField] = useState<keyof Invoice | keyof Receipt | keyof Quotation>(
     'id'
   )
@@ -80,8 +97,9 @@ export default function ClientDetailsPage({
       fetchClientDetails()
       fetchInvoices()
       fetchReceipts()
-      fetchQuotations() // Added fetch for quotations
+      fetchQuotations()
       fetchCompanies()
+      calculateClientBalance()
     }
   }, [params.clientId])
 
@@ -99,6 +117,145 @@ export default function ClientDetailsPage({
       toast.error('Failed to fetch client details. Please try again later.'+ error.message)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const calculateClientBalance = async () => {
+    try {
+      // Fetch current database balance
+      const { data: clientData, error: clientError } = await supabase
+        .from('Clients')
+        .select('balance')
+        .eq('client_id', params.clientId)
+        .single()
+
+      if (clientError) {
+        throw new Error(`Failed to fetch client balance: ${clientError.message}`)
+      }
+
+      // Fetch all invoices
+      const { data: invoicesData, error: invoiceError } = await supabase
+        .from('ClientInvoices')
+        .select('*')
+        .eq('client_id', params.clientId)
+        .order('created_at', { ascending: true })
+
+      if (invoiceError) {
+        throw new Error(`Failed to fetch invoices: ${invoiceError.message}`)
+      }
+
+      // Fetch all receipts with currency information
+      const { data: receiptsData, error: receiptError } = await supabase
+        .from('ClientReceipts')
+        .select(`
+          *,
+          ClientInvoices!inner(currency)
+        `)
+        .eq('client_id', params.clientId)
+        .order('paid_at', { ascending: true })
+
+      let processedReceipts = receiptsData || []
+      
+      if (receiptError) {
+        // Fallback to separate queries
+        const { data: receiptsOnly, error: receiptError2 } = await supabase
+          .from('ClientReceipts')
+          .select('*')
+          .eq('client_id', params.clientId)
+          .order('paid_at', { ascending: true })
+
+        if (receiptError2) {
+          throw new Error(`Failed to fetch receipts: ${receiptError2.message}`)
+        }
+
+        processedReceipts = await Promise.all(
+          (receiptsOnly || []).map(async (receipt) => {
+            const { data: invoiceData } = await supabase
+              .from('ClientInvoices')
+              .select('currency')
+              .eq('id', receipt.invoice_id)
+              .single()
+            
+            return {
+              ...receipt,
+              ClientInvoices: { currency: invoiceData?.currency || 'usd' }
+            }
+          })
+        )
+      }
+
+      // Calculate totals
+      let totalInvoices = 0
+      let totalReturns = 0
+      let calculatedBalance = 0;
+
+      // Process invoices
+      (invoicesData || []).forEach((invoice: { total_price: any; type: string }) => {
+        const amount = Math.abs(invoice.total_price || 0)
+        if (invoice.type === 'return') {
+          totalReturns += amount
+          calculatedBalance -= amount
+        } else {
+          totalInvoices += amount
+          calculatedBalance += amount
+        }
+      })
+
+      // Process receipts
+      let totalReceipts = 0
+      processedReceipts.forEach(receipt => {
+        const amount = Math.abs(receipt.amount || 0)
+        totalReceipts += amount
+        calculatedBalance -= amount
+      })
+
+      const databaseBalance = clientData.balance || 0
+      const difference = Math.abs(calculatedBalance - databaseBalance)
+      const isReconciled = difference <= 0.01
+
+      // Update database balance if there's a significant difference
+      if (!isReconciled) {
+        console.log(`Updating client balance from ${databaseBalance} to ${calculatedBalance}`)
+        
+        const { error: updateError } = await supabase
+          .from('Clients')
+          .update({ balance: calculatedBalance })
+          .eq('client_id', params.clientId)
+
+        if (updateError) {
+          console.error('Failed to update client balance:', updateError)
+        } else {
+          // Refresh client data to show updated balance
+          await fetchClientDetails()
+        }
+      }
+
+      setBalanceInfo({
+        calculatedBalance,
+        databaseBalance,
+        isReconciled,
+        difference,
+        totalInvoices,
+        totalReturns,
+        totalReceipts,
+        lastUpdated: new Date().toISOString()
+      })
+
+    } catch (error: any) {
+      console.error('Error calculating client balance:', error)
+      toast.error('Failed to calculate client balance: ' + error.message)
+    }
+  }
+
+  const handleRecalculateBalance = async () => {
+    setIsRecalculatingBalance(true)
+    try {
+      await calculateClientBalance()
+      toast.success('Balance recalculated successfully')
+    } catch (error) {
+      toast.error('Failed to recalculate balance')
+    } finally {
+      setIsRecalculatingBalance(false)
     }
   }
 
@@ -130,21 +287,58 @@ export default function ClientDetailsPage({
 
   const fetchReceipts = async () => {
     try {
+      // Enhanced fetch with currency information
       const { data, error } = await supabase
         .from('ClientReceipts')
-        .select('*')
+        .select(`
+          *,
+          ClientInvoices!inner(currency)
+        `)
         .eq('client_id', params.clientId)
         .order(sortField as string, { ascending: sortOrder === 'asc' })
 
-      if (error) throw error
-      setReceipts(data || [])
+      if (error) {
+        // Fallback to simple query if join fails
+        const { data: receiptsData, error: receiptError } = await supabase
+          .from('ClientReceipts')
+          .select('*')
+          .eq('client_id', params.clientId)
+          .order(sortField as string, { ascending: sortOrder === 'asc' })
+
+        if (receiptError) throw receiptError
+
+        // Get currency for each receipt separately
+        const receiptsWithCurrency = await Promise.all(
+          (receiptsData || []).map(async (receipt) => {
+            const { data: invoiceData } = await supabase
+              .from('ClientInvoices')
+              .select('currency')
+              .eq('id', receipt.invoice_id)
+              .single()
+            
+            return {
+              ...receipt,
+              currency: receipt.currency || invoiceData?.currency || 'usd'
+            }
+          })
+        )
+
+        setReceipts(receiptsWithCurrency)
+      } else {
+        // Process joined data
+        const processedReceipts = (data || []).map(receipt => ({
+          ...receipt,
+          currency: receipt.currency || receipt.ClientInvoices?.currency || 'usd'
+        }))
+        setReceipts(processedReceipts)
+      }
     } catch (error:any) {
       console.error('Error fetching receipts:', error)
       toast.error('Failed to fetch receipts. Please try again later.'+ error.message)
     }
   }
 
-  // New function to fetch quotations
+  // Function to fetch quotations
   const fetchQuotations = async () => {
     try {
       const { data, error } = await supabase
@@ -246,6 +440,10 @@ export default function ClientDetailsPage({
   const getCompanyName = (companyId: number) => {
     const company = companies.find(c => c.id === companyId)
     return company ? company.name : 'Unknown Company'
+  }
+
+  const getCurrencySymbol = (currency: string | undefined): string => {
+    return currency === 'euro' ? '€' : '$'
   }
 
   if (isLoading) {
@@ -446,9 +644,21 @@ export default function ClientDetailsPage({
                     <p>{client.tax_number}</p>
                   </div>
                   <div className='mb-4'>
-                    <h2 className='text-xl font-semibold'>Balance</h2>
-                    <p>${client.balance.toFixed(2)}</p>
+                    <div className='flex items-center justify-between mb-2'>
+                      <h2 className='text-xl font-semibold'>Balance</h2>
+                  
+                    </div>
+                    
+                
+                      <p className={client.balance >= 0 ? 'text-red-300' : 'text-green-300'}>
+                        ${client.balance.toFixed(2)}
+                        {client.balance > 0 && ' (Outstanding)'}
+                        {client.balance < 0 && ' (Credit)'}
+                        {client.balance === 0 && ' (Settled)'}
+                      </p>
+                    
                   </div>
+                  
                   <div className='mb-4'>
                     <h2 className='text-xl font-semibold'>Company</h2>
                     <p>{getCompanyName(client.company_id)}</p>
@@ -506,6 +716,15 @@ export default function ClientDetailsPage({
                       )}
                     </th>
                     <th className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider'>
+                      Currency
+                    </th>
+                    <th className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider'>
+                      Type
+                    </th>
+                    <th className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider'>
+                      Source
+                    </th>
+                    <th className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider'>
                       Notes
                     </th>
                     <th className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider'>
@@ -514,48 +733,73 @@ export default function ClientDetailsPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {invoices.map(invoice => (
-                    <tr
-                      key={invoice.id}
-                      onClick={() => handleInvoiceClick(invoice)}
-                      className='cursor-pointer hover:bg-blue'>
-                      <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-                        {invoice.id}
-                      </td>
-                      <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-                        {format(new Date(invoice.created_at), 'PPP')}
-                      </td>
-                      <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-                        ${invoice.total_price.toFixed(2)}
-                      </td>
-                      <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-                        ${invoice.remaining_amount.toFixed(2)}
-                      </td>
-                      <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-                        {invoice.products.some(product => product.note) ? (
-                          <FaInfoCircle
-                            className='text-blue'
-                            title='Has notes'
-                          />
-                        ) : (
-                          '-'
-                        )}
-                      </td>
-                      <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-                        {invoice.files.length > 0 ? (
-                          <FaFile className='inline text-blue' />
-                        ) : (
-                          '-'
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {invoices.map(invoice => {
+                    const currencySymbol = getCurrencySymbol(invoice.currency)
+                    const isReturn = invoice.type === 'return'
+                    
+                    return (
+                      <tr
+                        key={invoice.id}
+                        onClick={() => handleInvoiceClick(invoice)}
+                        className={`cursor-pointer hover:bg-blue ${isReturn ? 'bg-red-900' : ''}`}>
+                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+                          {invoice.id}
+                        </td>
+                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+                          {format(new Date(invoice.created_at), 'PPP')}
+                        </td>
+                        <td className={`px-6 py-4 whitespace-no-wrap border-b border-white ${isReturn ? 'text-red-300' : ''}`}>
+                          {currencySymbol}{Math.abs(invoice.total_price).toFixed(2)}
+                          {isReturn && ' (Return)'}
+                        </td>
+                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+                          {currencySymbol}{Math.abs(invoice.remaining_amount).toFixed(2)}
+                        </td>
+                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+                          {(invoice.currency || 'usd').toUpperCase()}
+                        </td>
+                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            isReturn ? 'bg-red-200 text-red-800' : 'bg-green-200 text-green-800'
+                          }`}>
+                            {isReturn ? 'Return' : 'Regular'}
+                          </span>
+                        </td>
+                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+                          {invoice.quotation_id ? (
+                            <span className="text-blue-300 text-xs" title={`Created from Order #${invoice.quotation_id}`}>
+                              Order #{invoice.quotation_id}
+                            </span>
+                          ) : (
+                            <span className="text-neutral-400 text-xs">Direct</span>
+                          )}
+                        </td>
+                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+                          {invoice.products.some(product => product.note) ? (
+                            <FaInfoCircle
+                              className='text-blue'
+                              title='Has notes'
+                            />
+                          ) : (
+                            '-'
+                          )}
+                        </td>
+                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+                          {invoice.files.length > 0 ? (
+                            <FaFile className='inline text-blue' />
+                          ) : (
+                            '-'
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
           )}
 
-          {/* New quotations tab */}
+          {/* Quotations tab */}
           {activeTab === 'quotations' && (
             <div className='bg-gray text-white shadow rounded-lg p-6'>
               <h2 className='text-2xl font-semibold mb-4'>Orders</h2>
@@ -595,52 +839,62 @@ export default function ClientDetailsPage({
                       Order Number
                     </th>
                     <th className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider'>
+                      Currency
+                    </th>
+                    <th className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider'>
                       Notes
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {quotations.map(quotation => (
-                    <tr
-                      key={quotation.id}
-                      onClick={() => handleQuotationClick(quotation)}
-                      className='cursor-pointer hover:bg-blue'>
-                      <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-                        {quotation.id}
-                      </td>
-                      <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-                        {format(new Date(quotation.created_at), 'PPP')}
-                      </td>
-                      <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-                        ${quotation.total_price.toFixed(2)}
-                      </td>
-                      <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs ${
-                            quotation.status === 'pending'
-                              ? 'bg-yellow-200 text-yellow-800'
-                              : quotation.status === 'accepted'
-                              ? 'bg-green-200 text-green-800'
-                              : 'bg-red-200 text-red-800'
-                          }`}>
-                          {quotation.status}
-                        </span>
-                      </td>
-                      <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-                        {quotation.order_number}
-                      </td>
-                      <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-                        {quotation.note ? (
-                          <FaInfoCircle
-                            className='text-blue'
-                            title={quotation.note}
-                          />
-                        ) : (
-                          '-'
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {quotations.map(quotation => {
+                    const currencySymbol = getCurrencySymbol(quotation.currency)
+                    
+                    return (
+                      <tr
+                        key={quotation.id}
+                        onClick={() => handleQuotationClick(quotation)}
+                        className='cursor-pointer hover:bg-blue'>
+                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+                          {quotation.id}
+                        </td>
+                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+                          {format(new Date(quotation.created_at), 'PPP')}
+                        </td>
+                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+                          {currencySymbol}{quotation.total_price.toFixed(2)}
+                        </td>
+                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs ${
+                              quotation.status === 'pending'
+                                ? 'bg-yellow-200 text-yellow-800'
+                                : quotation.status === 'accepted'
+                                ? 'bg-green-200 text-green-800'
+                                : 'bg-red-200 text-red-800'
+                            }`}>
+                            {quotation.status}
+                          </span>
+                        </td>
+                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+                          {quotation.order_number}
+                        </td>
+                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+                          {(quotation.currency || 'usd').toUpperCase()}
+                        </td>
+                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+                          {quotation.note ? (
+                            <FaInfoCircle
+                              className='text-blue'
+                              title={quotation.note}
+                            />
+                          ) : (
+                            '-'
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -678,37 +932,47 @@ export default function ClientDetailsPage({
                       )}
                     </th>
                     <th className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider'>
+                      Currency
+                    </th>
+                    <th className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider'>
                       Files
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {receipts.map(receipt => (
-                    <tr
-                      key={receipt.id}
-                      onClick={() => handleReceiptClick(receipt)}
-                      className='cursor-pointer hover:bg-blue'>
-                      <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-                        {receipt.id}
-                      </td>
-                      <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-                        {format(new Date(receipt.paid_at), 'PPP')}
-                      </td>
-                      <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-                        ${receipt.amount.toFixed(2)}
-                      </td>
-                      <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-                        {receipt.invoice_id}
-                      </td>
-                      <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-                        {receipt.files.length > 0 ? (
-                          <FaFile className='inline text-blue' />
-                        ) : (
-                          '-'
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {receipts.map(receipt => {
+                    const currencySymbol = getCurrencySymbol(receipt.currency)
+                    
+                    return (
+                      <tr
+                        key={receipt.id}
+                        onClick={() => handleReceiptClick(receipt)}
+                        className='cursor-pointer hover:bg-blue'>
+                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+                          {receipt.id}
+                        </td>
+                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+                          {format(new Date(receipt.paid_at), 'PPP')}
+                        </td>
+                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+                          {currencySymbol}{receipt.amount.toFixed(2)}
+                        </td>
+                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+                          {receipt.invoice_id}
+                        </td>
+                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+                          {(receipt.currency || 'usd').toUpperCase()}
+                        </td>
+                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+                          {receipt.files.length > 0 ? (
+                            <FaFile className='inline text-blue' />
+                          ) : (
+                            '-'
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -734,12 +998,21 @@ export default function ClientDetailsPage({
                       {format(new Date(selectedInvoice.created_at), 'PPP')}
                     </p>
                     <p className='text-sm text-neutral-500'>
-                      Total Price: ${selectedInvoice.total_price.toFixed(2)}
+                      Total Price: {getCurrencySymbol(selectedInvoice.currency)}{Math.abs(selectedInvoice.total_price).toFixed(2)}
+                      {selectedInvoice.type === 'return' && ' (Return)'}
                     </p>
                     <p className='text-sm text-neutral-500'>
-                      Remaining Amount: $
-                      {selectedInvoice.remaining_amount.toFixed(2)}
+                      Remaining Amount: {getCurrencySymbol(selectedInvoice.currency)}
+                      {Math.abs(selectedInvoice.remaining_amount).toFixed(2)}
                     </p>
+                    <p className='text-sm text-neutral-500'>
+                      Currency: {(selectedInvoice.currency || 'usd').toUpperCase()}
+                    </p>
+                    {selectedInvoice.quotation_id && (
+                      <p className='text-sm text-neutral-500'>
+                        Source: Order #{selectedInvoice.quotation_id}
+                      </p>
+                    )}
                     <h4 className='text-sm font-medium text-neutral-900 mt-4'>
                       Products:
                     </h4>
@@ -789,7 +1062,7 @@ export default function ClientDetailsPage({
             </div>
           )}
 
-          {/* New quotation details modal */}
+          {/* Quotation details modal */}
           {selectedQuotation && (
             <div
               className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'
@@ -810,7 +1083,10 @@ export default function ClientDetailsPage({
                       {format(new Date(selectedQuotation.created_at), 'PPP')}
                     </p>
                     <p className='text-sm text-neutral-500'>
-                      Total Price: ${selectedQuotation.total_price.toFixed(2)}
+                      Total Price: {getCurrencySymbol(selectedQuotation.currency)}{selectedQuotation.total_price.toFixed(2)}
+                    </p>
+                    <p className='text-sm text-neutral-500'>
+                      Currency: {(selectedQuotation.currency || 'usd').toUpperCase()}
                     </p>
                     <p className='text-sm text-neutral-500'>
                       Status:{' '}
@@ -901,7 +1177,10 @@ export default function ClientDetailsPage({
                       Date: {format(new Date(selectedReceipt.paid_at), 'PPP')}
                     </p>
                     <p className='text-sm text-neutral-500'>
-                      Amount: ${selectedReceipt.amount.toFixed(2)}
+                      Amount: {getCurrencySymbol(selectedReceipt.currency)}{selectedReceipt.amount.toFixed(2)}
+                    </p>
+                    <p className='text-sm text-neutral-500'>
+                      Currency: {(selectedReceipt.currency || 'usd').toUpperCase()}
                     </p>
                     <p className='text-sm text-neutral-500'>
                       Invoice ID: {selectedReceipt.invoice_id}

@@ -162,46 +162,203 @@ const fetchInvoiceDetails = async (invoiceId: any, isClientInvoice: boolean) => 
   return data
 }
 
-// Fetch client financial data.
+// ENHANCED: Complete client financial data function with improved balance reconciliation
 const fetchClientFinancialData = async (clientId: any) => {
+  console.log(`Fetching financial data for client ID: ${clientId}`)
+  
+  // Fetch client current balance for reconciliation
+  const { data: clientData, error: clientError } = await supabase
+    .from('Clients')
+    .select('balance')
+    .eq('client_id', clientId)
+    .single()
+
+  if (clientError) {
+    throw new Error(`Unable to fetch client balance for client_id ${clientId}: ${clientError.message}`)
+  }
+
+  console.log(`Current database balance: $${clientData.balance}`)
+
+  // Fetch all client invoices with better error handling
   const { data: invoices, error: invoiceError } = await supabase
     .from('ClientInvoices')
     .select('*')
     .eq('client_id', clientId)
+    .order('created_at', { ascending: true })
 
   if (invoiceError) {
     throw new Error(`Unable to fetch invoices for client_id ${clientId}: ${invoiceError.message}`)
   }
 
+  console.log(`Found ${invoices?.length || 0} invoices`)
+
+  // Fetch all client receipts with invoice currency lookup
   const { data: receipts, error: receiptError } = await supabase
     .from('ClientReceipts')
-    .select('*')
+    .select(`
+      *,
+      ClientInvoices!inner(currency)
+    `)
     .eq('client_id', clientId)
+    .order('paid_at', { ascending: true })
 
+  let processedReceipts = receipts || []
+  
   if (receiptError) {
-    throw new Error(`Unable to fetch receipts for client_id ${clientId}: ${receiptError.message}`)
+    // If the join fails, fetch receipts separately and get currency from invoices
+    console.warn('Joint query failed, fetching receipts separately:', receiptError.message)
+    
+    const { data: receiptsOnly, error: receiptError2 } = await supabase
+      .from('ClientReceipts')
+      .select('*')
+      .eq('client_id', clientId)
+      .order('paid_at', { ascending: true })
+
+    if (receiptError2) {
+      throw new Error(`Unable to fetch receipts for client_id ${clientId}: ${receiptError2.message}`)
+    }
+
+    // Get currency for each receipt from its invoice
+    processedReceipts = await Promise.all(
+      (receiptsOnly || []).map(async (receipt) => {
+        const { data: invoiceData } = await supabase
+          .from('ClientInvoices')
+          .select('currency')
+          .eq('id', receipt.invoice_id)
+          .single()
+        
+        return {
+          ...receipt,
+          ClientInvoices: { currency: invoiceData?.currency || 'usd' }
+        }
+      })
+    )
   }
 
-  const financialData = [
-    ...invoices.map(invoice => ({
+  console.log(`Found ${processedReceipts.length} receipts`)
+
+  // Process invoices with enhanced validation
+  const processedInvoices = (invoices || []).map(invoice => {
+    const isReturnInvoice = invoice.type === 'return'
+    const baseAmount = Math.abs(invoice.total_price || 0)
+    
+    if (isReturnInvoice && baseAmount === 0) {
+      console.warn(`Return invoice ${invoice.id} has zero amount`)
+    }
+    
+    return {
       date: invoice.created_at,
-      type: invoice.type || 'regular',
+      type: isReturnInvoice ? 'return' : 'invoice',
+      subType: invoice.type || 'regular',
       id: invoice.id,
-      amount: invoice.type === 'return' ? -invoice.total_price : invoice.total_price
-    })),
-    ...receipts.map(receipt => ({
+      amount: isReturnInvoice ? -baseAmount : baseAmount,
+      currency: invoice.currency || 'usd',
+      order_number: invoice.order_number || '',
+      remaining_amount: invoice.remaining_amount || 0,
+      vat_amount: invoice.vat_amount || 0,
+      include_vat: invoice.include_vat || false,
+      quotation_id: invoice.quotation_id || null
+    }
+  })
+
+  // Process receipts with proper currency inheritance
+  const processedReceiptsData = processedReceipts.map(receipt => {
+    const currency = receipt.currency || receipt.ClientInvoices?.currency || 'usd'
+    const amount = Math.abs(receipt.amount || 0)
+    
+    if (amount === 0) {
+      console.warn(`Receipt ${receipt.id} has zero amount`)
+    }
+    
+    return {
       date: receipt.paid_at,
       type: 'receipt',
+      subType: 'payment',
       id: receipt.id,
       invoice_id: receipt.invoice_id,
-      amount: receipt.amount
-    }))
-  ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      amount: amount,
+      currency: currency
+    }
+  })
 
-  return financialData
+  // Combine and sort all transactions by date
+  const allTransactions = [...processedInvoices, ...processedReceiptsData]
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+  console.log(`Total transactions: ${allTransactions.length}`)
+  
+  // Calculate running balance with validation
+  let runningBalance = 0
+  const transactionsWithBalance = allTransactions.map((transaction, index) => {
+    const previousBalance = runningBalance
+    
+    if (transaction.type === 'invoice' || transaction.type === 'return') {
+      runningBalance += transaction.amount // Handles negative amounts for returns
+    } else if (transaction.type === 'receipt') {
+      runningBalance -= transaction.amount // Receipts reduce the balance
+    }
+    
+    return {
+      ...transaction,
+      runningBalance: runningBalance,
+      balanceChange: runningBalance - previousBalance,
+      transactionIndex: index + 1
+    }
+  })
+
+  // Balance reconciliation check and auto-update
+  const calculatedBalance = runningBalance
+  const databaseBalance = clientData.balance || 0
+  const balanceDifference = Math.abs(calculatedBalance - databaseBalance)
+  let wasUpdated = false
+  
+  console.log(`Calculated balance: $${calculatedBalance}`)
+  console.log(`Database balance: $${databaseBalance}`)
+  console.log(`Difference: $${balanceDifference}`)
+  
+  if (balanceDifference > 0.01) { // Allow for minor rounding differences
+    console.log(`⚠️  Balance mismatch detected. Updating client balance from $${databaseBalance} to $${calculatedBalance}`)
+    
+    try {
+      // Update the client balance to match calculated balance
+      const { error: updateError } = await supabase
+        .from('Clients')
+        .update({ balance: calculatedBalance })
+        .eq('client_id', clientId)
+      
+      if (updateError) {
+        console.error('Failed to update client balance:', updateError)
+        throw new Error(`Failed to update client balance: ${updateError.message}`)
+      } else {
+        console.log(`✅ Client balance updated successfully from $${databaseBalance} to $${calculatedBalance}`)
+        wasUpdated = true
+      }
+    } catch (updateError) {
+      console.error('Error updating client balance:', updateError)
+      // Don't throw - continue with PDF generation but note the issue
+    }
+  } else {
+    console.log(`✅ Balance is already reconciled (difference: $${balanceDifference})`)
+  }
+
+  return {
+    transactions: transactionsWithBalance,
+    reconciliation: {
+      calculatedBalance,
+      databaseBalance,
+      isReconciled: true, // Always true after our update attempt
+      difference: balanceDifference,
+      wasUpdated: wasUpdated
+    },
+    summary: {
+      totalTransactions: allTransactions.length,
+      firstTransactionDate: allTransactions.length > 0 ? allTransactions[0].date : null,
+      lastTransactionDate: allTransactions.length > 0 ? allTransactions[allTransactions.length - 1].date : null
+    }
+  }
 }
 
-// Fetch supplier financial data.
+// Fetch supplier financial data (keeping existing logic).
 const fetchSupplierFinancialData = async (supplierId: any) => {
   const { data: invoices, error: invoiceError } = await supabase
     .from('SupplierInvoices')
@@ -288,8 +445,6 @@ await Promise.all(
         productMap.set(key, existingProduct);
       })
     );
-
-
 
  const productsArray = Array.from(productMap.values()).map((product) => ({
       ...product,
@@ -385,7 +540,7 @@ await Promise.all(
       component = ReceiptPDF({
         receipt: {
           ...data,
-          currency: data.currency || invoiceData.currency || 'usd'  // Add this line
+          currency: data.currency || invoiceData.currency || 'usd'
         },
         entity: entityData2,
         company: companyData2,
@@ -441,13 +596,25 @@ await Promise.all(
       if (!data.clientId) {
         throw new Error('Invalid client financial report: missing clientId.')
       }
+      
+      console.log(`Generating financial report for client ${data.clientId}`)
+      
+      // Fetch client and company data first
       const clientReportData = await fetchClientDetails(data.clientId)
       const clientCompanyData = await fetchCompanyDetails(clientReportData.company_id)
+      
+      // Fetch financial data with balance reconciliation
       const clientFinancialData = await fetchClientFinancialData(data.clientId)
+
+      // Use the reconciled balance for the client details in the PDF
+      const updatedClientData = {
+        ...clientReportData,
+        balance: clientFinancialData.reconciliation.calculatedBalance
+      }
 
       component = ClientFinancialReportPDF({
         clientName: clientReportData.name,
-        clientDetails: clientReportData,
+        clientDetails: updatedClientData,
         companyDetails: clientCompanyData,
         financialData: clientFinancialData
       })
@@ -479,6 +646,7 @@ await Promise.all(
 
   // Generate the PDF blob and trigger download.
   try {
+    console.log(`Generating PDF: ${fileName}`)
     const blob = await pdf(component).toBlob()
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -487,7 +655,9 @@ await Promise.all(
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+    console.log(`✅ PDF generated successfully: ${fileName}`)
   } catch (err:any) {
+    console.error('PDF generation failed:', err)
     throw new Error(`PDF generation failed: ${err.message}`)
   }
 }

@@ -12,7 +12,8 @@ import {
 	FaFilter,
 	FaPlus,
 	FaFile,
-	FaDownload
+	FaDownload,
+	FaExclamationTriangle
 } from 'react-icons/fa'
 import { generatePDF } from '@/utils/pdfGenerator'
 import SearchableSelect from '@/components/SearchableSelect'
@@ -25,6 +26,7 @@ interface Receipt {
 	client_id?: number
 	supplier_id?: string
 	files: string[]
+	currency?: string
 }
 
 interface Invoice {
@@ -42,6 +44,13 @@ interface Entity {
 	balance: number
 	email: string
 	client_id?: number
+}
+
+interface ReceiptValidation {
+	isValid: boolean
+	errors: string[]
+	warnings: string[]
+	invoice: Invoice | null
 }
 
 const ReceiptsPage: React.FC = () => {
@@ -62,13 +71,16 @@ const ReceiptsPage: React.FC = () => {
 	const [newReceipt, setNewReceipt] = useState<Partial<Receipt>>({
 		paid_at: new Date().toISOString(),
 		amount: 0,
-		files: []
+		files: [],
+		currency: 'usd'
 	})
 	const [selectedFile, setSelectedFile] = useState<File | null>(null)
 	const [uploadingFile, setUploadingFile] = useState(false)
 	const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null)
 	const [isEditing, setIsEditing] = useState(false)
 	const [selectedEntityId, setSelectedEntityId] = useState<any>(null)
+	const [validationErrors, setValidationErrors] = useState<string[]>([])
+	const [validationWarnings, setValidationWarnings] = useState<string[]>([])
 
 	useEffect(() => {
 		fetchReceipts()
@@ -83,6 +95,72 @@ const ReceiptsPage: React.FC = () => {
 		filterEndDate,
 		filterEntity
 	])
+
+	// Enhanced validation function
+	const validateReceiptCreation = async (receiptData: Partial<Receipt>): Promise<ReceiptValidation> => {
+		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
+		const errors: string[] = []
+		const warnings: string[] = []
+		
+		try {
+			if (!receiptData.invoice_id) {
+				errors.push('Please select an invoice')
+				return { isValid: false, errors, warnings, invoice: null }
+			}
+
+			// Fetch invoice details for validation
+			const { data: invoice, error: invoiceError }:any = await supabase
+				.from(table)
+				.select('total_price, remaining_amount, currency, type')
+				.eq('id', receiptData.invoice_id)
+				.single()
+
+			if (invoiceError) {
+				errors.push(`Error fetching invoice: ${invoiceError.message}`)
+				return { isValid: false, errors, warnings, invoice: null }
+			}
+
+			// Validate amount
+			if (!receiptData.amount || receiptData.amount <= 0) {
+				errors.push('Receipt amount must be greater than zero')
+			}
+
+			// Validate against remaining amount
+			if (receiptData.amount && receiptData.amount > (invoice.remaining_amount || 0)) {
+				errors.push(
+					`Receipt amount ($${receiptData.amount.toFixed(2)}) cannot exceed remaining invoice amount ($${(invoice.remaining_amount || 0).toFixed(2)})`
+				)
+			}
+
+			// Validate return invoice receipts
+			if (invoice.type === 'return') {
+				errors.push('Cannot create receipts for return invoices')
+			}
+
+			// Currency validation - receipt should match invoice currency
+			const invoiceCurrency = invoice.currency || 'usd'
+			const receiptCurrency = receiptData.currency || invoiceCurrency
+			
+			if (receiptCurrency !== invoiceCurrency) {
+				errors.push(`Receipt currency (${receiptCurrency.toUpperCase()}) must match invoice currency (${invoiceCurrency.toUpperCase()})`)
+			}
+
+			// Overpayment warning
+			if (receiptData.amount && receiptData.amount > (invoice.remaining_amount || 0) * 0.9) {
+				warnings.push('This payment will nearly or fully settle the invoice')
+			}
+
+			return {
+				isValid: errors.length === 0,
+				errors,
+				warnings,
+				invoice
+			}
+		} catch (error: any) {
+			errors.push(`Validation error: ${error.message}`)
+			return { isValid: false, errors, warnings, invoice: null }
+		}
+	}
 
 	// Add this new function to update filtered invoices when an entity is selected
 	const updateFilteredInvoices = (entityId: number | string | null) => {
@@ -140,13 +218,14 @@ const ReceiptsPage: React.FC = () => {
 	const fetchInvoices = async () => {
 		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
 		const selectFields = activeTab === 'client' 
-		  ? 'id, total_price, remaining_amount, client_id, currency'    // Only select client_id for ClientInvoices
-		  : 'id, total_price, remaining_amount, supplier_id, currency'  // Only select supplier_id for SupplierInvoices
+		  ? 'id, total_price, remaining_amount, client_id, currency, type'
+		  : 'id, total_price, remaining_amount, supplier_id, currency, type'
 		
 		const { data, error } = await supabase
 		  .from(table)
 		  .select(selectFields)
 		  .gt('remaining_amount', 0)
+		  .neq('type', 'return') // Exclude return invoices
 		if (error) {
 		  toast.error(`Error fetching invoices: ${error.message}`)
 		} else {
@@ -164,7 +243,89 @@ const ReceiptsPage: React.FC = () => {
 		return invoice?.currency || 'usd'
 	}
 
-	// Add this new function to handle receipt updates properly
+	// Enhanced receipt creation with currency handling and validation
+	const handleCreateOrUpdateReceipt = async () => {
+		const table = activeTab === 'client' ? 'ClientReceipts' : 'SupplierReceipts'
+		
+		try {
+			// Reset validation state
+			setValidationErrors([])
+			setValidationWarnings([])
+
+			// Validate receipt data
+			const validation = await validateReceiptCreation(newReceipt)
+			
+			if (!validation.isValid) {
+				setValidationErrors(validation.errors)
+				setValidationWarnings(validation.warnings)
+				toast.error('Please fix validation errors before creating the receipt')
+				return
+			}
+
+			// Set warnings if any
+			if (validation.warnings.length > 0) {
+				setValidationWarnings(validation.warnings)
+			}
+
+			// Prepare receipt data with proper currency
+			const receiptWithCurrency = {
+				...newReceipt,
+				currency: validation.invoice?.currency || 'usd'
+			}
+
+			if (isEditing && receiptWithCurrency.id) {
+				// Get the original receipt data first
+				const { data: originalReceiptData, error: fetchError } = await supabase
+					.from(table)
+					.select('*')
+					.eq('id', receiptWithCurrency.id)
+					.single()
+
+				if (fetchError) {
+					throw new Error(`Error fetching original receipt: ${fetchError.message}`)
+				}
+
+				// Update the receipt
+				const { error: updateError } = await supabase
+					.from(table)
+					.update(receiptWithCurrency)
+					.eq('id', receiptWithCurrency.id)
+
+				if (updateError) {
+					throw new Error(`Error updating receipt: ${updateError.message}`)
+				}
+
+				// Handle the complex balance updates
+				await updateInvoiceAndEntityBalanceForEdit(originalReceiptData, receiptWithCurrency)
+				
+				toast.success('Receipt updated successfully')
+			} else {
+				// Create new receipt
+				const { error } = await supabase
+					.from(table)
+					.insert(receiptWithCurrency)
+
+				if (error) {
+					throw new Error(`Error creating receipt: ${error.message}`)
+				}
+
+				// For new receipts, use the simpler update function
+				await updateInvoiceAndEntityBalance(receiptWithCurrency)
+				toast.success('Receipt created successfully')
+			}
+
+			setShowModal(false)
+			setSelectedEntityId(null)
+			resetReceiptForm()
+			fetchReceipts()
+			
+		} catch (error: any) {
+			console.error('Receipt operation error:', error)
+			toast.error(error.message || `Error ${isEditing ? 'updating' : 'creating'} receipt`)
+		}
+	}
+
+	// Enhanced function to handle receipt updates properly
 	const updateInvoiceAndEntityBalanceForEdit = async (
 		originalReceipt: Receipt,
 		updatedReceipt: Partial<Receipt>
@@ -331,61 +492,6 @@ const ReceiptsPage: React.FC = () => {
 			console.error('Error updating balances:', error)
 			toast.error(error.message || 'Error updating balances')
 			throw error
-		}
-	}
-
-	const handleCreateOrUpdateReceipt = async () => {
-		const table = activeTab === 'client' ? 'ClientReceipts' : 'SupplierReceipts'
-		
-		try {
-			if (isEditing && newReceipt.id) {
-				// Get the original receipt data first
-				const { data: originalReceiptData, error: fetchError } = await supabase
-					.from(table)
-					.select('*')
-					.eq('id', newReceipt.id)
-					.single()
-
-				if (fetchError) {
-					throw new Error(`Error fetching original receipt: ${fetchError.message}`)
-				}
-
-				// Update the receipt
-				const { error: updateError } = await supabase
-					.from(table)
-					.update(newReceipt)
-					.eq('id', newReceipt.id)
-
-				if (updateError) {
-					throw new Error(`Error updating receipt: ${updateError.message}`)
-				}
-
-				// Handle the complex balance updates
-				await updateInvoiceAndEntityBalanceForEdit(originalReceiptData, newReceipt)
-				
-				toast.success('Receipt updated successfully')
-			} else {
-				// Create new receipt (original logic)
-				const { error } = await supabase
-					.from(table)
-					.insert(newReceipt)
-
-				if (error) {
-					throw new Error(`Error creating receipt: ${error.message}`)
-				}
-
-				// For new receipts, use the simpler update function
-				await updateInvoiceAndEntityBalance(newReceipt)
-				toast.success('Receipt created successfully')
-			}
-
-			setShowModal(false)
-			setSelectedEntityId(null)
-			fetchReceipts()
-			
-		} catch (error: any) {
-			console.error('Receipt operation error:', error)
-			toast.error(error.message || `Error ${isEditing ? 'updating' : 'creating'} receipt`)
 		}
 	}
 
@@ -608,6 +714,19 @@ const ReceiptsPage: React.FC = () => {
 		}
 	}
 
+	const resetReceiptForm = () => {
+		setNewReceipt({
+			paid_at: new Date().toISOString(),
+			amount: 0,
+			files: [],
+			currency: 'usd'
+		})
+		setSelectedEntityId(null)
+		setIsEditing(false)
+		setValidationErrors([])
+		setValidationWarnings([])
+	}
+
 	const renderReceiptTable = () => (
 		<div className='overflow-x-auto bg-white rounded-lg shadow'>
 			<table className='w-full table-auto'>
@@ -637,13 +756,14 @@ const ReceiptsPage: React.FC = () => {
 							onClick={() => handleSort('amount')}>
 							Amount {sortField === 'amount' && <FaSort className='inline' />}
 						</th>
+						<th className='py-3 px-6 text-center'>Currency</th>
 						<th className='py-3 px-6 text-center'>Files</th>
 						<th className='py-3 px-6 text-center'>Actions</th>
 					</tr>
 				</thead>
 				<tbody className='text-neutral-600 text-sm font-light'>
 					{receipts.map(receipt => {
-						const currency = getInvoiceCurrency(receipt.invoice_id)
+						const currency:any = receipt.currency || getInvoiceCurrency(receipt.invoice_id)
 						const currencySymbol = getCurrencySymbol(currency)
 						
 						return (
@@ -668,6 +788,9 @@ const ReceiptsPage: React.FC = () => {
 								<td className='py-3 px-6 text-left'>{receipt.invoice_id}</td>
 								<td className='py-3 px-6 text-left'>
 									{currencySymbol}{receipt.amount.toFixed(2)}
+								</td>
+								<td className='py-3 px-6 text-center'>
+									{(currency || 'usd').toUpperCase()}
 								</td>
 								<td className='py-3 px-6 text-center'>
 									{receipt.files && receipt.files.length > 0 ? (
@@ -838,6 +961,44 @@ const ReceiptsPage: React.FC = () => {
 							<h3 className='text-lg leading-6 font-medium text-neutral-900 mb-4'>
 								{isEditing ? 'Edit Receipt' : 'Create New Receipt'}
 							</h3>
+
+							{/* Enhanced validation display */}
+							{(validationErrors.length > 0 || validationWarnings.length > 0) && (
+								<div className="mb-4 space-y-2">
+									{validationErrors.length > 0 && (
+										<div className="bg-red-50 border border-red-200 rounded-md p-4">
+											<div className="flex">
+												<FaExclamationTriangle className="text-red-400 mt-1 mr-2" />
+												<div>
+													<h3 className="text-sm font-medium text-red-800">Please fix the following errors:</h3>
+													<ul className="list-disc list-inside text-sm text-red-700 mt-1 space-y-1">
+														{validationErrors.map((error, index) => (
+															<li key={index}>{error}</li>
+														))}
+													</ul>
+												</div>
+											</div>
+										</div>
+									)}
+									
+									{validationWarnings.length > 0 && (
+										<div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+											<div className="flex">
+												<FaExclamationTriangle className="text-yellow-400 mt-1 mr-2" />
+												<div>
+													<h3 className="text-sm font-medium text-yellow-800">Warnings:</h3>
+													<ul className="list-disc list-inside text-sm text-yellow-700 mt-1 space-y-1">
+														{validationWarnings.map((warning, index) => (
+															<li key={index}>{warning}</li>
+														))}
+													</ul>
+												</div>
+											</div>
+										</div>
+									)}
+								</div>
+							)}
+
 							<form>
 								<div className='mb-4'>
 									<label
@@ -878,6 +1039,9 @@ const ReceiptsPage: React.FC = () => {
 												invoice_id: undefined,
 												[entityField]: value
 											});
+											// Clear validation errors when entity changes
+											setValidationErrors([]);
+											setValidationWarnings([]);
 										}}
 										placeholder={`Select ${entityLabel}`}
 										label={entityLabel}
@@ -906,8 +1070,12 @@ const ReceiptsPage: React.FC = () => {
 															onClick={() => {
 																setNewReceipt({
 																	...newReceipt,
-																	invoice_id: invoice.id
+																	invoice_id: invoice.id,
+																	currency: invoice.currency
 																})
+																// Clear validation errors when invoice changes
+																setValidationErrors([]);
+																setValidationWarnings([]);
 															}}
 														>
 															<div className='font-medium'>Invoice #{invoice.id}</div>
@@ -931,7 +1099,7 @@ const ReceiptsPage: React.FC = () => {
 									)}
 								</div>
 								
-								{/* Amount input */}
+								{/* Amount input with currency display */}
 								<div className='mb-4'>
 									<label
 										className='block text-neutral-700 text-sm font-bold mb-2'
@@ -945,6 +1113,8 @@ const ReceiptsPage: React.FC = () => {
 										<input
 											type='number'
 											id='amount'
+											step="0.01"
+											min="0"
 											className='shadow appearance-none border rounded w-full py-2 pl-8 pr-3 text-neutral-700 leading-tight focus:outline-none focus:shadow-outline'
 											value={newReceipt.amount || ''}
 											onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
@@ -955,6 +1125,11 @@ const ReceiptsPage: React.FC = () => {
 											}
 										/>
 									</div>
+									{selectedInvoice && (
+										<div className="mt-1 text-sm text-neutral-600">
+											Invoice remaining: {currencySymbol}{selectedInvoice.remaining_amount?.toFixed(2)}
+										</div>
+									)}
 								</div>
 								
 								{/* Files section */}
@@ -999,9 +1174,13 @@ const ReceiptsPage: React.FC = () => {
 						<div className='bg-gray px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse'>
 							<button
 								type='button'
-								className='w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue text-base font-medium text-white hover:bg-blue focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue sm:ml-3 sm:w-auto sm:text-sm'
+								className={`w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 text-base font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 sm:ml-3 sm:w-auto sm:text-sm ${
+									validationErrors.length > 0 || !newReceipt.invoice_id
+										? 'bg-neutral-400 cursor-not-allowed'
+										: 'bg-blue hover:bg-blue focus:ring-blue'
+								}`}
 								onClick={handleCreateOrUpdateReceipt}
-								disabled={!newReceipt.invoice_id}>
+								disabled={validationErrors.length > 0 || !newReceipt.invoice_id}>
 								{isEditing ? 'Update Receipt' : 'Create Receipt'}
 							</button>
 							<button
@@ -1009,13 +1188,7 @@ const ReceiptsPage: React.FC = () => {
 								className='mt-3 w-full inline-flex justify-center rounded-md border border-gray shadow-sm px-4 py-2 bg-white text-base font-medium text-gray hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
 								onClick={() => {
 									setShowModal(false)
-									setNewReceipt({
-										paid_at: new Date().toISOString(),
-										amount: 0,
-										files: []
-									})
-									setSelectedEntityId(null)
-									setIsEditing(false)
+									resetReceiptForm()
 								}}>
 								Cancel
 							</button>
@@ -1029,7 +1202,7 @@ const ReceiptsPage: React.FC = () => {
 	const renderReceiptDetails = () => {
 		if (!selectedReceipt) return null
 
-		const currency = getInvoiceCurrency(selectedReceipt.invoice_id)
+		const currency:any = selectedReceipt.currency || getInvoiceCurrency(selectedReceipt.invoice_id)
 		const currencySymbol = getCurrencySymbol(currency)
 
 		return (
@@ -1045,10 +1218,10 @@ const ReceiptsPage: React.FC = () => {
 								Date: {new Date(selectedReceipt.paid_at).toLocaleDateString()}
 							</p>
 							<p className='text-sm text-neutral-500'>
-								Invoice ID: {selectedReceipt.invoice_id}
+								Amount: {currencySymbol}{selectedReceipt.amount.toFixed(2)} ({currency?.toUpperCase()})
 							</p>
 							<p className='text-sm text-neutral-500'>
-								Amount: {currencySymbol}{selectedReceipt.amount.toFixed(2)} ({currency?.toUpperCase()})
+								Invoice ID: {selectedReceipt.invoice_id}
 							</p>
 							<h4 className='text-sm font-medium text-neutral-900 mt-4'>Files:</h4>
 							<ul className='list-disc list-inside'>
@@ -1095,10 +1268,15 @@ const ReceiptsPage: React.FC = () => {
 	}
 
 	const handleEditReceipt = (receipt: any) => {
-		setNewReceipt(receipt)
+		setNewReceipt({
+			...receipt,
+			currency: receipt.currency || getInvoiceCurrency(receipt.invoice_id)
+		})
 		setSelectedEntityId(receipt[activeTab === 'client' ? 'client_id' : 'supplier_id'])
 		updateFilteredInvoices(receipt[activeTab === 'client' ? 'client_id' : 'supplier_id'])
 		setIsEditing(true)
+		setValidationErrors([])
+		setValidationWarnings([])
 		setShowModal(true)
 	}
 
@@ -1109,12 +1287,7 @@ const ReceiptsPage: React.FC = () => {
 				<button
 					className=' bg-blue hover:bg-indigo-200 text-white font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110'
 					onClick={() => {
-						setNewReceipt({
-							paid_at: new Date().toISOString(),
-							amount: 0,
-							files: []
-						})
-						setIsEditing(false)
+						resetReceiptForm()
 						setShowModal(true)
 					}}>
 					<FaPlus className='inline-block mr-2' /> Create New Receipt
