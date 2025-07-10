@@ -604,7 +604,7 @@ await Promise.all(
       const clientCompanyData = await fetchCompanyDetails(clientReportData.company_id)
       
       // Fetch financial data with balance reconciliation
-      const clientFinancialData = await fetchClientFinancialData(data.clientId)
+      const clientFinancialData:any = await fetchClientFinancialData(data.clientId)
 
       // Use the reconciled balance for the client details in the PDF
       const updatedClientData = {
