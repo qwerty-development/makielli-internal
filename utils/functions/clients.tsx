@@ -419,6 +419,19 @@ export const clientFunctions = {
     }
   },
 
+  async createGroup(
+		groupData: Omit<ClientGroup, 'group_id'>
+	): Promise<ClientGroup> {
+		const { data, error } = await supabase
+			.from('ClientGroups')
+			.insert([groupData])
+			.select()
+			.single()
+
+		if (error) throw error
+		return data
+	},
+
   // Search and filter functions
   async searchClients(searchTerm: string): Promise<Client[]> {
     try {
