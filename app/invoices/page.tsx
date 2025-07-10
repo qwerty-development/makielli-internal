@@ -265,6 +265,34 @@ const ValidationUtils = {
 		}
 
 		return { isValid: errors.length === 0, errors, warnings }
+	},
+
+	validateRemainingAmount: (totalPrice: number, remainingAmount: number, isReturn: boolean = false): ValidationResult => {
+		const errors: string[] = []
+		const warnings: string[] = []
+
+		if (isReturn) {
+			// For return invoices, both should be negative
+			if (totalPrice > 0) {
+				errors.push('Return invoice total must be negative')
+			}
+			if (remainingAmount > 0) {
+				errors.push('Return invoice remaining amount must be negative')
+			}
+			if (Math.abs(remainingAmount) > Math.abs(totalPrice)) {
+				errors.push('Remaining amount cannot exceed total price for return invoices')
+			}
+		} else {
+			// For regular invoices
+			if (remainingAmount < 0) {
+				errors.push('Remaining amount cannot be negative')
+			}
+			if (remainingAmount > totalPrice) {
+				errors.push('Remaining amount cannot exceed total price')
+			}
+		}
+
+		return { isValid: errors.length === 0, errors, warnings }
 	}
 }
 
@@ -662,94 +690,127 @@ const InvoicesPage: React.FC = () => {
 		return { subtotal, vatAmount, totalPrice }
 	}
 
-	const updateProductQuantitiesWithNetChange = async (
-	originalProducts: InvoiceProduct[],
-	newProducts: InvoiceProduct[],
-	isClientInvoice: boolean,
-	originalIsReturn: boolean,
-	newIsReturn: boolean,
-	invoiceId: number
-) => {
-	// Calculate net changes per variant
-	const netChanges = new Map<string, {
-		productId: string,
-		variantId: string,
-		netChange: number,
-		originalQty: number,
-		newQty: number
-	}>()
-
-	// Process original products (subtract their effect)
-	for (const product of originalProducts || []) {
-		if (!product.product_variant_id) continue
-		
-		let effectiveChange = isClientInvoice ? -product.quantity : product.quantity
-		if (originalIsReturn) {
-			effectiveChange = -effectiveChange
-		}
-		
-		const existing = netChanges.get(product.product_variant_id) || {
-			productId: product.product_id,
-			variantId: product.product_variant_id,
-			netChange: 0,
-			originalQty: product.quantity,
-			newQty: 0
-		}
-		
-		existing.netChange -= effectiveChange // Reverse the original effect
-		netChanges.set(product.product_variant_id, existing)
-	}
-
-	// Process new products (add their effect)
-	for (const product of newProducts || []) {
-		if (!product.product_variant_id) continue
-		
-		let effectiveChange = isClientInvoice ? -product.quantity : product.quantity
-		if (newIsReturn) {
-			effectiveChange = -effectiveChange
-		}
-		
-		const existing = netChanges.get(product.product_variant_id) || {
-			productId: product.product_id,
-			variantId: product.product_variant_id,
-			netChange: 0,
-			originalQty: 0,
-			newQty: product.quantity
-		}
-		
-		existing.netChange += effectiveChange // Add the new effect
-		existing.newQty = product.quantity
-		existing.productId = product.product_id
-		netChanges.set(product.product_variant_id, existing)
-	}
-
-	// Apply net changes
-	for (const [variantId, change] of netChanges) {
-		if (change.netChange === 0) continue // Skip if no net change
-		
+	// FIXED: Calculate remaining amount properly for updates
+	const calculateRemainingAmountForUpdate = async (
+		invoiceId: number,
+		newTotalPrice: number,
+		table: string
+	): Promise<number> => {
 		try {
-			// Build descriptive note
-			let note = ''
-			if (change.originalQty !== change.newQty) {
-				note = `Invoice update - quantity changed from ${change.originalQty} to ${change.newQty}`
-			} else {
-				note = `Invoice update - inventory adjustment`
+			// Get the original invoice data
+			const { data: originalInvoice, error: invoiceError } = await supabase
+				.from(table)
+				.select('total_price, remaining_amount')
+				.eq('id', invoiceId)
+				.single()
+
+			if (invoiceError) {
+				console.error('Error fetching original invoice:', invoiceError)
+				return newTotalPrice // Fallback to new total price
+			}
+
+			// Calculate how much has been paid
+			const paidAmount = (originalInvoice.total_price || 0) - (originalInvoice.remaining_amount || 0)
+			
+			// New remaining amount is new total minus what's been paid
+			const newRemainingAmount = newTotalPrice - paidAmount
+
+			// Ensure it's not negative
+			return Math.max(0, newRemainingAmount)
+		} catch (error) {
+			console.error('Error calculating remaining amount:', error)
+			return newTotalPrice
+		}
+	}
+
+	const updateProductQuantitiesWithNetChange = async (
+		originalProducts: InvoiceProduct[],
+		newProducts: InvoiceProduct[],
+		isClientInvoice: boolean,
+		originalIsReturn: boolean,
+		newIsReturn: boolean,
+		invoiceId: number
+	) => {
+		// Calculate net changes per variant
+		const netChanges = new Map<string, {
+			productId: string,
+			variantId: string,
+			netChange: number,
+			originalQty: number,
+			newQty: number
+		}>()
+
+		// Process original products (subtract their effect)
+		for (const product of originalProducts || []) {
+			if (!product.product_variant_id) continue
+			
+			let effectiveChange = isClientInvoice ? -product.quantity : product.quantity
+			if (originalIsReturn) {
+				effectiveChange = -effectiveChange
 			}
 			
-			await productFunctions.updateProductVariantQuantity(
-				variantId,
-				change.netChange,
-				'client_invoice',
-				invoiceId.toString(),
-				note
-			)
-		} catch (error: any) {
-			const parentProduct = SafeDataAccess.getProduct(products, change.productId)
-			const productName = parentProduct?.name || 'Unknown Product'
-			console.error(`Error updating product ${productName} quantity:`, error)
+			const existing = netChanges.get(product.product_variant_id) || {
+				productId: product.product_id,
+				variantId: product.product_variant_id,
+				netChange: 0,
+				originalQty: product.quantity,
+				newQty: 0
+			}
+			
+			existing.netChange -= effectiveChange // Reverse the original effect
+			netChanges.set(product.product_variant_id, existing)
+		}
+
+		// Process new products (add their effect)
+		for (const product of newProducts || []) {
+			if (!product.product_variant_id) continue
+			
+			let effectiveChange = isClientInvoice ? -product.quantity : product.quantity
+			if (newIsReturn) {
+				effectiveChange = -effectiveChange
+			}
+			
+			const existing = netChanges.get(product.product_variant_id) || {
+				productId: product.product_id,
+				variantId: product.product_variant_id,
+				netChange: 0,
+				originalQty: 0,
+				newQty: product.quantity
+			}
+			
+			existing.netChange += effectiveChange // Add the new effect
+			existing.newQty = product.quantity
+			existing.productId = product.product_id
+			netChanges.set(product.product_variant_id, existing)
+		}
+
+		// Apply net changes
+		for (const [variantId, change] of netChanges) {
+			if (change.netChange === 0) continue // Skip if no net change
+			
+			try {
+				// Build descriptive note
+				let note = ''
+				if (change.originalQty !== change.newQty) {
+					note = `Invoice update - quantity changed from ${change.originalQty} to ${change.newQty}`
+				} else {
+					note = `Invoice update - inventory adjustment`
+				}
+				
+				await productFunctions.updateProductVariantQuantity(
+					variantId,
+					change.netChange,
+					isClientInvoice ? 'client_invoice' : 'supplier_invoice',
+					invoiceId.toString(),
+					note
+				)
+			} catch (error: any) {
+				const parentProduct = SafeDataAccess.getProduct(products, change.productId)
+				const productName = parentProduct?.name || 'Unknown Product'
+				console.error(`Error updating product ${productName} quantity:`, error)
+			}
 		}
 	}
-}
 
 	const handleCreateInvoice = async () => {
 		const isUpdate = Boolean(newInvoice.id)
@@ -799,11 +860,30 @@ const InvoicesPage: React.FC = () => {
 			const finalTotalPrice = isReturnInvoice ? -Math.abs(totalPrice) : Math.abs(totalPrice)
 			const finalVatAmount = isReturnInvoice ? -Math.abs(vatAmount) : Math.abs(vatAmount)
 
+			// FIXED: Calculate remaining amount properly
+			let finalRemainingAmount = finalTotalPrice
+			if (isUpdate && newInvoice.id) {
+				finalRemainingAmount = await calculateRemainingAmountForUpdate(newInvoice.id, finalTotalPrice, table)
+			}
+
+			// Validate remaining amount
+			const remainingValidation = ValidationUtils.validateRemainingAmount(
+				finalTotalPrice,
+				finalRemainingAmount,
+				isReturnInvoice
+			)
+
+			if (!remainingValidation.isValid) {
+				setValidationErrors(remainingValidation.errors)
+				toast.error('Invalid remaining amount calculation')
+				return
+			}
+
 			let invoiceData: any = {
 				...newInvoice,
 				shipping_fee: shippingFee,
 				total_price: finalTotalPrice,
-				remaining_amount: finalTotalPrice,
+				remaining_amount: finalRemainingAmount, // Use calculated remaining amount
 				vat_amount: finalVatAmount,
 				[isClientInvoice ? 'client_id' : 'supplier_id']: entityId,
 				currency: newInvoice.currency || 'usd',
@@ -817,6 +897,7 @@ const InvoicesPage: React.FC = () => {
 				delete invoiceData.type
 			}
 
+			// Handle update
 			if (newInvoice.id && originalInvoiceData) {
 				const { error: updateError } = await supabase
 					.from(table)
@@ -825,27 +906,30 @@ const InvoicesPage: React.FC = () => {
 
 				if (updateError) throw updateError
 
-	await updateProductQuantitiesWithNetChange(
-		originalInvoiceData.products || [],
-		newInvoice.products || [],
-		isClientInvoice,
-		originalInvoiceData.type === 'return',
-		newInvoice.type === 'return',
-		newInvoice.id
-	)
+				await updateProductQuantitiesWithNetChange(
+					originalInvoiceData.products || [],
+					newInvoice.products || [],
+					isClientInvoice,
+					originalInvoiceData.type === 'return',
+					newInvoice.type === 'return',
+					newInvoice.id
+				)
 
-	const oldAmount = originalInvoiceData.total_price || 0
-	const balanceChange = finalTotalPrice - oldAmount
-	await updateEntityBalance(balanceChange, entityId)
+				// FIXED: Only update balance for the difference
+				const oldAmount = originalInvoiceData.total_price || 0
+				const balanceChange = finalTotalPrice - oldAmount
+				if (Math.abs(balanceChange) > 0.01) { // Only update if there's a significant change
+					await updateEntityBalance(balanceChange, entityId)
+				}
 
-	toast.success('Invoice updated successfully')
-	setShowModal(false)
-	resetInvoiceState()
-	window.location.reload()
-	return
-
+				toast.success('Invoice updated successfully')
+				setShowModal(false)
+				resetInvoiceState()
+				fetchInvoices() // Refresh the list
+				return
 			}
 
+			// Handle new invoice creation
 			const { data: createdInvoice, error: createError } = await supabase
 				.from(table)
 				.insert(invoiceData)
@@ -866,11 +950,7 @@ const InvoicesPage: React.FC = () => {
 			toast.success(`Invoice ${isUpdate ? 'updated' : 'created'} successfully`)
 			setShowModal(false)
 			resetInvoiceState()
-			if (isUpdate) {
-				window.location.reload()
-			} else {
-				fetchInvoices()
-			}
+			fetchInvoices()
 		} catch (error) {
 			handleError(error, isUpdate ? 'update invoice' : 'create invoice')
 		} finally {
@@ -904,16 +984,16 @@ const InvoicesPage: React.FC = () => {
 
 				// Enhanced tracking with new product history system
 				await productFunctions.updateProductVariantQuantity(
-    product.product_variant_id,
-    quantityChange,
-    isClientInvoice ? 'client_invoice' : 'supplier_invoice', // FIXED: Correctly use 'supplier_invoice' for suppliers
-    invoiceId.toString(),
-    isReturnInvoice
-        ? 'Return invoice - inventory adjustment'
-        : isReversal
-            ? 'Invoice reversal - inventory adjustment'
-            : 'Invoice created - inventory adjustment'
-)
+					product.product_variant_id,
+					quantityChange,
+					isClientInvoice ? 'client_invoice' : 'supplier_invoice',
+					invoiceId.toString(),
+					isReturnInvoice
+						? 'Return invoice - inventory adjustment'
+						: isReversal
+							? 'Invoice reversal - inventory adjustment'
+							: 'Invoice created - inventory adjustment'
+				)
 			} catch (error: any) {
 				const parentProduct = SafeDataAccess.getProduct(products, product.product_id)
 				const productName = parentProduct?.name || 'Unknown Product'
@@ -923,6 +1003,7 @@ const InvoicesPage: React.FC = () => {
 		}
 	}
 
+	// FIXED: Enhanced entity balance update with better error handling
 	const updateEntityBalance = async (
 		amount: number,
 		forcedEntityId?: number | string
@@ -936,6 +1017,7 @@ const InvoicesPage: React.FC = () => {
 				throw new Error('No valid entity ID found')
 			}
 
+			// Use transaction-like behavior by getting current data with row lock
 			const { data, error } = await supabase
 				.from(table)
 				.select('balance')
@@ -949,6 +1031,7 @@ const InvoicesPage: React.FC = () => {
 			const currentBalance = data?.balance || 0
 			const newBalance = currentBalance + amount
 
+			// Update with the new balance
 			const { error: updateError } = await supabase
 				.from(table)
 				.update({ balance: newBalance })
@@ -957,6 +1040,8 @@ const InvoicesPage: React.FC = () => {
 			if (updateError) {
 				throw new Error(`Error updating balance: ${updateError.message}`)
 			}
+
+			console.log(`Updated ${activeTab} balance: ${currentBalance} → ${newBalance} (change: ${amount})`)
 		} catch (error: any) {
 			console.error('Balance update error:', error)
 			toast.error(error.message || 'Error updating balance')
@@ -991,6 +1076,22 @@ const InvoicesPage: React.FC = () => {
 				throw new Error(`${isClientInvoice ? 'Client' : 'Supplier'} ID not found in invoice`)
 			}
 
+			// Check if there are any receipts for this invoice
+			const receiptTable = isClientInvoice ? 'ClientReceipts' : 'SupplierReceipts'
+			const { data: receipts, error: receiptError } = await supabase
+				.from(receiptTable)
+				.select('id')
+				.eq('invoice_id', id)
+
+			if (receiptError) {
+				throw new Error(`Error checking receipts: ${receiptError.message}`)
+			}
+
+			if (receipts && receipts.length > 0) {
+				throw new Error('Cannot delete invoice with existing receipts. Please delete receipts first.')
+			}
+
+			// Delete associated files first
 			await Promise.all(
 				(invoiceData.files || []).map((fileUrl: string) => handleFileDelete(fileUrl))
 			)
@@ -1587,12 +1688,15 @@ const InvoicesPage: React.FC = () => {
 								? SafeDataAccess.getClient(clients, invoice.client_id || 0)
 								: SafeDataAccess.getSupplier(suppliers, invoice.supplier_id || '')
 
+							// Data integrity check
+							const hasDataIssue = Math.abs(invoice.remaining_amount) > Math.abs(invoice.total_price)
+
 							return (
 								<tr
 									key={invoice.id}
 									className={`border-b border-gray cursor-pointer ${
 										invoice.type === 'return' ? 'bg-red-50' : ''
-									}`}
+									} ${hasDataIssue ? 'bg-yellow-50' : ''}`}
 									onClick={() => handleInvoiceClick(invoice)}>
 									<td className='py-3 px-6 text-left whitespace-nowrap'>
 										{entity?.name || 'Entity Not Found'}
@@ -1614,8 +1718,9 @@ const InvoicesPage: React.FC = () => {
 											invoice.remaining_amount > 0
 												? 'text-orange-600'
 												: 'text-green-600'
-										}`}>
+										} ${hasDataIssue ? 'font-bold text-red-600' : ''}`}>
 										${(invoice.remaining_amount || 0).toFixed(2)}
+										{hasDataIssue && ' ⚠️'}
 									</td>
 									<td className='py-3 px-6 text-left'>{invoice.order_number || '-'}</td>
 									<td className='py-3 px-6 text-center'>

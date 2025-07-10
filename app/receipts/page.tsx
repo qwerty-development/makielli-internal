@@ -244,89 +244,334 @@ const ReceiptsPage: React.FC = () => {
 	}
 
 	// Enhanced receipt creation with currency handling and validation
-	const handleCreateOrUpdateReceipt = async () => {
-		const table = activeTab === 'client' ? 'ClientReceipts' : 'SupplierReceipts'
-		
-		try {
-			// Reset validation state
-			setValidationErrors([])
-			setValidationWarnings([])
+const handleCreateOrUpdateReceipt = async () => {
+  const table = activeTab === 'client' ? 'ClientReceipts' : 'SupplierReceipts'
+  
+  try {
+    // Reset validation state
+    setValidationErrors([])
+    setValidationWarnings([])
 
-			// Validate receipt data
-			const validation = await validateReceiptCreation(newReceipt)
-			
-			if (!validation.isValid) {
-				setValidationErrors(validation.errors)
-				setValidationWarnings(validation.warnings)
-				toast.error('Please fix validation errors before creating the receipt')
-				return
-			}
+    // Validate receipt data
+    const validation = await validateReceiptCreation(newReceipt)
+    
+    if (!validation.isValid) {
+      setValidationErrors(validation.errors)
+      setValidationWarnings(validation.warnings)
+      toast.error('Please fix validation errors before creating the receipt')
+      return
+    }
 
-			// Set warnings if any
-			if (validation.warnings.length > 0) {
-				setValidationWarnings(validation.warnings)
-			}
+    // Set warnings if any
+    if (validation.warnings.length > 0) {
+      setValidationWarnings(validation.warnings)
+    }
 
-			// Prepare receipt data with proper currency
-			const receiptWithCurrency = {
-				...newReceipt,
-				currency: validation.invoice?.currency || 'usd'
-			}
+    // Prepare receipt data with proper currency
+    const receiptWithCurrency = {
+      ...newReceipt,
+      currency: validation.invoice?.currency || 'usd'
+    }
 
-			if (isEditing && receiptWithCurrency.id) {
-				// Get the original receipt data first
-				const { data: originalReceiptData, error: fetchError } = await supabase
-					.from(table)
-					.select('*')
-					.eq('id', receiptWithCurrency.id)
-					.single()
+    if (isEditing && receiptWithCurrency.id) {
+      // EDIT CASE
+      const { data: originalReceiptData, error: fetchError } = await supabase
+        .from(table)
+        .select('*')
+        .eq('id', receiptWithCurrency.id)
+        .single()
 
-				if (fetchError) {
-					throw new Error(`Error fetching original receipt: ${fetchError.message}`)
-				}
+      if (fetchError) {
+        throw new Error(`Error fetching original receipt: ${fetchError.message}`)
+      }
 
-				// Update the receipt
-				const { error: updateError } = await supabase
-					.from(table)
-					.update(receiptWithCurrency)
-					.eq('id', receiptWithCurrency.id)
+      // Use database transaction for consistency
+      const { error: updateError } = await supabase.rpc('update_receipt_with_balance_adjustment', {
+        p_receipt_id: receiptWithCurrency.id,
+        p_new_amount: receiptWithCurrency.amount,
+        p_new_invoice_id: receiptWithCurrency.invoice_id,
+        p_new_paid_at: receiptWithCurrency.paid_at,
+        p_new_files: receiptWithCurrency.files || [],
+        p_is_client: activeTab === 'client'
+      })
 
-				if (updateError) {
-					throw new Error(`Error updating receipt: ${updateError.message}`)
-				}
+      if (updateError) {
+        // Fallback to manual update if RPC doesn't exist
+        await updateReceiptManually(originalReceiptData, receiptWithCurrency)
+      }
+      
+      toast.success('Receipt updated successfully')
+    } else {
+      // CREATE CASE
+      const { data: createdReceipt, error: createError } = await supabase
+        .from(table)
+        .insert(receiptWithCurrency)
+        .select()
+        .single()
 
-				// Handle the complex balance updates
-				await updateInvoiceAndEntityBalanceForEdit(originalReceiptData, receiptWithCurrency)
-				
-				toast.success('Receipt updated successfully')
-			} else {
-				// Create new receipt
-				const { error } = await supabase
-					.from(table)
-					.insert(receiptWithCurrency)
+      if (createError) {
+        throw new Error(`Error creating receipt: ${createError.message}`)
+      }
 
-				if (error) {
-					throw new Error(`Error creating receipt: ${error.message}`)
-				}
+      // Update invoice and entity balance with better error handling
+      await updateInvoiceAndEntityBalanceWithValidation(receiptWithCurrency)
+      toast.success('Receipt created successfully')
+    }
 
-				// For new receipts, use the simpler update function
-				await updateInvoiceAndEntityBalance(receiptWithCurrency)
-				toast.success('Receipt created successfully')
-			}
+    setShowModal(false)
+    setSelectedEntityId(null)
+    resetReceiptForm()
+    fetchReceipts()
+    
+  } catch (error: any) {
+    console.error('Receipt operation error:', error)
+    toast.error(error.message || `Error ${isEditing ? 'updating' : 'creating'} receipt`)
+    
+    // Show detailed error for debugging
+    if (error.details) {
+      console.error('Error details:', error.details)
+    }
+  }
+}
 
-			setShowModal(false)
-			setSelectedEntityId(null)
-			resetReceiptForm()
-			fetchReceipts()
-			
-		} catch (error: any) {
-			console.error('Receipt operation error:', error)
-			toast.error(error.message || `Error ${isEditing ? 'updating' : 'creating'} receipt`)
-		}
-	}
+const updateReceiptManually = async (
+  originalReceipt: Receipt,
+  updatedReceipt: Partial<Receipt>
+) => {
+  const table = activeTab === 'client' ? 'ClientReceipts' : 'SupplierReceipts'
+  const invoiceTable = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
+  const entityTable = activeTab === 'client' ? 'Clients' : 'Suppliers'
+  const idField = activeTab === 'client' ? 'client_id' : 'supplier_id'
+  const entityPkField = activeTab === 'client' ? 'client_id' : 'id'
+
+  try {
+    // Step 1: Update the receipt record
+    const { error: updateReceiptError } = await supabase
+      .from(table)
+      .update({
+        amount: updatedReceipt.amount,
+        invoice_id: updatedReceipt.invoice_id,
+        paid_at: updatedReceipt.paid_at,
+        files: updatedReceipt.files || [],
+        currency: updatedReceipt.currency,
+        [idField]: updatedReceipt[idField as keyof Receipt]
+      })
+      .eq('id', originalReceipt.id)
+
+    if (updateReceiptError) {
+      throw new Error(`Error updating receipt: ${updateReceiptError.message}`)
+    }
+
+    // Step 2: Handle invoice changes
+    if (originalReceipt.invoice_id !== updatedReceipt.invoice_id) {
+      // Invoice changed - need to handle both old and new invoices
+      
+      // Restore original invoice
+      const { data: originalInvoice, error: originalInvoiceError } = await supabase
+        .from(invoiceTable)
+        .select('remaining_amount, total_price')
+        .eq('id', originalReceipt.invoice_id)
+        .single()
+
+      if (originalInvoiceError) {
+        throw new Error(`Error fetching original invoice: ${originalInvoiceError.message}`)
+      }
+
+      const restoredAmount = (originalInvoice.remaining_amount || 0) + (originalReceipt.amount || 0)
+      const maxAmount = Math.abs(originalInvoice.total_price || 0)
+      
+      const { error: restoreError } = await supabase
+        .from(invoiceTable)
+        .update({ remaining_amount: Math.min(restoredAmount, maxAmount) })
+        .eq('id', originalReceipt.invoice_id)
+
+      if (restoreError) {
+        throw new Error(`Error restoring original invoice: ${restoreError.message}`)
+      }
+
+      // Update new invoice
+      const { data: newInvoice, error: newInvoiceError } = await supabase
+        .from(invoiceTable)
+        .select('remaining_amount, total_price, type')
+        .eq('id', updatedReceipt.invoice_id)
+        .single()
+
+      if (newInvoiceError) {
+        throw new Error(`Error fetching new invoice: ${newInvoiceError.message}`)
+      }
+
+      // Validate that we can apply this payment
+      if (newInvoice.type === 'return') {
+        throw new Error('Cannot create receipts for return invoices')
+      }
+
+      if ((updatedReceipt.amount || 0) > (newInvoice.remaining_amount || 0)) {
+        throw new Error(`Payment amount (${(updatedReceipt.amount || 0).toFixed(2)}) exceeds remaining invoice amount (${(newInvoice.remaining_amount || 0).toFixed(2)})`)
+      }
+
+      const newRemainingAmount = (newInvoice.remaining_amount || 0) - (updatedReceipt.amount || 0)
+      
+      const { error: applyError } = await supabase
+        .from(invoiceTable)
+        .update({ remaining_amount: Math.max(0, newRemainingAmount) })
+        .eq('id', updatedReceipt.invoice_id)
+
+      if (applyError) {
+        throw new Error(`Error applying payment to new invoice: ${applyError.message}`)
+      }
+    } else {
+      // Same invoice, different amount
+      const amountDifference = (updatedReceipt.amount || 0) - (originalReceipt.amount || 0)
+      
+      if (Math.abs(amountDifference) > 0.01) {
+        const { data: invoice, error: invoiceError } = await supabase
+          .from(invoiceTable)
+          .select('remaining_amount, total_price, type')
+          .eq('id', updatedReceipt.invoice_id)
+          .single()
+
+        if (invoiceError) {
+          throw new Error(`Error fetching invoice: ${invoiceError.message}`)
+        }
+
+        if (invoice.type === 'return') {
+          throw new Error('Cannot modify receipts for return invoices')
+        }
+
+        const newRemainingAmount = (invoice.remaining_amount || 0) - amountDifference
+        const maxAmount = Math.abs(invoice.total_price || 0)
+        
+        if (newRemainingAmount < 0) {
+          throw new Error(`Payment adjustment would result in overpayment`)
+        }
+
+        const { error: updateError } = await supabase
+          .from(invoiceTable)
+          .update({ remaining_amount: Math.min(newRemainingAmount, maxAmount) })
+          .eq('id', updatedReceipt.invoice_id)
+
+        if (updateError) {
+          throw new Error(`Error updating invoice amount: ${updateError.message}`)
+        }
+      }
+    }
+
+    // Step 3: Handle entity balance changes
+    const originalEntityId:any = originalReceipt[idField as keyof Receipt]
+    const newEntityId:any = updatedReceipt[idField as keyof Receipt]
+    
+    if (originalEntityId !== newEntityId) {
+      // Entity changed
+      if (originalEntityId) {
+        await adjustEntityBalance(originalEntityId, originalReceipt.amount || 0, entityTable, entityPkField)
+      }
+      
+      if (newEntityId) {
+        await adjustEntityBalance(newEntityId, -(updatedReceipt.amount || 0), entityTable, entityPkField)
+      }
+    } else {
+      // Same entity, different amount
+      const amountDifference = (updatedReceipt.amount || 0) - (originalReceipt.amount || 0)
+      if (Math.abs(amountDifference) > 0.01 && newEntityId) {
+        await adjustEntityBalance(newEntityId, -amountDifference, entityTable, entityPkField)
+      }
+    }
+
+  } catch (error) {
+    console.error('Error in manual receipt update:', error)
+    throw error
+  }
+}
+
+const adjustEntityBalance = async (
+  entityId: number | string,
+  adjustment: number,
+  entityTable: string,
+  entityPkField: string
+) => {
+  if (Math.abs(adjustment) < 0.01) return // Skip tiny adjustments
+
+  const { data: entity, error: entityError } = await supabase
+    .from(entityTable)
+    .select('balance')
+    .eq(entityPkField, entityId)
+    .single()
+
+  if (entityError) {
+    throw new Error(`Error fetching entity: ${entityError.message}`)
+  }
+
+  const newBalance = (entity.balance || 0) + adjustment
+
+  const { error: updateError } = await supabase
+    .from(entityTable)
+    .update({ balance: newBalance })
+    .eq(entityPkField, entityId)
+
+  if (updateError) {
+    throw new Error(`Error updating entity balance: ${updateError.message}`)
+  }
+}
+
+// Enhanced function with validation
+const updateInvoiceAndEntityBalanceWithValidation = async (receipt: Partial<Receipt>) => {
+  const invoiceTable = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
+  const entityTable = activeTab === 'client' ? 'Clients' : 'Suppliers'
+  const idField = activeTab === 'client' ? 'client_id' : 'supplier_id'
+  const entityPkField = activeTab === 'client' ? 'client_id' : 'id'
+
+  try {
+    // Validate invoice exists and get current state
+    const { data: invoice, error: invoiceError } = await supabase
+      .from(invoiceTable)
+      .select('remaining_amount, total_price, type')
+      .eq('id', receipt.invoice_id)
+      .single()
+
+    if (invoiceError) {
+      throw new Error(`Invoice not found: ${invoiceError.message}`)
+    }
+
+    // Validate receipt amount
+    if (!receipt.amount || receipt.amount <= 0) {
+      throw new Error('Receipt amount must be greater than zero')
+    }
+
+    if (invoice.type === 'return') {
+      throw new Error('Cannot create receipts for return invoices')
+    }
+
+    if (receipt.amount > (invoice.remaining_amount || 0)) {
+      throw new Error(`Receipt amount (${receipt.amount.toFixed(2)}) exceeds remaining invoice amount (${(invoice.remaining_amount || 0).toFixed(2)})`)
+    }
+
+    // Update invoice remaining amount
+    const newRemainingAmount = Math.max(0, (invoice.remaining_amount || 0) - receipt.amount)
+    
+    const { error: updateInvoiceError } = await supabase
+      .from(invoiceTable)
+      .update({ remaining_amount: newRemainingAmount })
+      .eq('id', receipt.invoice_id)
+
+    if (updateInvoiceError) {
+      throw new Error(`Error updating invoice: ${updateInvoiceError.message}`)
+    }
+
+    // Update entity balance
+    const entityId:any = receipt[idField as keyof Receipt]
+    if (entityId) {
+      await adjustEntityBalance(entityId, -receipt.amount, entityTable, entityPkField)
+    }
+
+  } catch (error) {
+    console.error('Error updating invoice and entity balance:', error)
+    throw error
+  }
+}
+
 
 	// Enhanced function to handle receipt updates properly
-	const updateInvoiceAndEntityBalanceForEdit = async (
+const updateInvoiceAndEntityBalanceForEdit = async (
 		originalReceipt: Receipt,
 		updatedReceipt: Partial<Receipt>
 	) => {
@@ -552,53 +797,71 @@ const ReceiptsPage: React.FC = () => {
 		}
 	}
 
-	const handleDeleteReceipt = async (id: number) => {
-		if (!window.confirm('Are you sure you want to delete this receipt?')) {
-			return
-		}
+const handleDeleteReceipt = async (id: number) => {
+  if (!window.confirm('Are you sure you want to delete this receipt?')) {
+    return
+  }
 
-		const table = activeTab === 'client' ? 'ClientReceipts' : 'SupplierReceipts'
-		
-		try {
-			const { data: receiptData, error: fetchError } = await supabase
-				.from(table)
-				.select('*')
-				.eq('id', id)
-				.single()
+  const table = activeTab === 'client' ? 'ClientReceipts' : 'SupplierReceipts'
+  
+  try {
+    // Get receipt data first
+    const { data: receiptData, error: fetchError } = await supabase
+      .from(table)
+      .select('*')
+      .eq('id', id)
+      .single()
 
-			if (fetchError) {
-				throw new Error(`Error fetching receipt: ${fetchError.message}`)
-			}
+    if (fetchError) {
+      throw new Error(`Error fetching receipt: ${fetchError.message}`)
+    }
 
-			// Delete associated files first
-			for (const fileUrl of receiptData.files || []) {
-				await handleFileDelete(fileUrl)
-			}
+    // Validate we can delete this receipt
+    const invoiceTable = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
+    const { data: invoice, error: invoiceError } = await supabase
+      .from(invoiceTable)
+      .select('total_price, type')
+      .eq('id', receiptData.invoice_id)
+      .single()
 
-			// Delete the receipt
-			const { error: deleteError } = await supabase
-				.from(table)
-				.delete()
-				.eq('id', id)
+    if (invoiceError) {
+      throw new Error(`Error fetching related invoice: ${invoiceError.message}`)
+    }
 
-			if (deleteError) {
-				throw new Error(`Error deleting receipt: ${deleteError.message}`)
-			}
+    // Delete associated files first
+    for (const fileUrl of receiptData.files || []) {
+      try {
+        await handleFileDelete(fileUrl)
+      } catch (fileError) {
+        console.warn('Failed to delete file:', fileUrl, fileError)
+        // Continue with receipt deletion even if file deletion fails
+      }
+    }
 
-			// Restore invoice and entity balances (reverse the receipt effects)
-			await updateInvoiceAndEntityBalance({
-				...receiptData,
-				amount: -receiptData.amount // Negative amount to reverse the effects
-			})
+    // Delete the receipt
+    const { error: deleteError } = await supabase
+      .from(table)
+      .delete()
+      .eq('id', id)
 
-			toast.success('Receipt deleted successfully')
-			fetchReceipts()
-			
-		} catch (error: any) {
-			console.error('Delete receipt error:', error)
-			toast.error(error.message || 'Error deleting receipt')
-		}
-	}
+    if (deleteError) {
+      throw new Error(`Error deleting receipt: ${deleteError.message}`)
+    }
+
+    // Restore invoice and entity balances
+    await updateInvoiceAndEntityBalanceWithValidation({
+      ...receiptData,
+      amount: -receiptData.amount // Negative amount to reverse the effects
+    })
+
+    toast.success('Receipt deleted successfully')
+    fetchReceipts()
+    
+  } catch (error: any) {
+    console.error('Delete receipt error:', error)
+    toast.error(error.message || 'Error deleting receipt')
+  }
+}
 
 	const handleSendEmail = async (receipt: Receipt) => {
 		const recipientEmail =
