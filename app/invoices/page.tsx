@@ -684,13 +684,13 @@ const InvoicesPage: React.FC = () => {
 			}
 		}, 0)
 
+		const validShippingFee = Number(shippingFee) || 0
 		const vatAmount = includeVAT ? subtotal * 0.11 : 0
-		const totalPrice = subtotal + vatAmount + shippingFee
+		const totalPrice = subtotal + vatAmount + validShippingFee
 
 		return { subtotal, vatAmount, totalPrice }
 	}
 
-	// FIXED: Calculate remaining amount properly for updates
 	const calculateRemainingAmountForUpdate = async (
 		invoiceId: number,
 		newTotalPrice: number,
@@ -700,7 +700,7 @@ const InvoicesPage: React.FC = () => {
 			// Get the original invoice data
 			const { data: originalInvoice, error: invoiceError } = await supabase
 				.from(table)
-				.select('total_price, remaining_amount')
+				.select('total_price, remaining_amount, shipping_fee')
 				.eq('id', invoiceId)
 				.single()
 
@@ -709,14 +709,15 @@ const InvoicesPage: React.FC = () => {
 				return newTotalPrice // Fallback to new total price
 			}
 
-			// Calculate how much has been paid
-			const paidAmount = (originalInvoice.total_price || 0) - (originalInvoice.remaining_amount || 0)
+			const originalTotalPrice = Number(originalInvoice.total_price) || 0
+			const originalRemainingAmount = Number(originalInvoice.remaining_amount) || 0
+			const paidAmount = originalTotalPrice - originalRemainingAmount
 			
 			// New remaining amount is new total minus what's been paid
 			const newRemainingAmount = newTotalPrice - paidAmount
 
-			// Ensure it's not negative
-			return Math.max(0, newRemainingAmount)
+			const finalRemainingAmount = Math.max(0, newRemainingAmount)
+			return finalRemainingAmount
 		} catch (error) {
 			console.error('Error calculating remaining amount:', error)
 			return newTotalPrice
@@ -860,10 +861,17 @@ const InvoicesPage: React.FC = () => {
 			const finalTotalPrice = isReturnInvoice ? -Math.abs(totalPrice) : Math.abs(totalPrice)
 			const finalVatAmount = isReturnInvoice ? -Math.abs(vatAmount) : Math.abs(vatAmount)
 
-			// FIXED: Calculate remaining amount properly
 			let finalRemainingAmount = finalTotalPrice
 			if (isUpdate && newInvoice.id) {
 				finalRemainingAmount = await calculateRemainingAmountForUpdate(newInvoice.id, finalTotalPrice, table)
+				
+				// Additional validation for updates
+				if (finalRemainingAmount < 0 && !isReturnInvoice) {
+					const proceed = window.confirm(
+						`Warning: The remaining amount would be negative (${finalRemainingAmount.toFixed(2)}). This means more has been paid than the new total. Do you want to continue?`
+					)
+					if (!proceed) return
+				}
 			}
 
 			// Validate remaining amount
@@ -915,8 +923,7 @@ const InvoicesPage: React.FC = () => {
 					newInvoice.id
 				)
 
-				// FIXED: Only update balance for the difference
-				const oldAmount = originalInvoiceData.total_price || 0
+				const oldAmount = Number(originalInvoiceData.total_price) || 0
 				const balanceChange = finalTotalPrice - oldAmount
 				if (Math.abs(balanceChange) > 0.01) { // Only update if there's a significant change
 					await updateEntityBalance(balanceChange, entityId)
@@ -1003,7 +1010,6 @@ const InvoicesPage: React.FC = () => {
 		}
 	}
 
-	// FIXED: Enhanced entity balance update with better error handling
 	const updateEntityBalance = async (
 		amount: number,
 		forcedEntityId?: number | string
@@ -1017,6 +1023,7 @@ const InvoicesPage: React.FC = () => {
 				throw new Error('No valid entity ID found')
 			}
 
+			const roundedAmount = Math.round(Number(amount) * 100) / 100
 			// Use transaction-like behavior by getting current data with row lock
 			const { data, error } = await supabase
 				.from(table)
@@ -1028,8 +1035,11 @@ const InvoicesPage: React.FC = () => {
 				throw new Error(`Error fetching current balance: ${error.message}`)
 			}
 
-			const currentBalance = data?.balance || 0
-			const newBalance = currentBalance + amount
+			const currentBalance = Number(data?.balance) || 0
+			const newBalance = Math.round((currentBalance + roundedAmount) * 100) / 100
+
+			console.log('Current Balance:', currentBalance)
+			console.log('New Balance:', newBalance)
 
 			// Update with the new balance
 			const { error: updateError } = await supabase
@@ -1040,8 +1050,7 @@ const InvoicesPage: React.FC = () => {
 			if (updateError) {
 				throw new Error(`Error updating balance: ${updateError.message}`)
 			}
-
-			console.log(`Updated ${activeTab} balance: ${currentBalance} → ${newBalance} (change: ${amount})`)
+			console.log(`✅ Updated ${activeTab} balance: ${currentBalance} → ${newBalance} (change: ${roundedAmount})`)
 		} catch (error: any) {
 			console.error('Balance update error:', error)
 			toast.error(error.message || 'Error updating balance')
@@ -1120,7 +1129,7 @@ const InvoicesPage: React.FC = () => {
 
 			if (deleteError) throw deleteError
 
-			const balanceChange = -invoiceData.total_price
+			const balanceChange = -Number(invoiceData.total_price)
 			await updateEntityBalance(balanceChange, entityId)
 
 			toast.success('Invoice deleted successfully')
@@ -1166,7 +1175,7 @@ const InvoicesPage: React.FC = () => {
 				discounts: { ...(currentInvoice.discounts || {}) },
 				type: currentInvoice.type,
 				payment_info: currentInvoice.payment_info || 'frisson_llc',
-				shipping_fee: currentInvoice.shipping_fee || 0,
+				shipping_fee: Number(currentInvoice.shipping_fee) || 0, // Ensure it's a number
 				quotation_id: currentInvoice.quotation_id || null
 			})
 
@@ -1176,12 +1185,12 @@ const InvoicesPage: React.FC = () => {
 				discounts: { ...(currentInvoice.discounts || {}) },
 				type: currentInvoice.type || 'regular',
 				created_at: currentInvoice.created_at,
-				total_price: currentInvoice.total_price,
+				total_price: Number(currentInvoice.total_price) || 0,
 				order_number: currentInvoice.order_number,
 				files: currentInvoice.files || [],
-				remaining_amount: currentInvoice.remaining_amount,
+				remaining_amount: Number(currentInvoice.remaining_amount) || 0,
 				include_vat: currentInvoice.include_vat || false,
-				vat_amount: currentInvoice.vat_amount || 0,
+				vat_amount: Number(currentInvoice.vat_amount) || 0,
 				currency: currentInvoice.currency || 'usd',
 				payment_term: currentInvoice.payment_term || '',
 				delivery_date:
@@ -1190,7 +1199,7 @@ const InvoicesPage: React.FC = () => {
 				payment_info: currentInvoice.payment_info || 'frisson_llc',
 				client_id: isClientInvoice ? entityId : undefined,
 				supplier_id: !isClientInvoice ? entityId : undefined,
-				shipping_fee: currentInvoice.shipping_fee || 0,
+				shipping_fee: Number(currentInvoice.shipping_fee) || 0, // Ensure it's a number
 				quotation_id: currentInvoice.quotation_id || null
 			}
 
@@ -1329,9 +1338,14 @@ const InvoicesPage: React.FC = () => {
 		}
 	}
 
+	// FIXED: Enhanced shipping fee change handler with proper state updates
 	const handleShippingFeeChange = (value: number) => {
 		try {
-			const fee = value >= 0 ? value : 0
+			const fee = Number(value) >= 0 ? Number(value) : 0
+			
+			console.log('=== SHIPPING FEE CHANGE ===')
+			console.log('Input value:', value)
+			console.log('Normalized fee:', fee)
 			
 			setNewInvoice(prev => {
 				const isClientInvoice = activeTab === 'client'
@@ -1342,6 +1356,9 @@ const InvoicesPage: React.FC = () => {
 					prev.include_vat || false,
 					fee
 				)
+				
+				console.log('Updated total price:', totalPrice)
+				console.log('Updated VAT amount:', vatAmount)
 				
 				return {
 					...prev,
@@ -1688,15 +1705,20 @@ const InvoicesPage: React.FC = () => {
 								? SafeDataAccess.getClient(clients, invoice.client_id || 0)
 								: SafeDataAccess.getSupplier(suppliers, invoice.supplier_id || '')
 
-							// Data integrity check
-							const hasDataIssue = Math.abs(invoice.remaining_amount) > Math.abs(invoice.total_price)
+							// FIXED: Enhanced data integrity check including shipping fee
+							const totalPrice = Number(invoice.total_price) || 0
+							const remainingAmount = Number(invoice.remaining_amount) || 0
+							const shippingFee = Number(invoice.shipping_fee) || 0
+							
+							const hasDataIssue = Math.abs(remainingAmount) > Math.abs(totalPrice) + 0.01 // Allow small rounding differences
+							const hasShippingFeeIssue = shippingFee > 0 && remainingAmount < 0 && Math.abs(remainingAmount) === shippingFee
 
 							return (
 								<tr
 									key={invoice.id}
 									className={`border-b border-gray cursor-pointer ${
 										invoice.type === 'return' ? 'bg-red-50' : ''
-									} ${hasDataIssue ? 'bg-yellow-50' : ''}`}
+									} ${hasDataIssue || hasShippingFeeIssue ? 'bg-yellow-50' : ''}`}
 									onClick={() => handleInvoiceClick(invoice)}>
 									<td className='py-3 px-6 text-left whitespace-nowrap'>
 										{entity?.name || 'Entity Not Found'}
@@ -1710,17 +1732,17 @@ const InvoicesPage: React.FC = () => {
 												? 'text-red-600'
 												: 'text-green-600'
 										}`}>
-										${(invoice.total_price || 0).toFixed(2)}
+										${totalPrice.toFixed(2)}
 										{invoice.type === 'return' && ' (Return)'}
 									</td>
 									<td
 										className={`py-3 px-6 text-left ${
-											invoice.remaining_amount > 0
+											remainingAmount > 0
 												? 'text-orange-600'
 												: 'text-green-600'
-										} ${hasDataIssue ? 'font-bold text-red-600' : ''}`}>
-										${(invoice.remaining_amount || 0).toFixed(2)}
-										{hasDataIssue && ' ⚠️'}
+										} ${hasDataIssue || hasShippingFeeIssue ? 'font-bold text-red-600' : ''}`}>
+										${remainingAmount.toFixed(2)}
+										{(hasDataIssue || hasShippingFeeIssue) && ' ⚠️'}
 									</td>
 									<td className='py-3 px-6 text-left'>{invoice.order_number || '-'}</td>
 									<td className='py-3 px-6 text-center'>
@@ -2274,21 +2296,38 @@ const InvoicesPage: React.FC = () => {
 								/>
 							</div>
 
+							{/* FIXED: Enhanced shipping fee input with better validation */}
 							<div className='mb-4'>
 								<label className='block text-gray text-sm font-bold mb-2' htmlFor='shipping_fee'>
 									Shipping Fee
 								</label>
-								<input
-									id='shipping_fee'
-									type='number'
-									min='0'
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
-									value={newInvoice.shipping_fee || 0}
-									onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-										handleShippingFeeChange(Number(e.target.value))
-									}
-									placeholder='Enter shipping fee'
-								/>
+								<div className='relative'>
+									<span className='absolute left-3 top-2 text-gray'>$</span>
+									<input
+										id='shipping_fee'
+										type='number'
+										min='0'
+										step='0.01'
+										className='shadow appearance-none border rounded w-full py-2 pl-8 pr-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+										value={newInvoice.shipping_fee || ''}
+										onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+											const value = e.target.value
+											// Allow empty string for clearing the field
+											if (value === '') {
+												handleShippingFeeChange(0)
+											} else {
+												const numValue = parseFloat(value)
+												if (!isNaN(numValue) && numValue >= 0) {
+													handleShippingFeeChange(numValue)
+												}
+											}
+										}}
+										placeholder='0.00'
+									/>
+								</div>
+								<p className='text-xs text-gray-500 mt-1'>
+									Shipping fee will be included in the total price and remaining amount calculations.
+								</p>
 							</div>
 
 							<div className='mb-4'>
@@ -2444,7 +2483,6 @@ const renderInvoiceDetails = () => {
 		const currency = selectedInvoice.currency || 'usd'
 		const currencySymbol = currency === 'euro' ? '€' : '$'
 
-		// Enhanced calculations with error handling
 		const subtotal = selectedInvoice.products?.reduce((total, product) => {
 			try {
 				const parentProduct = SafeDataAccess.getProduct(products, product.product_id)
@@ -2472,7 +2510,7 @@ const renderInvoiceDetails = () => {
 
 		const totalBeforeVAT = subtotal - totalDiscount
 		const vatAmount = selectedInvoice.include_vat ? totalBeforeVAT * 0.11 : 0
-		const shippingFee = selectedInvoice.shipping_fee || 0
+		const shippingFee = Number(selectedInvoice.shipping_fee) || 0
 
 		const sizeOptions = [
 			'OS', 'XXS', 'XS', 'S', 'S/M', 'M', 'M/L', 'L', 'XL', '2XL', '3XL',
@@ -2587,6 +2625,10 @@ const renderInvoiceDetails = () => {
 								{selectedInvoice.payment_term && (
 									<p className='text-sm'>Payment Term: {selectedInvoice.payment_term}</p>
 								)}
+						
+								{shippingFee > 0 && (
+									<p className='text-sm'>Shipping Fee: {currencySymbol}{shippingFee.toFixed(2)}</p>
+								)}
 							</div>
 						</div>
 
@@ -2683,7 +2725,7 @@ const renderInvoiceDetails = () => {
 							)}
 						</div>
 
-						{/* Totals Section */}
+						{/* FIXED: Enhanced Totals Section with proper shipping fee display */}
 						<div className='flex flex-col items-end mb-6 mt-4'>
 							{Math.abs(subtotal) !== Math.abs(selectedInvoice.total_price || 0) && (
 								<div className='flex justify-end mb-1 w-1/3'>

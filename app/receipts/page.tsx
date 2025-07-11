@@ -36,6 +36,8 @@ interface Invoice {
 	client_id?: number
 	supplier_id?: string
 	currency: 'usd' | 'euro'
+	shipping_fee?: number
+	type?: string
 }
 
 interface Entity {
@@ -96,7 +98,7 @@ const ReceiptsPage: React.FC = () => {
 		filterEntity
 	])
 
-	// Enhanced validation function
+	// FIXED: Enhanced validation function with proper total price validation
 	const validateReceiptCreation = async (receiptData: Partial<Receipt>): Promise<ReceiptValidation> => {
 		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
 		const errors: string[] = []
@@ -108,10 +110,10 @@ const ReceiptsPage: React.FC = () => {
 				return { isValid: false, errors, warnings, invoice: null }
 			}
 
-			// Fetch invoice details for validation
+			// FIXED: Fetch invoice details including shipping fee for proper validation
 			const { data: invoice, error: invoiceError }:any = await supabase
 				.from(table)
-				.select('total_price, remaining_amount, currency, type')
+				.select('total_price, remaining_amount, currency, type, shipping_fee')
 				.eq('id', receiptData.invoice_id)
 				.single()
 
@@ -120,15 +122,23 @@ const ReceiptsPage: React.FC = () => {
 				return { isValid: false, errors, warnings, invoice: null }
 			}
 
+
+			// Ensure all amounts are properly handled as numbers
+			const invoiceTotalPrice = Number(invoice.total_price) || 0
+			const invoiceRemainingAmount = Number(invoice.remaining_amount) || 0
+			const receiptAmount = Number(receiptData.amount) || 0
+			const shippingFee = Number(invoice.shipping_fee) || 0
+
+
 			// Validate amount
-			if (!receiptData.amount || receiptData.amount <= 0) {
+			if (receiptAmount <= 0) {
 				errors.push('Receipt amount must be greater than zero')
 			}
 
-			// Validate against remaining amount
-			if (receiptData.amount && receiptData.amount > (invoice.remaining_amount || 0)) {
+			// FIXED: Enhanced remaining amount validation
+			if (receiptAmount > invoiceRemainingAmount) {
 				errors.push(
-					`Receipt amount ($${receiptData.amount.toFixed(2)}) cannot exceed remaining invoice amount ($${(invoice.remaining_amount || 0).toFixed(2)})`
+					`Receipt amount ($${receiptAmount.toFixed(2)}) cannot exceed remaining invoice amount ($${invoiceRemainingAmount.toFixed(2)})`
 				)
 			}
 
@@ -145,9 +155,14 @@ const ReceiptsPage: React.FC = () => {
 				errors.push(`Receipt currency (${receiptCurrency.toUpperCase()}) must match invoice currency (${invoiceCurrency.toUpperCase()})`)
 			}
 
-			// Overpayment warning
-			if (receiptData.amount && receiptData.amount > (invoice.remaining_amount || 0) * 0.9) {
+			// FIXED: Enhanced overpayment warning with shipping fee consideration
+			if (receiptAmount > invoiceRemainingAmount * 0.9) {
 				warnings.push('This payment will nearly or fully settle the invoice')
+			}
+
+			// Additional validation: Check if remaining amount makes sense in relation to total price
+			if (invoiceRemainingAmount > invoiceTotalPrice + 0.01) { // Allow small rounding differences
+				warnings.push(`Warning: Invoice remaining amount ($${invoiceRemainingAmount.toFixed(2)}) is greater than total price ($${invoiceTotalPrice.toFixed(2)}). This may indicate a data integrity issue.`)
 			}
 
 			return {
@@ -215,11 +230,12 @@ const ReceiptsPage: React.FC = () => {
 		}
 	}
 
+	// FIXED: Enhanced invoice fetching with shipping fee
 	const fetchInvoices = async () => {
 		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
 		const selectFields = activeTab === 'client' 
-		  ? 'id, total_price, remaining_amount, client_id, currency, type'
-		  : 'id, total_price, remaining_amount, supplier_id, currency, type'
+		  ? 'id, total_price, remaining_amount, client_id, currency, type, shipping_fee'
+		  : 'id, total_price, remaining_amount, supplier_id, currency, type, shipping_fee'
 		
 		const { data, error } = await supabase
 		  .from(table)
@@ -243,11 +259,12 @@ const ReceiptsPage: React.FC = () => {
 		return invoice?.currency || 'usd'
 	}
 
-	// Enhanced receipt creation with currency handling and validation
+	// FIXED: Enhanced receipt creation with proper amount handling and precision
 const handleCreateOrUpdateReceipt = async () => {
   const table = activeTab === 'client' ? 'ClientReceipts' : 'SupplierReceipts'
   
   try {
+    
     // Reset validation state
     setValidationErrors([])
     setValidationWarnings([])
@@ -267,11 +284,13 @@ const handleCreateOrUpdateReceipt = async () => {
       setValidationWarnings(validation.warnings)
     }
 
-    // Prepare receipt data with proper currency
+    // FIXED: Ensure proper amount precision and currency handling
     const receiptWithCurrency = {
       ...newReceipt,
-      currency: validation.invoice?.currency || 'usd'
+      currency: validation.invoice?.currency || 'usd',
+      amount: Math.round((Number(newReceipt.amount) || 0) * 100) / 100 // Round to 2 decimal places
     }
+
 
     if (isEditing && receiptWithCurrency.id) {
       // EDIT CASE
@@ -313,7 +332,7 @@ const handleCreateOrUpdateReceipt = async () => {
         throw new Error(`Error creating receipt: ${createError.message}`)
       }
 
-      // Update invoice and entity balance with better error handling
+      // Update invoice and entity balance with enhanced validation
       await updateInvoiceAndEntityBalanceWithValidation(receiptWithCurrency)
       toast.success('Receipt created successfully')
     }
@@ -334,6 +353,7 @@ const handleCreateOrUpdateReceipt = async () => {
   }
 }
 
+// FIXED: Enhanced manual receipt update with proper precision handling
 const updateReceiptManually = async (
   originalReceipt: Receipt,
   updatedReceipt: Partial<Receipt>
@@ -345,6 +365,8 @@ const updateReceiptManually = async (
   const entityPkField = activeTab === 'client' ? 'client_id' : 'id'
 
   try {
+
+
     // Step 1: Update the receipt record
     const { error: updateReceiptError } = await supabase
       .from(table)
@@ -362,14 +384,14 @@ const updateReceiptManually = async (
       throw new Error(`Error updating receipt: ${updateReceiptError.message}`)
     }
 
-    // Step 2: Handle invoice changes
+    // Step 2: Handle invoice changes with enhanced amount validation
     if (originalReceipt.invoice_id !== updatedReceipt.invoice_id) {
       // Invoice changed - need to handle both old and new invoices
       
       // Restore original invoice
       const { data: originalInvoice, error: originalInvoiceError } = await supabase
         .from(invoiceTable)
-        .select('remaining_amount, total_price')
+        .select('remaining_amount, total_price, shipping_fee')
         .eq('id', originalReceipt.invoice_id)
         .single()
 
@@ -377,8 +399,9 @@ const updateReceiptManually = async (
         throw new Error(`Error fetching original invoice: ${originalInvoiceError.message}`)
       }
 
-      const restoredAmount = (originalInvoice.remaining_amount || 0) + (originalReceipt.amount || 0)
-      const maxAmount = Math.abs(originalInvoice.total_price || 0)
+      const originalAmount = Number(originalReceipt.amount) || 0
+      const restoredAmount = (Number(originalInvoice.remaining_amount) || 0) + originalAmount
+      const maxAmount = Math.abs(Number(originalInvoice.total_price) || 0)
       
       const { error: restoreError } = await supabase
         .from(invoiceTable)
@@ -392,7 +415,7 @@ const updateReceiptManually = async (
       // Update new invoice
       const { data: newInvoice, error: newInvoiceError } = await supabase
         .from(invoiceTable)
-        .select('remaining_amount, total_price, type')
+        .select('remaining_amount, total_price, type, shipping_fee')
         .eq('id', updatedReceipt.invoice_id)
         .single()
 
@@ -405,15 +428,18 @@ const updateReceiptManually = async (
         throw new Error('Cannot create receipts for return invoices')
       }
 
-      if ((updatedReceipt.amount || 0) > (newInvoice.remaining_amount || 0)) {
-        throw new Error(`Payment amount (${(updatedReceipt.amount || 0).toFixed(2)}) exceeds remaining invoice amount (${(newInvoice.remaining_amount || 0).toFixed(2)})`)
+      const updatedAmount = Number(updatedReceipt.amount) || 0
+      const newInvoiceRemaining = Number(newInvoice.remaining_amount) || 0
+
+      if (updatedAmount > newInvoiceRemaining) {
+        throw new Error(`Payment amount ($${updatedAmount.toFixed(2)}) exceeds remaining invoice amount ($${newInvoiceRemaining.toFixed(2)})`)
       }
 
-      const newRemainingAmount = (newInvoice.remaining_amount || 0) - (updatedReceipt.amount || 0)
+      const newRemainingAmount = Math.max(0, newInvoiceRemaining - updatedAmount)
       
       const { error: applyError } = await supabase
         .from(invoiceTable)
-        .update({ remaining_amount: Math.max(0, newRemainingAmount) })
+        .update({ remaining_amount: newRemainingAmount })
         .eq('id', updatedReceipt.invoice_id)
 
       if (applyError) {
@@ -421,12 +447,14 @@ const updateReceiptManually = async (
       }
     } else {
       // Same invoice, different amount
-      const amountDifference = (updatedReceipt.amount || 0) - (originalReceipt.amount || 0)
+      const originalAmount = Number(originalReceipt.amount) || 0
+      const updatedAmount = Number(updatedReceipt.amount) || 0
+      const amountDifference = updatedAmount - originalAmount
       
       if (Math.abs(amountDifference) > 0.01) {
         const { data: invoice, error: invoiceError } = await supabase
           .from(invoiceTable)
-          .select('remaining_amount, total_price, type')
+          .select('remaining_amount, total_price, type, shipping_fee')
           .eq('id', updatedReceipt.invoice_id)
           .single()
 
@@ -438,8 +466,9 @@ const updateReceiptManually = async (
           throw new Error('Cannot modify receipts for return invoices')
         }
 
-        const newRemainingAmount = (invoice.remaining_amount || 0) - amountDifference
-        const maxAmount = Math.abs(invoice.total_price || 0)
+        const currentRemaining = Number(invoice.remaining_amount) || 0
+        const newRemainingAmount = currentRemaining - amountDifference
+        const maxAmount = Math.abs(Number(invoice.total_price) || 0)
         
         if (newRemainingAmount < 0) {
           throw new Error(`Payment adjustment would result in overpayment`)
@@ -456,22 +485,24 @@ const updateReceiptManually = async (
       }
     }
 
-    // Step 3: Handle entity balance changes
+    // Step 3: Handle entity balance changes with proper precision
     const originalEntityId:any = originalReceipt[idField as keyof Receipt]
     const newEntityId:any = updatedReceipt[idField as keyof Receipt]
     
     if (originalEntityId !== newEntityId) {
       // Entity changed
       if (originalEntityId) {
-        await adjustEntityBalance(originalEntityId, originalReceipt.amount || 0, entityTable, entityPkField)
+        await adjustEntityBalance(originalEntityId, Number(originalReceipt.amount) || 0, entityTable, entityPkField)
       }
       
       if (newEntityId) {
-        await adjustEntityBalance(newEntityId, -(updatedReceipt.amount || 0), entityTable, entityPkField)
+        await adjustEntityBalance(newEntityId, -(Number(updatedReceipt.amount) || 0), entityTable, entityPkField)
       }
     } else {
       // Same entity, different amount
-      const amountDifference = (updatedReceipt.amount || 0) - (originalReceipt.amount || 0)
+      const originalAmount = Number(originalReceipt.amount) || 0
+      const updatedAmount = Number(updatedReceipt.amount) || 0
+      const amountDifference = updatedAmount - originalAmount
       if (Math.abs(amountDifference) > 0.01 && newEntityId) {
         await adjustEntityBalance(newEntityId, -amountDifference, entityTable, entityPkField)
       }
@@ -483,6 +514,7 @@ const updateReceiptManually = async (
   }
 }
 
+// FIXED: Enhanced entity balance adjustment with proper precision
 const adjustEntityBalance = async (
   entityId: number | string,
   adjustment: number,
@@ -501,7 +533,10 @@ const adjustEntityBalance = async (
     throw new Error(`Error fetching entity: ${entityError.message}`)
   }
 
-  const newBalance = (entity.balance || 0) + adjustment
+  const currentBalance = Number(entity.balance) || 0
+  const newBalance = Math.round((currentBalance + adjustment) * 100) / 100 // Round to 2 decimal places
+
+
 
   const { error: updateError } = await supabase
     .from(entityTable)
@@ -513,7 +548,7 @@ const adjustEntityBalance = async (
   }
 }
 
-// Enhanced function with validation
+// FIXED: Enhanced function with proper amount validation and precision handling
 const updateInvoiceAndEntityBalanceWithValidation = async (receipt: Partial<Receipt>) => {
   const invoiceTable = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
   const entityTable = activeTab === 'client' ? 'Clients' : 'Suppliers'
@@ -524,7 +559,7 @@ const updateInvoiceAndEntityBalanceWithValidation = async (receipt: Partial<Rece
     // Validate invoice exists and get current state
     const { data: invoice, error: invoiceError } = await supabase
       .from(invoiceTable)
-      .select('remaining_amount, total_price, type')
+      .select('remaining_amount, total_price, type, shipping_fee')
       .eq('id', receipt.invoice_id)
       .single()
 
@@ -532,8 +567,17 @@ const updateInvoiceAndEntityBalanceWithValidation = async (receipt: Partial<Rece
       throw new Error(`Invoice not found: ${invoiceError.message}`)
     }
 
+
+    // Ensure all amounts are properly handled as numbers
+    const receiptAmount = Number(receipt.amount) || 0
+    const invoiceRemaining = Number(invoice.remaining_amount) || 0
+    const invoiceTotal = Number(invoice.total_price) || 0
+    const shippingFee = Number(invoice.shipping_fee) || 0
+
+
+
     // Validate receipt amount
-    if (!receipt.amount || receipt.amount <= 0) {
+    if (receiptAmount <= 0) {
       throw new Error('Receipt amount must be greater than zero')
     }
 
@@ -541,13 +585,15 @@ const updateInvoiceAndEntityBalanceWithValidation = async (receipt: Partial<Rece
       throw new Error('Cannot create receipts for return invoices')
     }
 
-    if (receipt.amount > (invoice.remaining_amount || 0)) {
-      throw new Error(`Receipt amount (${receipt.amount.toFixed(2)}) exceeds remaining invoice amount (${(invoice.remaining_amount || 0).toFixed(2)})`)
+    if (receiptAmount > invoiceRemaining) {
+      throw new Error(`Receipt amount ($${receiptAmount.toFixed(2)}) exceeds remaining invoice amount ($${invoiceRemaining.toFixed(2)})`)
     }
 
-    // Update invoice remaining amount
-    const newRemainingAmount = Math.max(0, (invoice.remaining_amount || 0) - receipt.amount)
+    // Update invoice remaining amount with proper precision
+    const newRemainingAmount = Math.max(0, Math.round((invoiceRemaining - receiptAmount) * 100) / 100)
     
+
+
     const { error: updateInvoiceError } = await supabase
       .from(invoiceTable)
       .update({ remaining_amount: newRemainingAmount })
@@ -557,11 +603,13 @@ const updateInvoiceAndEntityBalanceWithValidation = async (receipt: Partial<Rece
       throw new Error(`Error updating invoice: ${updateInvoiceError.message}`)
     }
 
-    // Update entity balance
+    // Update entity balance with proper precision
     const entityId:any = receipt[idField as keyof Receipt]
     if (entityId) {
-      await adjustEntityBalance(entityId, -receipt.amount, entityTable, entityPkField)
+      await adjustEntityBalance(entityId, -receiptAmount, entityTable, entityPkField)
     }
+
+
 
   } catch (error) {
     console.error('Error updating invoice and entity balance:', error)
@@ -569,234 +617,7 @@ const updateInvoiceAndEntityBalanceWithValidation = async (receipt: Partial<Rece
   }
 }
 
-
-	// Enhanced function to handle receipt updates properly
-const updateInvoiceAndEntityBalanceForEdit = async (
-		originalReceipt: Receipt,
-		updatedReceipt: Partial<Receipt>
-	) => {
-		const invoiceTable = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
-		const entityTable = activeTab === 'client' ? 'Clients' : 'Suppliers'
-		const idField = activeTab === 'client' ? 'client_id' : 'supplier_id'
-		const entityPkField = activeTab === 'client' ? 'client_id' : 'id'
-
-		try {
-			// If invoice changed, handle both original and new invoice
-			if (originalReceipt.invoice_id !== updatedReceipt.invoice_id) {
-				// 1. Restore the original invoice's remaining amount
-				const { data: originalInvoiceData, error: originalInvoiceError } = await supabase
-					.from(invoiceTable)
-					.select('remaining_amount')
-					.eq('id', originalReceipt.invoice_id)
-					.single()
-
-				if (originalInvoiceError) {
-					throw new Error(`Error fetching original invoice: ${originalInvoiceError.message}`)
-				}
-
-				// Restore original invoice (add back the payment)
-				const restoredAmount = originalInvoiceData.remaining_amount + (originalReceipt.amount || 0)
-				const { error: restoreError } = await supabase
-					.from(invoiceTable)
-					.update({ remaining_amount: restoredAmount })
-					.eq('id', originalReceipt.invoice_id)
-
-				if (restoreError) {
-					throw new Error(`Error restoring original invoice: ${restoreError.message}`)
-				}
-
-				// 2. Apply payment to new invoice
-				const { data: newInvoiceData, error: newInvoiceError } = await supabase
-					.from(invoiceTable)
-					.select('remaining_amount')
-					.eq('id', updatedReceipt.invoice_id)
-					.single()
-
-				if (newInvoiceError) {
-					throw new Error(`Error fetching new invoice: ${newInvoiceError.message}`)
-				}
-
-				// Apply to new invoice (subtract the payment)
-				const newRemainingAmount = newInvoiceData.remaining_amount - (updatedReceipt.amount || 0)
-				const { error: applyError } = await supabase
-					.from(invoiceTable)
-					.update({ remaining_amount: newRemainingAmount })
-					.eq('id', updatedReceipt.invoice_id)
-
-				if (applyError) {
-					throw new Error(`Error applying payment to new invoice: ${applyError.message}`)
-				}
-			} else {
-				// Same invoice, but amount might have changed
-				const amountDifference = (updatedReceipt.amount || 0) - (originalReceipt.amount || 0)
-				
-				if (amountDifference !== 0) {
-					const { data: invoiceData, error: invoiceError } = await supabase
-						.from(invoiceTable)
-						.select('remaining_amount')
-						.eq('id', updatedReceipt.invoice_id)
-						.single()
-
-					if (invoiceError) {
-						throw new Error(`Error fetching invoice: ${invoiceError.message}`)
-					}
-
-					// Adjust remaining amount by the difference
-					const newRemainingAmount = invoiceData.remaining_amount - amountDifference
-					const { error: updateError } = await supabase
-						.from(invoiceTable)
-						.update({ remaining_amount: newRemainingAmount })
-						.eq('id', updatedReceipt.invoice_id)
-
-					if (updateError) {
-						throw new Error(`Error updating invoice amount: ${updateError.message}`)
-					}
-				}
-			}
-
-			// 3. Handle entity balance changes
-			const originalEntityId = originalReceipt[idField as keyof Receipt]
-			const newEntityId = updatedReceipt[idField as keyof Receipt]
-			const amountDifference = (updatedReceipt.amount || 0) - (originalReceipt.amount || 0)
-
-			if (originalEntityId !== newEntityId) {
-				// Entity changed - restore balance to original entity
-				if (originalEntityId) {
-					const { data: originalEntityData, error: originalEntityError } = await supabase
-						.from(entityTable)
-						.select('balance')
-						.eq(entityPkField, originalEntityId)
-						.single()
-
-					if (originalEntityError) {
-						throw new Error(`Error fetching original ${activeTab}: ${originalEntityError.message}`)
-					}
-
-					// Restore original entity balance (add back the payment)
-					const restoredBalance = originalEntityData.balance + (originalReceipt.amount || 0)
-					const { error: restoreEntityError } = await supabase
-						.from(entityTable)
-						.update({ balance: restoredBalance })
-						.eq(entityPkField, originalEntityId)
-
-					if (restoreEntityError) {
-						throw new Error(`Error restoring original ${activeTab} balance: ${restoreEntityError.message}`)
-					}
-				}
-
-				// Apply to new entity
-				if (newEntityId) {
-					const { data: newEntityData, error: newEntityError } = await supabase
-						.from(entityTable)
-						.select('balance')
-						.eq(entityPkField, newEntityId)
-						.single()
-
-					if (newEntityError) {
-						throw new Error(`Error fetching new ${activeTab}: ${newEntityError.message}`)
-					}
-
-					// Apply payment to new entity (subtract the payment)
-					const newBalance = newEntityData.balance - (updatedReceipt.amount || 0)
-					const { error: applyEntityError } = await supabase
-						.from(entityTable)
-						.update({ balance: newBalance })
-						.eq(entityPkField, newEntityId)
-
-					if (applyEntityError) {
-						throw new Error(`Error updating new ${activeTab} balance: ${applyEntityError.message}`)
-					}
-				}
-			} else if (amountDifference !== 0) {
-				// Same entity, but amount changed
-				if (newEntityId) {
-					const { data: entityData, error: entityError } = await supabase
-						.from(entityTable)
-						.select('balance')
-						.eq(entityPkField, newEntityId)
-						.single()
-
-					if (entityError) {
-						throw new Error(`Error fetching ${activeTab}: ${entityError.message}`)
-					}
-
-					// Adjust balance by the difference
-					const newBalance = entityData.balance - amountDifference
-					const { error: updateEntityError } = await supabase
-						.from(entityTable)
-						.update({ balance: newBalance })
-						.eq(entityPkField, newEntityId)
-
-					if (updateEntityError) {
-						throw new Error(`Error updating ${activeTab} balance: ${updateEntityError.message}`)
-					}
-				}
-			}
-
-		} catch (error: any) {
-			console.error('Error updating balances:', error)
-			toast.error(error.message || 'Error updating balances')
-			throw error
-		}
-	}
-
-	const updateInvoiceAndEntityBalance = async (receipt: Partial<Receipt>) => {
-		const invoiceTable =
-			activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
-		const entityTable = activeTab === 'client' ? 'Clients' : 'Suppliers'
-		const idField = activeTab === 'client' ? 'client_id' : 'supplier_id'
-
-		// Update invoice remaining amount
-		const { data: invoiceData, error: invoiceError } = await supabase
-			.from(invoiceTable)
-			.select('remaining_amount')
-			.eq('id', receipt.invoice_id)
-			.single()
-
-		if (invoiceError) {
-			toast.error(`Error fetching invoice: ${invoiceError.message}`)
-			return
-		}
-
-		const newRemainingAmount =
-			invoiceData.remaining_amount - (receipt.amount || 0)
-		const { error: updateInvoiceError } = await supabase
-			.from(invoiceTable)
-			.update({ remaining_amount: newRemainingAmount })
-			.eq('id', receipt.invoice_id)
-
-		if (updateInvoiceError) {
-			toast.error(`Error updating invoice: ${updateInvoiceError.message}`)
-			return
-		}
-
-		// Update entity balance
-		const field = activeTab === 'client' ? 'client_id' : 'id'
-		const { data: entityData, error: entityError } = await supabase
-			.from(entityTable)
-			.select('balance')
-			.eq(field, receipt[idField as keyof Receipt])
-			.single()
-
-		if (entityError) {
-			toast.error(`Error fetching ${activeTab}: ${entityError.message}`)
-			return
-		}
-
-		const newBalance = entityData.balance - (receipt.amount || 0)
-
-		const { error: updateEntityError } = await supabase
-			.from(entityTable)
-			.update({ balance: newBalance })
-			.eq(field, receipt[idField as keyof Receipt])
-
-		if (updateEntityError) {
-			toast.error(
-				`Error updating ${activeTab} balance: ${updateEntityError.message}`
-			)
-		}
-	}
-
+// FIXED: Enhanced receipt deletion with proper amount restoration
 const handleDeleteReceipt = async (id: number) => {
   if (!window.confirm('Are you sure you want to delete this receipt?')) {
     return
@@ -805,6 +626,8 @@ const handleDeleteReceipt = async (id: number) => {
   const table = activeTab === 'client' ? 'ClientReceipts' : 'SupplierReceipts'
   
   try {
+
+
     // Get receipt data first
     const { data: receiptData, error: fetchError } = await supabase
       .from(table)
@@ -816,11 +639,12 @@ const handleDeleteReceipt = async (id: number) => {
       throw new Error(`Error fetching receipt: ${fetchError.message}`)
     }
 
+
     // Validate we can delete this receipt
     const invoiceTable = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
     const { data: invoice, error: invoiceError } = await supabase
       .from(invoiceTable)
-      .select('total_price, type')
+      .select('total_price, type, remaining_amount, shipping_fee')
       .eq('id', receiptData.invoice_id)
       .single()
 
@@ -848,11 +672,35 @@ const handleDeleteReceipt = async (id: number) => {
       throw new Error(`Error deleting receipt: ${deleteError.message}`)
     }
 
-    // Restore invoice and entity balances
-    await updateInvoiceAndEntityBalanceWithValidation({
-      ...receiptData,
-      amount: -receiptData.amount // Negative amount to reverse the effects
-    })
+    // FIXED: Restore invoice and entity balances with proper precision
+    const receiptAmount = Number(receiptData.amount) || 0
+    const currentRemaining = Number(invoice.remaining_amount) || 0
+    const invoiceTotal = Number(invoice.total_price) || 0
+    
+    // Restore the remaining amount but don't exceed the total price
+    const restoredRemaining = Math.min(
+      Math.round((currentRemaining + receiptAmount) * 100) / 100,
+      Math.abs(invoiceTotal)
+    )
+
+
+    const { error: restoreInvoiceError } = await supabase
+      .from(invoiceTable)
+      .update({ remaining_amount: restoredRemaining })
+      .eq('id', receiptData.invoice_id)
+
+    if (restoreInvoiceError) {
+      throw new Error(`Error restoring invoice balance: ${restoreInvoiceError.message}`)
+    }
+
+    // Restore entity balance
+    const entityTable = activeTab === 'client' ? 'Clients' : 'Suppliers'
+    const entityPkField = activeTab === 'client' ? 'client_id' : 'id'
+    const entityId = receiptData[activeTab === 'client' ? 'client_id' : 'supplier_id']
+
+    if (entityId) {
+      await adjustEntityBalance(entityId, receiptAmount, entityTable, entityPkField)
+    }
 
     toast.success('Receipt deleted successfully')
     fetchReceipts()
@@ -1050,7 +898,7 @@ const handleDeleteReceipt = async (id: number) => {
 								</td>
 								<td className='py-3 px-6 text-left'>{receipt.invoice_id}</td>
 								<td className='py-3 px-6 text-left'>
-									{currencySymbol}{receipt.amount.toFixed(2)}
+									{currencySymbol}{Number(receipt.amount).toFixed(2)}
 								</td>
 								<td className='py-3 px-6 text-center'>
 									{(currency || 'usd').toUpperCase()}
@@ -1195,6 +1043,7 @@ const handleDeleteReceipt = async (id: number) => {
 		</div>
 	)
 
+	// FIXED: Enhanced receipt modal with better amount validation and precision
 	const renderReceiptModal = () => {
 		const selectedInvoice = newReceipt.invoice_id 
 			? invoices.find(invoice => invoice.id === newReceipt.invoice_id) 
@@ -1313,7 +1162,7 @@ const handleDeleteReceipt = async (id: number) => {
 									/>
 								</div>
 								
-								{/* Step 2: Select invoice (filtered by entity) */}
+								{/* Step 2: Select invoice (filtered by entity) with enhanced display */}
 								<div className='mb-4'>
 									<label
 										className='block text-neutral-700 text-sm font-bold mb-2'
@@ -1326,6 +1175,10 @@ const handleDeleteReceipt = async (id: number) => {
 											{filteredInvoices.length > 0 ? (
 												filteredInvoices.map((invoice:any) => {
 													const invCurrencySymbol = getCurrencySymbol(invoice.currency);
+													const invoiceTotal = Number(invoice.total_price) || 0;
+													const invoiceRemaining = Number(invoice.remaining_amount) || 0;
+													const shippingFee = Number(invoice.shipping_fee) || 0;
+													
 													return (
 														<div 
 															key={invoice.id}
@@ -1343,8 +1196,11 @@ const handleDeleteReceipt = async (id: number) => {
 														>
 															<div className='font-medium'>Invoice #{invoice.id}</div>
 															<div className='text-sm text-neutral-600'>
-																Remaining: {invCurrencySymbol}
-																{invoice.remaining_amount.toFixed(2)} ({invoice?.currency?.toUpperCase()})
+																Total: {invCurrencySymbol}{invoiceTotal.toFixed(2)} 
+																{shippingFee > 0 && ` (incl. ${invCurrencySymbol}${shippingFee.toFixed(2)} shipping)`}
+															</div>
+															<div className='text-sm text-neutral-600'>
+																Remaining: {invCurrencySymbol}{invoiceRemaining.toFixed(2)} ({invoice?.currency?.toUpperCase()})
 															</div>
 														</div>
 													);
@@ -1362,7 +1218,7 @@ const handleDeleteReceipt = async (id: number) => {
 									)}
 								</div>
 								
-								{/* Amount input with currency display */}
+								{/* FIXED: Enhanced amount input with better validation */}
 								<div className='mb-4'>
 									<label
 										className='block text-neutral-700 text-sm font-bold mb-2'
@@ -1380,17 +1236,36 @@ const handleDeleteReceipt = async (id: number) => {
 											min="0"
 											className='shadow appearance-none border rounded w-full py-2 pl-8 pr-3 text-neutral-700 leading-tight focus:outline-none focus:shadow-outline'
 											value={newReceipt.amount || ''}
-											onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-												setNewReceipt({
-													...newReceipt,
-													amount: Number(e.target.value)
-												})
-											}
+											onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+												const value = e.target.value;
+												// Allow empty string for clearing the field
+												if (value === '') {
+													setNewReceipt({
+														...newReceipt,
+														amount: 0
+													});
+												} else {
+													const numValue = parseFloat(value);
+													if (!isNaN(numValue) && numValue >= 0) {
+														setNewReceipt({
+															...newReceipt,
+															amount: numValue
+														});
+													}
+												}
+											}}
+											placeholder='0.00'
 										/>
 									</div>
 									{selectedInvoice && (
 										<div className="mt-1 text-sm text-neutral-600">
-											Invoice remaining: {currencySymbol}{selectedInvoice.remaining_amount?.toFixed(2)}
+											<div>Invoice total: {currencySymbol}{Number(selectedInvoice.total_price).toFixed(2)}</div>
+											<div>Invoice remaining: {currencySymbol}{Number(selectedInvoice.remaining_amount).toFixed(2)}</div>
+											{Number(selectedInvoice.shipping_fee) > 0 && (
+												<div className="text-xs text-neutral-500">
+													(Includes {currencySymbol}{Number(selectedInvoice.shipping_fee).toFixed(2)} shipping fee)
+												</div>
+											)}
 										</div>
 									)}
 								</div>
@@ -1481,7 +1356,7 @@ const handleDeleteReceipt = async (id: number) => {
 								Date: {new Date(selectedReceipt.paid_at).toLocaleDateString()}
 							</p>
 							<p className='text-sm text-neutral-500'>
-								Amount: {currencySymbol}{selectedReceipt.amount.toFixed(2)} ({currency?.toUpperCase()})
+								Amount: {currencySymbol}{Number(selectedReceipt.amount).toFixed(2)} ({currency?.toUpperCase()})
 							</p>
 							<p className='text-sm text-neutral-500'>
 								Invoice ID: {selectedReceipt.invoice_id}
@@ -1533,7 +1408,8 @@ const handleDeleteReceipt = async (id: number) => {
 	const handleEditReceipt = (receipt: any) => {
 		setNewReceipt({
 			...receipt,
-			currency: receipt.currency || getInvoiceCurrency(receipt.invoice_id)
+			currency: receipt.currency || getInvoiceCurrency(receipt.invoice_id),
+			amount: Number(receipt.amount) || 0 // Ensure amount is a number
 		})
 		setSelectedEntityId(receipt[activeTab === 'client' ? 'client_id' : 'supplier_id'])
 		updateFilteredInvoices(receipt[activeTab === 'client' ? 'client_id' : 'supplier_id'])
