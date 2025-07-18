@@ -6,35 +6,181 @@ import ClientFinancialReportPDF from './pdfTemplates/ClientFinancialReportPDF'
 import SupplierFinancialReportPDF from './pdfTemplates/SupplierFinancialReportPDF'
 import { supabase } from './supabase'
 
+// Enhanced image processing with base64 conversion and validation
+async function processImagesForPDF(products: any[]) {
+  const processedProducts = []
+  
+  for (const product of products) {
+    const processedProduct = { ...product }
+    
+    if (product.image) {
+      try {
+        console.log(`Processing image for PDF: ${product.image}`)
+        
+        // Convert image to base64 data URL for reliable PDF rendering
+        const base64Image = await convertImageToBase64(product.image)
+        
+        if (base64Image) {
+          processedProduct.image = base64Image
+          console.log(`✅ Successfully converted image to base64 for product: ${product.name}`)
+        } else {
+          console.warn(`❌ Failed to convert image for product: ${product.name}, using fallback`)
+          processedProduct.image = null // Will trigger fallback in PDF template
+        }
+      } catch (error) {
+        console.error(`❌ Error processing image for product ${product.name}:`, error)
+        processedProduct.image = null // Will trigger fallback in PDF template
+      }
+    }
+    
+    processedProducts.push(processedProduct)
+  }
+  
+  return processedProducts
+}
+
+// Convert image URL to base64 data URL
+async function convertImageToBase64(imageUrl: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    try {
+      // Validate URL first
+      if (!isValidImageUrl(imageUrl)) {
+        console.warn(`Invalid image URL: ${imageUrl}`)
+        resolve(null)
+        return
+      }
+
+      const img = new Image()
+      img.crossOrigin = 'anonymous' // Handle CORS
+      
+      // Set timeout for image loading
+      const timeout = setTimeout(() => {
+        console.warn(`Image load timeout: ${imageUrl}`)
+        resolve(null)
+      }, 10000) // 10 second timeout
+
+      img.onload = () => {
+        try {
+          clearTimeout(timeout)
+          
+          // Check image dimensions (reject if too large)
+          if (img.width > 2000 || img.height > 2000) {
+            console.warn(`Image too large (${img.width}x${img.height}): ${imageUrl}`)
+            resolve(null)
+            return
+          }
+
+          // Create canvas and convert to base64
+          const canvas = document.createElement('canvas')
+          const ctx = canvas.getContext('2d')
+          
+          if (!ctx) {
+            console.error('Failed to get canvas context')
+            resolve(null)
+            return
+          }
+
+          // Resize image if needed (max 800px width/height for PDF efficiency)
+          const maxSize = 800
+          let { width, height } = img
+          
+          if (width > maxSize || height > maxSize) {
+            const ratio = Math.min(maxSize / width, maxSize / height)
+            width = width * ratio
+            height = height * ratio
+          }
+
+          canvas.width = width
+          canvas.height = height
+          
+          // Draw image on canvas
+          ctx.drawImage(img, 0, 0, width, height)
+          
+          // Convert to base64 (JPEG for smaller size)
+          const base64 = canvas.toDataURL('image/jpeg', 0.8)
+          
+          console.log(`✅ Converted image to base64 (${width}x${height}): ${imageUrl}`)
+          resolve(base64)
+          
+        } catch (error) {
+          clearTimeout(timeout)
+          console.error(`Error converting image to base64: ${imageUrl}`, error)
+          resolve(null)
+        }
+      }
+
+      img.onerror = (error) => {
+        clearTimeout(timeout)
+        console.error(`Failed to load image: ${imageUrl}`, error)
+        resolve(null)
+      }
+
+      // Start loading image
+      img.src = imageUrl
+      
+    } catch (error) {
+      console.error(`Error in convertImageToBase64: ${imageUrl}`, error)
+      resolve(null)
+    }
+  })
+}
+
+// Validate image URL
+function isValidImageUrl(url: string): boolean {
+  try {
+    const validUrl = new URL(url)
+    const validProtocols = ['http:', 'https:', 'data:']
+    const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']
+    
+    // Check protocol
+    if (!validProtocols.includes(validUrl.protocol)) {
+      return false
+    }
+    
+    // For data URLs, basic validation
+    if (validUrl.protocol === 'data:') {
+      return url.startsWith('data:image/')
+    }
+    
+    // Check file extension or assume it's valid if no extension (some URLs don't have extensions)
+    const pathname = validUrl.pathname.toLowerCase()
+    const hasValidExtension = validExtensions.some(ext => pathname.endsWith(ext))
+    const hasNoExtension = !pathname.includes('.')
+    
+    return hasValidExtension || hasNoExtension
+    
+  } catch {
+    return false
+  }
+}
+
+// Legacy preload function (kept for fallback compatibility)
 async function preloadImages(products: any[]) {
+  console.warn('Using legacy preloadImages - consider upgrading to processImagesForPDF')
   const imageCache = new Map();
   const imageFetchPromises = [];
 
   for (const product of products) {
     if (product.image && !imageCache.has(product.image)) {
-      // Create a promise to fetch each image
       const fetchPromise = new Promise((resolve) => {
         const img = new Image();
 
-        // Handle successful loading
         img.onload = () => {
           imageCache.set(product.image, product.image);
           resolve(true);
         };
 
-        // Handle failed loading by resolving with false (don't reject)
         img.onerror = () => {
           console.warn(`Failed to preload image: ${product.image}`);
           resolve(false);
         };
 
-        // Set a timeout to prevent hanging
         setTimeout(() => {
           if (!imageCache.has(product.image)) {
             console.warn(`Image load timeout: ${product.image}`);
             resolve(false);
           }
-        }, 5000); // 5 second timeout
+        }, 5000);
 
         img.src = product.image;
       });
@@ -43,7 +189,6 @@ async function preloadImages(products: any[]) {
     }
   }
 
-  // Wait for all images to either load or fail
   await Promise.allSettled(imageFetchPromises);
   return imageCache;
 }
@@ -461,30 +606,49 @@ await Promise.all(
       return a.color.localeCompare(b.color);
     });
 
- try {
-      console.log("Preloading images for PDF generation...");
-      const imageCache = await preloadImages(productsArray);
-
-      // Update the product images based on preload results
-      productsArray.forEach(product => {
-        if (product.image && !imageCache.has(product.image)) {
-          console.log(`Using placeholder for failed image: ${product.image}`);
-          product.image = '/placeholder-image.jpg';
-        }
-      });
+    // ENHANCED: Use new robust image processing
+    try {
+      console.log("🖼️  Processing images for PDF generation...");
+      const processedProducts = await processImagesForPDF(productsArray);
+      
+      console.log(`✅ Successfully processed ${processedProducts.length} products for PDF`);
+      
+      data = {
+        ...data,
+        products: processedProducts,
+        discounts: data.discounts || {},
+        type: data.type || 'regular',
+        payment_info: data.payment_info || 'frisson_llc'
+      };
+      
     } catch (err) {
-      console.error("Error during image preloading:", err);
-      // Continue with PDF generation even if preloading fails
+      console.error("❌ Error during image processing, falling back to legacy method:", err);
+      
+      // Fallback to legacy preloading method
+      try {
+        const imageCache = await preloadImages(productsArray);
+        
+        productsArray.forEach(product => {
+          if (product.image && !imageCache.has(product.image)) {
+            console.log(`Using placeholder for failed image: ${product.image}`);
+            product.image = null; // Will trigger fallback in PDF template
+          }
+        });
+      } catch (legacyErr) {
+        console.error("❌ Legacy image preloading also failed:", legacyErr);
+        // Continue with original images and let PDF template handle failures
+      }
+      
+      data = {
+        ...data,
+        products: productsArray,
+        discounts: data.discounts || {},
+        type: data.type || 'regular',
+        payment_info: data.payment_info || 'frisson_llc'
+      };
     }
-
-    data = {
-      ...data,
-      products: productsArray,
-      discounts: data.discounts || {},
-      type: data.type || 'regular',
-      payment_info: data.payment_info || 'frisson_llc'
-    };
   }
+  
   switch (type) {
     case 'invoice': {
       let entityData, companyData, isClientInvoice
@@ -646,7 +810,7 @@ await Promise.all(
 
   // Generate the PDF blob and trigger download.
   try {
-    console.log(`Generating PDF: ${fileName}`)
+    console.log(`📄 Generating PDF: ${fileName}`)
     const blob = await pdf(component).toBlob()
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')

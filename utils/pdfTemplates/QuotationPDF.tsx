@@ -25,7 +25,7 @@ try {
   Font.register({
     family: 'Times New Roman',
     fonts: [
-      { src: '/fonts/times-new-roman.ttf' }, // Ensure these paths are correct
+      { src: '/fonts/times-new-roman.ttf' },
       { src: '/fonts/times-new-roman-bold.ttf', fontWeight: 700 },
       { src: '/fonts/times-new-roman-italic.ttf', fontStyle: 'italic' },
       {
@@ -38,7 +38,6 @@ try {
 } catch (error) {
   console.warn('Failed to load custom fonts, using fallbacks:', error)
 }
-
 
 const styles = StyleSheet.create({
   page: {
@@ -63,7 +62,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: 700, // MODIFICATION: Changed from 'bold'
+    fontWeight: 700,
     marginBottom: 20,
     color: '#1E40AF'
   },
@@ -81,7 +80,7 @@ const styles = StyleSheet.create({
     fontSize: 10
   },
   label: {
-    fontWeight: 700, // MODIFICATION: Changed from 'bold'
+    fontWeight: 700,
     marginRight: 5
   },
   value: {
@@ -110,32 +109,32 @@ const styles = StyleSheet.create({
     borderColor: '#bfbfbf',
     backgroundColor: '#f0f0f0',
     padding: 1,
-    justifyContent: 'center', // MODIFICATION: Added for alignment
-    alignItems: 'center'      // MODIFICATION: Added for alignment
+    justifyContent: 'center',
+    alignItems: 'center'
   },
   tableCol: {
     borderStyle: 'solid',
     borderRightWidth: 1,
     borderRightColor: '#bfbfbf',
-    padding: 1,               // MODIFICATION: Added padding
-    justifyContent: 'center', // MODIFICATION: Added for alignment
-    alignItems: 'center'      // MODIFICATION: Added for alignment
+    padding: 1,
+    justifyContent: 'center',
+    alignItems: 'center'
   },
   tableCellHeader: {
-    fontWeight: 700, // MODIFICATION: Changed from 'bold'
+    fontWeight: 700,
     fontSize: 5,
     textAlign: 'center'
   },
   tableCell: {
     fontSize: 5,
-    padding: 1 // Padding for the text content itself
+    padding: 1
   },
   notes: {
     fontSize: 5,
     fontStyle: 'italic',
     color: '#666',
     marginTop: 2,
-    textAlign: 'left', // Notes might be better left-aligned
+    textAlign: 'left',
     paddingHorizontal: 2
   },
   subtotal: {
@@ -147,7 +146,7 @@ const styles = StyleSheet.create({
     width: '16.66%',
     textAlign: 'right',
     paddingRight: 5,
-    fontWeight: 700, // MODIFICATION: Changed from 'bold'
+    fontWeight: 700,
     fontSize: 10
   },
   subtotalValue: {
@@ -171,12 +170,28 @@ const styles = StyleSheet.create({
     objectFit: 'contain',
     marginVertical: 2
   },
-  imageContainer: { // This style is used for the image cell
+  imageContainer: {
     width: '7%',
-    height: 54, // Fixed height for consistent row height with images
+    height: 54,
     justifyContent: 'center',
     alignItems: 'center'
-    // No padding here, padding will come from tableCol if merged, or productImage can have margins
+  },
+  // ENHANCED: Better placeholder styling
+  imagePlaceholder: {
+    width: 40,
+    height: 40,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#d0d0d0',
+    borderStyle: 'solid'
+  },
+  imagePlaceholderText: {
+    fontSize: 6,
+    color: '#999',
+    textAlign: 'center'
   },
   amountInWords: {
     fontSize: 8,
@@ -190,6 +205,42 @@ const styles = StyleSheet.create({
     marginTop: 10
   }
 })
+
+// ENHANCED: Better image rendering with robust fallback for quotations
+const ProductImageRenderer: React.FC<{ 
+    image: string | null, 
+    productName: string 
+}> = ({ image, productName }) => {
+    // Check if image is valid (not null, not empty, and not just whitespace)
+    const hasValidImage = image && 
+                         typeof image === 'string' && 
+                         image.trim().length > 0 &&
+                         image !== '/placeholder-image.jpg' &&
+                         image !== 'null' &&
+                         image !== 'undefined'
+
+    if (hasValidImage) {
+        try {
+            return (
+                <Image
+                    src={image}
+                    style={styles.productImage}
+                    cache={true}
+                />
+            )
+        } catch (error) {
+            console.warn(`Failed to render image for ${productName}: ${image}`)
+            // Fall through to placeholder
+        }
+    }
+
+    // Render placeholder
+    return (
+        <View style={styles.imagePlaceholder}>
+            <Text style={styles.imagePlaceholderText}>NO{'\n'}IMAGE</Text>
+        </View>
+    )
+}
 
 const convertAmountToWords = (
   amount: number,
@@ -263,7 +314,7 @@ const QuotationPDF: React.FC<{
           {logoBase64 ? (
             <Image src={logoBase64} style={styles.logo} />
           ) : (
-            <Image src='/logo/logo.png' style={styles.logo} /> // Ensure path is correct
+            <Image src='/logo/logo.png' style={styles.logo} />
           )}
           <View style={styles.companyInfo}>
             <Text>{safeCompany.name || 'N/A'}</Text>
@@ -298,7 +349,6 @@ const QuotationPDF: React.FC<{
                 ? format(new Date(safeQuotation.created_at), 'PP')
                 : 'N/A'}
             </Text>
-            {/* Removed redundant "Order Number" display, assuming safeQuotation.id is preferred */}
             {safeQuotation.delivery_date && (
               <Text style={styles.value}>
                 Delivery Date:{' '}
@@ -315,7 +365,6 @@ const QuotationPDF: React.FC<{
         </View>
 
         <View style={styles.table}>
-          {/* MODIFICATION: Added 'fixed' prop to the table header row View */}
           <View style={styles.tableRow} fixed>
             <View style={[styles.tableColHeader, { width: '7%' }]}>
               <Text style={styles.tableCellHeader}>IMAGE</Text>
@@ -345,7 +394,6 @@ const QuotationPDF: React.FC<{
                 <Text style={styles.tableCellHeader}>DISCOUNT</Text>
               </View>
             )}
-            {/* MODIFICATION: Added borderRightWidth: 0 to the last header cell */}
             <View style={[styles.tableColHeader, { width: '7%', borderRightWidth: 0 }]}>
               <Text style={styles.tableCellHeader}>TOTAL</Text>
             </View>
@@ -360,23 +408,12 @@ const QuotationPDF: React.FC<{
             const lineTotal = priceAfterDiscount * totalQuantity
 
             return (
-              // MODIFICATION: Added 'wrap={false}' to prevent data rows from splitting
               <View key={index} style={styles.tableRow} wrap={false}>
-                {/* MODIFICATION: Applied styles.imageContainer to the image cell */}
                 <View style={[styles.tableCol, styles.imageContainer]}>
-                 {product.image ? (
-                    <Image
-                      src={product.image}
-                      style={styles.productImage}
-                      cache={true}
-                    />
-                  ) : (
-                    <Image
-                      src="/placeholder-image.jpg" // Ensure path is correct or handle fallback
-                      style={styles.productImage}
-                      cache={true}
-                    />
-                  )}
+                  <ProductImageRenderer 
+                    image={product.image} 
+                    productName={product.name} 
+                  />
                 </View>
                 <View style={[styles.tableCol, { width: '8%' }]}>
                   <Text style={styles.tableCell}>{product.name || 'N/A'}</Text>
@@ -418,7 +455,6 @@ const QuotationPDF: React.FC<{
                     </Text>
                   </View>
                 )}
-                {/* MODIFICATION: Added borderRightWidth: 0 to the last data cell */}
                 <View style={[styles.tableCol, { width: '7%', borderRightWidth: 0 }]}>
                   <Text style={styles.tableCell}>
                     {currencySymbol}
@@ -505,7 +541,7 @@ const QuotationPDF: React.FC<{
             Routing Number: {safeCompany.bank_routing_number || 'N/A'}
           </Text>
           <Text style={styles.value}>
-            Beneficiary Account: Frisson International LLC {/* This seems hardcoded, ensure it's correct or make dynamic */}
+            Beneficiary Account: Frisson International LLC
           </Text>
           {safeQuotation.payment_term && (
             <Text style={styles.value}>
@@ -521,7 +557,6 @@ const QuotationPDF: React.FC<{
           </View>
         )}
 
-        {/* MODIFICATION: Added 'fixed' and page numbering to footer */}
         <Text style={styles.footer} fixed>
             Thank you for your business!
         </Text>
