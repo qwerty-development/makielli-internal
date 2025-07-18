@@ -4,175 +4,400 @@ import {
 	Text,
 	View,
 	Document,
+	Image,
 	StyleSheet,
-	Image
+	Font
 } from '@react-pdf/renderer'
 import { format } from 'date-fns'
 
-const colors = {
-	primary: '#1E40AF',
-	secondary: '#60A5FA',
-	accent: '#BFDBFE',
-	text: '#1F2937',
-	lightText: '#6B7280',
-	success: '#10B981',
-	danger: '#EF4444',
-	warning: '#F59E0B',
-	background: '#F3F4F6'
-}
+// Register Times New Roman font family
+Font.register({
+	family: 'Times New Roman',
+	fonts: [
+		{ src: '/fonts/times-new-roman.ttf' },
+		{ src: '/fonts/times-new-roman-bold.ttf', fontWeight: 700 },
+		{ src: '/fonts/times-new-roman-italic.ttf', fontStyle: 'italic' },
+		{
+			src: '/fonts/times-new-roman-bold-italic.ttf',
+			fontWeight: 700,
+			fontStyle: 'italic'
+		}
+	]
+})
 
 const styles = StyleSheet.create({
 	page: {
-		flexDirection: 'column',
-		backgroundColor: colors.background,
-		padding: 30
-	},
-	section: {
-		margin: 10,
-		padding: 15,
+		fontFamily: 'Times New Roman',
+		fontSize: 11,
+		paddingTop: 40,
+		paddingBottom: 60,
+		paddingHorizontal: 40,
 		backgroundColor: '#FFFFFF',
-		borderRadius: 5,
-		boxShadow: '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)'
+		color: '#2D3748'
 	},
+	
+	// Elegant Header
 	header: {
 		flexDirection: 'row',
 		justifyContent: 'space-between',
-		alignItems: 'center',
-		marginBottom: 20,
-		backgroundColor: colors.primary,
-		padding: 15,
-		borderRadius: 5
+		alignItems: 'flex-start',
+		marginBottom: 40,
+		paddingBottom: 25,
+		borderBottomWidth: 1,
+		borderBottomColor: '#E2E8F0'
+	},
+	headerLeft: {
+		flexDirection: 'column'
 	},
 	logo: {
-		width: 80,
-		height: 'auto'
+		width: 100,
+		height: 'auto',
+		marginBottom: 12,
+		objectFit: 'contain'
 	},
 	title: {
 		fontSize: 24,
 		fontWeight: 'bold',
-		color: '#FFFFFF'
+		color: '#1A202C',
+		letterSpacing: -0.5
 	},
 	subtitle: {
+		fontSize: 11,
+		color: '#718096',
+		marginTop: 4,
+		fontWeight: 'normal'
+	},
+	headerRight: {
+		flexDirection: 'column',
+		alignItems: 'flex-end'
+	},
+	headerDetails: {
+		fontSize: 9,
+		color: '#718096',
+		textAlign: 'right',
+		marginBottom: 2
+	},
+	
+	// Refined Section Styles
+	section: {
+		marginBottom: 32
+	},
+	sectionTitle: {
+		fontSize: 13,
+		fontWeight: 'bold',
+		color: '#2D3748',
+		marginBottom: 16,
+		letterSpacing: -0.2
+	},
+	
+	// Elegant Client Info
+	clientInfoContainer: {
+		backgroundColor: '#F7FAFC',
+		padding: 20,
+		borderRadius: 2,
+		borderLeftWidth: 3,
+		borderLeftColor: '#4A5568'
+	},
+	infoGrid: {
+		flexDirection: 'row',
+		flexWrap: 'wrap'
+	},
+	infoColumn: {
+		width: '50%',
+		paddingRight: 20,
+		marginBottom: 12
+	},
+	infoColumnFull: {
+		width: '100%',
+		marginBottom: 12
+	},
+	infoLabel: {
+		fontSize: 8,
+		fontWeight: 'bold',
+		color: '#718096',
+		marginBottom: 3,
+		textTransform: 'uppercase',
+		letterSpacing: 0.5
+	},
+	infoValue: {
+		fontSize: 11,
+		color: '#2D3748',
+		fontWeight: 'normal'
+	},
+	
+	// Sophisticated Balance Display
+	balanceContainer: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		alignItems: 'center',
+		backgroundColor: '#F7FAFC',
+		paddingVertical: 16,
+		paddingHorizontal: 20,
+		marginTop: 16,
+		borderRadius: 2,
+		borderLeftWidth: 3
+	},
+	balanceOutstanding: {
+		borderLeftColor: '#E53E3E'
+	},
+	balanceCredit: {
+		borderLeftColor: '#38A169'
+	},
+	balanceSettled: {
+		borderLeftColor: '#718096'
+	},
+	balanceLeft: {
+		flexDirection: 'column'
+	},
+	balanceLabel: {
+		fontSize: 9,
+		color: '#718096',
+		fontWeight: 'bold',
+		textTransform: 'uppercase',
+		letterSpacing: 0.5,
+		marginBottom: 4
+	},
+	balanceAmount: {
 		fontSize: 18,
 		fontWeight: 'bold',
-		color: colors.primary,
-		marginBottom: 10,
-		borderBottom: `2px solid ${colors.secondary}`,
-		paddingBottom: 5
+		color: '#2D3748'
 	},
-	text: {
-		fontSize: 10,
-		marginBottom: 5,
-		color: colors.text
+	balanceRight: {
+		alignItems: 'flex-end'
 	},
-	smallText: {
+	balanceStatus: {
+		fontSize: 9,
+		color: '#718096',
+		fontStyle: 'italic'
+	},
+	reconcileNote: {
 		fontSize: 8,
-		marginBottom: 3,
-		color: colors.lightText
+		color: '#38A169',
+		marginTop: 2
 	},
-	boldText: {
+	
+	// Minimal Summary Cards
+	summaryContainer: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		marginBottom: 20
+	},
+	summaryCard: {
+		width: '32%',
+		backgroundColor: '#FFFFFF',
+		borderWidth: 1,
+		borderColor: '#E2E8F0',
+		borderRadius: 2,
+		padding: 14,
+		alignItems: 'center'
+	},
+	summaryAmount: {
+		fontSize: 14,
+		fontWeight: 'bold',
+		color: '#2D3748',
+		marginBottom: 4
+	},
+	summaryLabel: {
+		fontSize: 8,
+		color: '#718096',
+		textAlign: 'center',
+		fontWeight: 'bold',
+		textTransform: 'uppercase',
+		letterSpacing: 0.3
+	},
+	summaryCount: {
+		fontSize: 7,
+		color: '#A0AEC0',
+		marginTop: 2
+	},
+	
+	// Elegant Period Info
+	periodContainer: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		alignItems: 'center',
+		backgroundColor: '#F7FAFC',
+		paddingVertical: 12,
+		paddingHorizontal: 16,
+		marginBottom: 20,
+		borderRadius: 2
+	},
+	periodText: {
+		fontSize: 9,
+		color: '#718096'
+	},
+	periodBold: {
+		color: '#2D3748',
 		fontWeight: 'bold'
 	},
-	table: {
-		width: 'auto',
-		borderStyle: 'solid',
+	
+	// Sophisticated Table
+	tableContainer: {
 		borderWidth: 1,
-		borderColor: colors.lightText,
-		marginTop: 10,
-		borderRadius: 5,
+		borderColor: '#E2E8F0',
+		borderRadius: 2,
 		overflow: 'hidden'
 	},
+	tableHeader: {
+		flexDirection: 'row',
+		backgroundColor: '#2D3748',
+		paddingVertical: 14
+	},
 	tableRow: {
-		flexDirection: 'row'
+		flexDirection: 'row',
+		borderBottomWidth: 1,
+		borderBottomColor: '#E2E8F0',
+		minHeight: 40,
+		alignItems: 'center'
 	},
 	tableRowEven: {
-		backgroundColor: colors.accent
+		backgroundColor: '#F7FAFC'
 	},
 	tableRowReturn: {
-		backgroundColor: '#FEE2E2' // Light red for returns
+		backgroundColor: '#FED7D7',
+		borderLeftWidth: 2,
+		borderLeftColor: '#E53E3E'
 	},
-	tableHeader: {
-		backgroundColor: colors.primary
+	
+	// Refined Table Columns
+	colDate: {
+		width: '14%',
+		paddingHorizontal: 12,
+		justifyContent: 'center'
 	},
-	tableCol: {
-		width: '14.28%', // Adjusted for 7 columns
-		borderStyle: 'solid',
-		borderWidth: 1,
-		borderColor: colors.lightText
+	colDescription: {
+		width: '36%',
+		paddingHorizontal: 12,
+		justifyContent: 'center'
 	},
-	tableColWide: {
-		width: '20%', // For description column
-		borderStyle: 'solid',
-		borderWidth: 1,
-		borderColor: colors.lightText
+	colInvoice: {
+		width: '16%',
+		paddingHorizontal: 12,
+		justifyContent: 'center'
 	},
-	tableColNarrow: {
-		width: '12%', // For currency column
-		borderStyle: 'solid',
-		borderWidth: 1,
-		borderColor: colors.lightText
+	colReceipt: {
+		width: '16%',
+		paddingHorizontal: 12,
+		justifyContent: 'center'
 	},
-	tableCell: {
-		margin: 'auto',
-		marginTop: 5,
-		marginBottom: 5,
-		fontSize: 8,
-		color: colors.text,
-		textAlign: 'center'
+	colBalance: {
+		width: '18%',
+		paddingHorizontal: 12,
+		justifyContent: 'center'
 	},
-	tableCellLeft: {
-		marginLeft: 5,
-		marginTop: 5,
-		marginBottom: 5,
-		fontSize: 8,
-		color: colors.text,
-		textAlign: 'left'
-	},
+	
+	// Elegant Table Cells
 	tableCellHeader: {
-		margin: 'auto',
-		marginTop: 5,
-		marginBottom: 5,
-		fontSize: 9,
+		fontSize: 8,
 		fontWeight: 'bold',
 		color: '#FFFFFF',
-		textAlign: 'center'
+		textAlign: 'center',
+		textTransform: 'uppercase',
+		letterSpacing: 0.5
 	},
+	tableCell: {
+		fontSize: 9,
+		color: '#2D3748',
+		textAlign: 'center',
+		lineHeight: 1.3
+	},
+	tableCellLeft: {
+		fontSize: 9,
+		color: '#2D3748',
+		textAlign: 'left',
+		lineHeight: 1.3
+	},
+	tableCellRight: {
+		fontSize: 9,
+		color: '#2D3748',
+		textAlign: 'right',
+		lineHeight: 1.3
+	},
+	tableCellBold: {
+		fontWeight: 'bold'
+	},
+	
+	// Sophisticated Amount Colors
+	amountInvoice: {
+		color: '#C53030',
+		fontWeight: 'bold'
+	},
+	amountReceipt: {
+		color: '#2F855A',
+		fontWeight: 'bold'
+	},
+	amountBalance: {
+		color: '#2D3748',
+		fontWeight: 'bold'
+	},
+	amountNeutral: {
+		color: '#A0AEC0'
+	},
+	
+	// Refined Currency Section
+	currencySection: {
+		backgroundColor: '#F7FAFC',
+		padding: 16,
+		borderRadius: 2,
+		marginTop: 20,
+		borderLeftWidth: 3,
+		borderLeftColor: '#4A5568'
+	},
+	currencyTitle: {
+		fontSize: 10,
+		fontWeight: 'bold',
+		color: '#2D3748',
+		marginBottom: 10,
+		textTransform: 'uppercase',
+		letterSpacing: 0.3
+	},
+	currencyRow: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		marginBottom: 6
+	},
+	currencyLabel: {
+		fontSize: 9,
+		color: '#4A5568',
+		fontWeight: 'bold'
+	},
+	currencyAmount: {
+		fontSize: 9,
+		color: '#2D3748'
+	},
+	
+	// Empty State
+	emptyState: {
+		backgroundColor: '#F7FAFC',
+		padding: 40,
+		borderRadius: 2,
+		alignItems: 'center',
+		borderWidth: 1,
+		borderColor: '#E2E8F0',
+		borderStyle: 'dashed'
+	},
+	emptyText: {
+		fontSize: 11,
+		color: '#718096',
+		fontStyle: 'italic'
+	},
+	
+	// Minimalist Footer
 	footer: {
 		position: 'absolute',
 		bottom: 30,
-		left: 30,
-		right: 30,
+		left: 40,
+		right: 40,
 		textAlign: 'center',
-		color: colors.lightText,
-		borderTop: `1px solid ${colors.lightText}`,
-		paddingTop: 10
+		color: '#A0AEC0',
+		fontSize: 8,
+		borderTopWidth: 1,
+		borderTopColor: '#E2E8F0',
+		paddingTop: 16
 	},
-	summarySection: {
-		marginTop: 20,
-		borderTop: `2px solid ${colors.primary}`,
-		paddingTop: 10
-	},
-	balanceHighlight: {
-		backgroundColor: '#F0F9FF',
-		padding: 8,
-		borderRadius: 4,
-		borderLeft: `4px solid ${colors.primary}`
-	},
-	summaryRow: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		marginBottom: 5
-	},
-	infoRow: {
-		flexDirection: 'row',
-		marginBottom: 5
-	},
-	infoLabel: {
-		width: '40%',
+	footerHighlight: {
+		color: '#2D3748',
 		fontWeight: 'bold'
-	},
-	infoValue: {
-		width: '60%'
 	}
 })
 
@@ -221,7 +446,7 @@ const ClientFinancialReportPDF: React.FC<ClientFinancialReportProps> = ({
 }) => {
 	const { transactions, reconciliation, summary } = financialData
 
-	// Enhanced financial calculations with multi-currency support
+	// Calculate financial summary
 	const calculateFinancialSummary = () => {
 		const currencyTotals = new Map()
 		let totalInvoices = 0
@@ -263,7 +488,6 @@ const ClientFinancialReportPDF: React.FC<ClientFinancialReportProps> = ({
 		})
 
 		const netInvoiceAmount = totalInvoices - totalReturns
-		// Use the calculated balance from the reconciliation data
 		const currentBalance = reconciliation.calculatedBalance
 
 		return {
@@ -283,28 +507,15 @@ const ClientFinancialReportPDF: React.FC<ClientFinancialReportProps> = ({
 	const summaryData = calculateFinancialSummary()
 
 	// Helper functions
-	const getTransactionDisplay = (transaction: any) => {
-		switch (transaction.type) {
-			case 'invoice':
-				return 'Invoice'
-			case 'return':
-				return 'Return'
-			case 'receipt':
-				return 'Payment'
-			default:
-				return transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)
-		}
-	}
-
 	const getTransactionDescription = (transaction: FinancialTransaction) => {
 		switch (transaction.type) {
 			case 'invoice':
-				const orderInfo = transaction.order_number ? ` (Order: ${transaction.order_number})` : ''
-				const quotationInfo = transaction.quotation_id ? ` [Q#${transaction.quotation_id}]` : ''
+				const orderInfo = transaction.order_number ? ` (${transaction.order_number})` : ''
+				const quotationInfo = transaction.quotation_id ? ` [Order #${transaction.quotation_id}]` : ''
 				return `Invoice #${transaction.id}${orderInfo}${quotationInfo}`
 			case 'return':
-				const returnOrderInfo = transaction.order_number ? ` (Order: ${transaction.order_number})` : ''
-				return `Return Invoice #${transaction.id}${returnOrderInfo}`
+				const returnOrderInfo = transaction.order_number ? ` (${transaction.order_number})` : ''
+				return `Return #${transaction.id}${returnOrderInfo}`
 			case 'receipt':
 				return `Payment for Invoice #${transaction.invoice_id || 'N/A'}`
 			default:
@@ -312,236 +523,198 @@ const ClientFinancialReportPDF: React.FC<ClientFinancialReportProps> = ({
 		}
 	}
 
-	const getAmountColor = (transaction: FinancialTransaction) => {
-		switch (transaction.type) {
-			case 'invoice':
-				return colors.danger
-			case 'return':
-				return colors.warning
-			case 'receipt':
-				return colors.success
-			default:
-				return colors.text
-		}
-	}
-
 	const getCurrencySymbol = (currency: string) => {
 		return currency === 'euro' ? '€' : '$'
+	}
+
+	const getBalanceStyle = (balance: number) => {
+		if (balance > 0) return styles.balanceOutstanding
+		if (balance < 0) return styles.balanceCredit
+		return styles.balanceSettled
+	}
+
+	const getBalanceStatus = (balance: number) => {
+		if (balance > 0) return 'Outstanding Balance'
+		if (balance < 0) return 'Credit Balance'
+		return 'Account Settled'
 	}
 
 	return (
 		<Document>
 			<Page size='A4' style={styles.page}>
-				{/* Header */}
+				{/* Sophisticated Header */}
 				<View style={styles.header}>
-					<Image src='/logo/logo.png' style={styles.logo} />
-					<Text style={styles.title}>Financial Report</Text>
+					<View style={styles.headerLeft}>
+						<Image src='/logo/logo.png' style={styles.logo} />
+						<Text style={styles.title}>Financial Statement</Text>
+						<Text style={styles.subtitle}>Client Account Overview</Text>
+					</View>
+					<View style={styles.headerRight}>
+						<Text style={styles.headerDetails}>
+							{format(new Date(), 'MMMM d, yyyy')}
+						</Text>
+						<Text style={styles.headerDetails}>
+							{format(new Date(), 'HH:mm')}
+						</Text>
+						<Text style={[styles.headerDetails, { marginTop: 8, color: '#2D3748', fontWeight: 'bold' }]}>
+							{clientName || 'N/A'}
+						</Text>
+					</View>
 				</View>
 
-				{/* Client Information */}
+				{/* Elegant Client Information */}
 				<View style={styles.section}>
-					<Text style={styles.subtitle}>Client Information</Text>
-					<View style={styles.infoRow}>
-						<Text style={[styles.text, styles.infoLabel]}>Name:</Text>
-						<Text style={[styles.text, styles.infoValue]}>{clientName || 'N/A'}</Text>
+					<Text style={styles.sectionTitle}>Client Information</Text>
+					<View style={styles.clientInfoContainer}>
+						<View style={styles.infoGrid}>
+							<View style={styles.infoColumn}>
+								<Text style={styles.infoLabel}>Client Name</Text>
+								<Text style={[styles.infoValue, { fontWeight: 'bold' }]}>
+									{clientName || 'N/A'}
+								</Text>
+							</View>
+							<View style={styles.infoColumn}>
+								<Text style={styles.infoLabel}>Client ID</Text>
+								<Text style={styles.infoValue}>{clientDetails?.client_id || 'N/A'}</Text>
+							</View>
+							<View style={styles.infoColumn}>
+								<Text style={styles.infoLabel}>Email Address</Text>
+								<Text style={styles.infoValue}>{clientDetails?.email || 'N/A'}</Text>
+							</View>
+							<View style={styles.infoColumn}>
+								<Text style={styles.infoLabel}>Phone Number</Text>
+								<Text style={styles.infoValue}>{clientDetails?.phone || 'N/A'}</Text>
+							</View>
+							<View style={styles.infoColumnFull}>
+								<Text style={styles.infoLabel}>Address</Text>
+								<Text style={styles.infoValue}>{clientDetails?.address || 'N/A'}</Text>
+							</View>
+							{clientDetails?.tax_number && (
+								<View style={styles.infoColumn}>
+									<Text style={styles.infoLabel}>Tax Number</Text>
+									<Text style={styles.infoValue}>{clientDetails.tax_number}</Text>
+								</View>
+							)}
+						</View>
+						
+						{/* Refined Balance Display */}
+						<View style={[styles.balanceContainer, getBalanceStyle(summaryData.currentBalance)]}>
+							<View style={styles.balanceLeft}>
+								<Text style={styles.balanceLabel}>Current Balance</Text>
+								<Text style={styles.balanceAmount}>
+									${Math.abs(summaryData.currentBalance).toFixed(2)}
+								</Text>
+							</View>
+							<View style={styles.balanceRight}>
+								<Text style={styles.balanceStatus}>
+									{getBalanceStatus(summaryData.currentBalance)}
+								</Text>
+								{reconciliation.wasUpdated && (
+									<Text style={styles.reconcileNote}>
+										✓ Reconciled
+									</Text>
+								)}
+							</View>
+						</View>
 					</View>
-					<View style={styles.infoRow}>
-						<Text style={[styles.text, styles.infoLabel]}>Email:</Text>
-						<Text style={[styles.text, styles.infoValue]}>
-							{clientDetails?.email || 'N/A'}
-						</Text>
-					</View>
-					<View style={styles.infoRow}>
-						<Text style={[styles.text, styles.infoLabel]}>Phone:</Text>
-						<Text style={[styles.text, styles.infoValue]}>
-							{clientDetails?.phone || 'N/A'}
-						</Text>
-					</View>
-					<View style={styles.infoRow}>
-						<Text style={[styles.text, styles.infoLabel]}>Address:</Text>
-						<Text style={[styles.text, styles.infoValue]}>
-							{clientDetails?.address || 'N/A'}
-						</Text>
-					</View>
-					<View style={styles.infoRow}>
-						<Text style={[styles.text, styles.infoLabel]}>Tax Number:</Text>
-						<Text style={[styles.text, styles.infoValue]}>
-							{clientDetails?.tax_number || 'N/A'}
-						</Text>
-	</View>
+				</View>
+
+				{/* Minimal Financial Summary */}
+				<View style={styles.section}>
+					<Text style={styles.sectionTitle}>Financial Overview</Text>
 					
-					{/* Current Balance - Highlighted Section */}
-					<View style={styles.balanceHighlight}>
-						<View style={styles.infoRow}>
-							<Text style={[styles.text, styles.infoLabel, styles.boldText]}>
-								Current Balance:
+					<View style={styles.summaryContainer}>
+						<View style={styles.summaryCard}>
+							<Text style={styles.summaryAmount}>
+								${summaryData.totalInvoices.toFixed(2)}
 							</Text>
-							<Text
-								style={[
-									styles.text,
-									styles.infoValue,
-									styles.boldText,
-									{
-										color: summaryData.currentBalance >= 0 ? colors.danger : colors.success
-									}
-								]}>
-								${summaryData.currentBalance.toFixed(2)}
-								{summaryData.currentBalance > 0 && ' (Outstanding)'}
-								{summaryData.currentBalance < 0 && ' (Credit)'}
-								{summaryData.currentBalance === 0 && ' (Settled)'}
+							<Text style={styles.summaryLabel}>Total Invoiced</Text>
+							<Text style={styles.summaryCount}>
+								{summaryData.invoiceCount} transaction{summaryData.invoiceCount !== 1 ? 's' : ''}
 							</Text>
 						</View>
-						{reconciliation.wasUpdated && (
-							<Text style={[styles.smallText, { color: colors.primary }]}>
-								✓ Balance reconciled and updated in database
+						
+						<View style={styles.summaryCard}>
+							<Text style={styles.summaryAmount}>
+								${summaryData.totalReceipts.toFixed(2)}
 							</Text>
-						)}
-					</View>
-				</View>
-
-				{/* Company Information */}
-				<View style={styles.section}>
-					<Text style={styles.subtitle}>Company Information</Text>
-					<View style={styles.infoRow}>
-						<Text style={[styles.text, styles.infoLabel]}>Company Name:</Text>
-						<Text style={[styles.text, styles.infoValue]}>
-							{companyDetails?.name || 'N/A'}
-						</Text>
-					</View>
-					<View style={styles.infoRow}>
-						<Text style={[styles.text, styles.infoLabel]}>Identification:</Text>
-						<Text style={[styles.text, styles.infoValue]}>
-							{companyDetails?.identification_type || 'N/A'} -{' '}
-							{companyDetails?.identification_number || 'N/A'}
-						</Text>
-					</View>
-					<View style={styles.infoRow}>
-						<Text style={[styles.text, styles.infoLabel]}>Bank:</Text>
-						<Text style={[styles.text, styles.infoValue]}>
-							{companyDetails?.bank_name || 'N/A'}
-						</Text>
-					</View>
-					<View style={styles.infoRow}>
-						<Text style={[styles.text, styles.infoLabel]}>Account Number:</Text>
-						<Text style={[styles.text, styles.infoValue]}>
-							{companyDetails?.bank_account_number || 'N/A'}
-						</Text>
-					</View>
-					<View style={styles.infoRow}>
-						<Text style={[styles.text, styles.infoLabel]}>Routing Number:</Text>
-						<Text style={[styles.text, styles.infoValue]}>
-							{companyDetails?.bank_routing_number || 'N/A'}
-						</Text>
-					</View>
-					<View style={styles.infoRow}>
-						<Text style={[styles.text, styles.infoLabel]}>
-							Company Address:
-						</Text>
-						<Text style={[styles.text, styles.infoValue]}>
-							{companyDetails?.address || 'N/A'}
-						</Text>
-					</View>
-				</View>
-
-				{/* Financial Summary */}
-				<View style={[styles.section, styles.summarySection]}>
-					<Text style={styles.subtitle}>Financial Summary</Text>
-					<View style={styles.summaryRow}>
-						<Text style={[styles.text, styles.boldText]}>
-							Total Invoices ({summaryData.invoiceCount}):
-						</Text>
-						<Text style={[styles.text, { color: colors.danger }]}>
-							${summaryData.totalInvoices.toFixed(2)}
-						</Text>
-					</View>
-					<View style={styles.summaryRow}>
-						<Text style={[styles.text, styles.boldText]}>
-							Total Returns ({summaryData.returnCount}):
-						</Text>
-						<Text style={[styles.text, { color: colors.warning }]}>
-							-${summaryData.totalReturns.toFixed(2)}
-						</Text>
-					</View>
-					<View style={styles.summaryRow}>
-						<Text style={[styles.text, styles.boldText]}>
-							Net Invoice Amount:
-						</Text>
-						<Text style={[styles.text, { color: colors.danger }]}>
-							${summaryData.netInvoiceAmount.toFixed(2)}
-						</Text>
-					</View>
-					<View style={styles.summaryRow}>
-						<Text style={[styles.text, styles.boldText]}>
-							Total Payments ({summaryData.receiptCount}):
-						</Text>
-						<Text style={[styles.text, { color: colors.success }]}>
-							${summaryData.totalReceipts.toFixed(2)}
-						</Text>
-					</View>
-					<View style={styles.summaryRow}>
-						<Text style={[styles.text, styles.boldText, { fontSize: 12 }]}>
-							Outstanding Balance:
-						</Text>
-						<Text
-							style={[
-								styles.text,
-								styles.boldText,
-								{ 
-									color: summaryData.currentBalance >= 0 ? colors.danger : colors.success,
-									fontSize: 12
-								}
-							]}>
-							${summaryData.currentBalance.toFixed(2)}
-						</Text>
+							<Text style={styles.summaryLabel}>Total Received</Text>
+							<Text style={styles.summaryCount}>
+								{summaryData.receiptCount} payment{summaryData.receiptCount !== 1 ? 's' : ''}
+							</Text>
+						</View>
+						
+						<View style={styles.summaryCard}>
+							<Text style={styles.summaryAmount}>
+								${Math.abs(summaryData.currentBalance).toFixed(2)}
+							</Text>
+							<Text style={styles.summaryLabel}>Net Balance</Text>
+							<Text style={styles.summaryCount}>
+								{summaryData.currentBalance === 0 ? 'Settled' : summaryData.currentBalance > 0 ? 'Outstanding' : 'Credit'}
+							</Text>
+						</View>
 					</View>
 
-					{/* Currency Breakdown */}
+					{/* Multi-Currency Information */}
 					{summaryData.currencyBreakdown.length > 1 && (
-						<View style={{ marginTop: 10, padding: 8, backgroundColor: '#F9FAFB', borderRadius: 3 }}>
-							<Text style={[styles.text, styles.boldText]}>Currency Breakdown:</Text>
+						<View style={styles.currencySection}>
+							<Text style={styles.currencyTitle}>Currency Breakdown</Text>
 							{summaryData.currencyBreakdown.map(([currency, data]) => (
-								<Text key={currency} style={styles.smallText}>
-									{currency.toUpperCase()}: Invoices: ${data.invoices.toFixed(2)}, Returns: ${data.returns.toFixed(2)}, Payments: ${data.receipts.toFixed(2)}
-								</Text>
+								<View key={currency} style={styles.currencyRow}>
+									<Text style={styles.currencyLabel}>{currency.toUpperCase()}</Text>
+									<Text style={styles.currencyAmount}>
+										Invoiced ${data.invoices.toFixed(2)} • Received ${data.receipts.toFixed(2)}
+									</Text>
+								</View>
 							))}
 						</View>
 					)}
 				</View>
 
-				{/* Financial Transactions */}
+				{/* Elegant Transaction History */}
 				<View style={styles.section}>
-					<Text style={styles.subtitle}>Financial Transactions</Text>
-					<Text style={styles.smallText}>
-						Period: {summary.firstTransactionDate ? format(new Date(summary.firstTransactionDate), 'MMM d, yyyy') : 'N/A'} 
-						{' to '} 
-						{summary.lastTransactionDate ? format(new Date(summary.lastTransactionDate), 'MMM d, yyyy') : 'N/A'}
-						{' • Total Transactions: '}{summary.totalTransactions}
-					</Text>
+					<Text style={styles.sectionTitle}>Transaction History</Text>
+					
+					{/* Period Information */}
+					<View style={styles.periodContainer}>
+						<Text style={styles.periodText}>
+							<Text style={styles.periodBold}>Period:</Text> {' '}
+							{summary.firstTransactionDate ? format(new Date(summary.firstTransactionDate), 'MMM d, yyyy') : 'N/A'} 
+							{' – '} 
+							{summary.lastTransactionDate ? format(new Date(summary.lastTransactionDate), 'MMM d, yyyy') : 'N/A'}
+						</Text>
+						<Text style={styles.periodText}>
+							<Text style={styles.periodBold}>{summary.totalTransactions}</Text> total transactions
+						</Text>
+					</View>
 					
 					{transactions.length > 0 ? (
-						<View style={styles.table}>
-							<View style={[styles.tableRow, styles.tableHeader]}>
-								<View style={styles.tableCol}>
+						<View style={styles.tableContainer}>
+							{/* Clean Table Header */}
+							<View style={styles.tableHeader}>
+								<View style={styles.colDate}>
 									<Text style={styles.tableCellHeader}>Date</Text>
 								</View>
-								<View style={styles.tableCol}>
-									<Text style={styles.tableCellHeader}>Type</Text>
-								</View>
-								<View style={styles.tableColWide}>
+								<View style={styles.colDescription}>
 									<Text style={styles.tableCellHeader}>Description</Text>
 								</View>
-								<View style={styles.tableCol}>
-									<Text style={styles.tableCellHeader}>Amount</Text>
+								<View style={styles.colInvoice}>
+									<Text style={styles.tableCellHeader}>Invoice</Text>
 								</View>
-								<View style={styles.tableColNarrow}>
-									<Text style={styles.tableCellHeader}>Currency</Text>
+								<View style={styles.colReceipt}>
+									<Text style={styles.tableCellHeader}>Receipt</Text>
 								</View>
-								<View style={styles.tableCol}>
+								<View style={styles.colBalance}>
 									<Text style={styles.tableCellHeader}>Balance</Text>
 								</View>
 							</View>
+							
+							{/* Clean Table Rows */}
 							{transactions.map((transaction, index) => {
 								const isReturn = transaction.type === 'return'
+								const isReceipt = transaction.type === 'receipt'
+								const isInvoice = transaction.type === 'invoice'
+								
 								const rowStyle = [
 									styles.tableRow,
 									index % 2 === 0 ? styles.tableRowEven : {},
@@ -549,51 +722,68 @@ const ClientFinancialReportPDF: React.FC<ClientFinancialReportProps> = ({
 								]
 								
 								const currencySymbol = getCurrencySymbol(transaction.currency || 'usd')
+								const runningBalance = transaction.runningBalance || 0
 
 								return (
 									<View style={rowStyle} key={`${transaction.type}-${transaction.id}-${index}`}>
-										<View style={styles.tableCol}>
+										<View style={styles.colDate}>
 											<Text style={styles.tableCell}>
-												{format(new Date(transaction.date), 'MM/dd/yy')}
+												{format(new Date(transaction.date), 'MMM d')}
+											</Text>
+											<Text style={[styles.tableCell, { fontSize: 7, color: '#A0AEC0' }]}>
+												{format(new Date(transaction.date), 'yyyy')}
 											</Text>
 										</View>
-										<View style={styles.tableCol}>
-											<Text
-												style={[
-													styles.tableCell,
-													{ color: getAmountColor(transaction) }
-												]}>
-												{getTransactionDisplay(transaction)}
-											</Text>
-										</View>
-										<View style={styles.tableColWide}>
+										
+										<View style={styles.colDescription}>
 											<Text style={styles.tableCellLeft}>
 												{getTransactionDescription(transaction)}
 											</Text>
+											{transaction.currency && transaction.currency !== 'usd' && (
+												<Text style={[styles.tableCellLeft, { fontSize: 7, color: '#A0AEC0' }]}>
+													{transaction.currency.toUpperCase()}
+												</Text>
+											)}
 										</View>
-										<View style={styles.tableCol}>
-											<Text
-												style={[
-													styles.tableCell,
-													{ color: getAmountColor(transaction) }
+										
+										{/* Invoice Column */}
+										<View style={styles.colInvoice}>
+											{(isInvoice || isReturn) ? (
+												<Text style={[
+													styles.tableCellRight,
+													styles.amountInvoice
 												]}>
-												{transaction.type === 'return' ? '-' : ''}{currencySymbol}{Math.abs(transaction.amount).toFixed(2)}
-											</Text>
+													{isReturn ? '–' : ''}{currencySymbol}{Math.abs(transaction.amount).toFixed(2)}
+												</Text>
+											) : (
+												<Text style={[styles.tableCellRight, styles.amountNeutral]}>—</Text>
+											)}
 										</View>
-										<View style={styles.tableColNarrow}>
-											<Text style={styles.tableCell}>
-												{(transaction.currency || 'usd').toUpperCase()}
-											</Text>
-										</View>
-										<View style={styles.tableCol}>
-											<Text
-												style={[
-													styles.tableCell,
-													{ 
-														color: (transaction.runningBalance || 0) >= 0 ? colors.danger : colors.success 
-													}
+										
+										{/* Receipt Column */}
+										<View style={styles.colReceipt}>
+											{isReceipt ? (
+												<Text style={[
+													styles.tableCellRight,
+													styles.amountReceipt
 												]}>
-												${(transaction.runningBalance || 0).toFixed(2)}
+													{currencySymbol}{Math.abs(transaction.amount).toFixed(2)}
+												</Text>
+											) : (
+												<Text style={[styles.tableCellRight, styles.amountNeutral]}>—</Text>
+											)}
+										</View>
+										
+										{/* Balance Column */}
+										<View style={styles.colBalance}>
+											<Text style={[
+												styles.tableCellRight,
+												styles.amountBalance
+											]}>
+												${Math.abs(runningBalance).toFixed(2)}
+											</Text>
+											<Text style={[styles.tableCellRight, { fontSize: 7, color: '#A0AEC0' }]}>
+												{runningBalance > 0 ? 'Outstanding' : runningBalance < 0 ? 'Credit' : 'Settled'}
 											</Text>
 										</View>
 									</View>
@@ -601,24 +791,21 @@ const ClientFinancialReportPDF: React.FC<ClientFinancialReportProps> = ({
 							})}
 						</View>
 					) : (
-						<View style={{ padding: 20, textAlign: 'center', backgroundColor: '#F9FAFB', borderRadius: 5, marginTop: 10 }}>
-							<Text style={[styles.text, { color: colors.lightText }]}>
-								No financial transactions found for this client.
+						<View style={styles.emptyState}>
+							<Text style={styles.emptyText}>
+								No transactions recorded for this client
 							</Text>
 						</View>
 					)}
 				</View>
 
-				{/* Footer */}
+				{/* Refined Footer */}
 				<Text style={styles.footer}>
-					This financial report was generated on{' '}
-					{format(new Date(), 'MMMM d, yyyy')} at{' '}
-					{format(new Date(), 'HH:mm:ss')}
+					Generated {format(new Date(), 'MMMM d, yyyy')} at {format(new Date(), 'HH:mm')}
 					{reconciliation.wasUpdated && (
-						<Text style={{ color: colors.primary }}>
-							{'\n'}✓ Client balance has been automatically reconciled
-						</Text>
+						<Text style={styles.footerHighlight}> • Balance Reconciled</Text>
 					)}
+					{' • Confidential Document'}
 				</Text>
 			</Page>
 		</Document>

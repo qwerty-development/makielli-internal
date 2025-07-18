@@ -5,6 +5,7 @@ import QuotationPDF from './pdfTemplates/QuotationPDF'
 import ClientFinancialReportPDF from './pdfTemplates/ClientFinancialReportPDF'
 import SupplierFinancialReportPDF from './pdfTemplates/SupplierFinancialReportPDF'
 import { supabase } from './supabase'
+import { format } from 'date-fns'
 
 // Enhanced image processing with base64 conversion and validation
 async function processImagesForPDF(products: any[]) {
@@ -309,7 +310,7 @@ const fetchInvoiceDetails = async (invoiceId: any, isClientInvoice: boolean) => 
 
 // ENHANCED: Complete client financial data function with improved balance reconciliation
 const fetchClientFinancialData = async (clientId: any) => {
-  console.log(`Fetching financial data for client ID: ${clientId}`)
+  console.log(`🔍 Fetching enhanced financial data for client ID: ${clientId}`)
   
   // Fetch client current balance for reconciliation
   const { data: clientData, error: clientError } = await supabase
@@ -322,7 +323,7 @@ const fetchClientFinancialData = async (clientId: any) => {
     throw new Error(`Unable to fetch client balance for client_id ${clientId}: ${clientError.message}`)
   }
 
-  console.log(`Current database balance: $${clientData.balance}`)
+  console.log(`💰 Current database balance: $${clientData.balance}`)
 
   // Fetch all client invoices with better error handling
   const { data: invoices, error: invoiceError } = await supabase
@@ -335,7 +336,7 @@ const fetchClientFinancialData = async (clientId: any) => {
     throw new Error(`Unable to fetch invoices for client_id ${clientId}: ${invoiceError.message}`)
   }
 
-  console.log(`Found ${invoices?.length || 0} invoices`)
+  console.log(`📄 Found ${invoices?.length || 0} invoices`)
 
   // Fetch all client receipts with invoice currency lookup
   const { data: receipts, error: receiptError } = await supabase
@@ -351,7 +352,7 @@ const fetchClientFinancialData = async (clientId: any) => {
   
   if (receiptError) {
     // If the join fails, fetch receipts separately and get currency from invoices
-    console.warn('Joint query failed, fetching receipts separately:', receiptError.message)
+    console.warn('⚠️ Joint query failed, fetching receipts separately:', receiptError.message)
     
     const { data: receiptsOnly, error: receiptError2 } = await supabase
       .from('ClientReceipts')
@@ -380,7 +381,7 @@ const fetchClientFinancialData = async (clientId: any) => {
     )
   }
 
-  console.log(`Found ${processedReceipts.length} receipts`)
+  console.log(`🧾 Found ${processedReceipts.length} receipts`)
 
   // Process invoices with enhanced validation
   const processedInvoices = (invoices || []).map(invoice => {
@@ -388,7 +389,7 @@ const fetchClientFinancialData = async (clientId: any) => {
     const baseAmount = Math.abs(invoice.total_price || 0)
     
     if (isReturnInvoice && baseAmount === 0) {
-      console.warn(`Return invoice ${invoice.id} has zero amount`)
+      console.warn(`⚠️ Return invoice ${invoice.id} has zero amount`)
     }
     
     return {
@@ -412,7 +413,7 @@ const fetchClientFinancialData = async (clientId: any) => {
     const amount = Math.abs(receipt.amount || 0)
     
     if (amount === 0) {
-      console.warn(`Receipt ${receipt.id} has zero amount`)
+      console.warn(`⚠️ Receipt ${receipt.id} has zero amount`)
     }
     
     return {
@@ -430,7 +431,7 @@ const fetchClientFinancialData = async (clientId: any) => {
   const allTransactions = [...processedInvoices, ...processedReceiptsData]
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
-  console.log(`Total transactions: ${allTransactions.length}`)
+  console.log(`📊 Total transactions: ${allTransactions.length}`)
   
   // Calculate running balance with validation
   let runningBalance = 0
@@ -445,24 +446,24 @@ const fetchClientFinancialData = async (clientId: any) => {
     
     return {
       ...transaction,
-      runningBalance: runningBalance,
-      balanceChange: runningBalance - previousBalance,
+      runningBalance: Math.round(runningBalance * 100) / 100, // Round to 2 decimals
+      balanceChange: Math.round((runningBalance - previousBalance) * 100) / 100,
       transactionIndex: index + 1
     }
   })
 
   // Balance reconciliation check and auto-update
-  const calculatedBalance = runningBalance
-  const databaseBalance = clientData.balance || 0
+  const calculatedBalance = Math.round(runningBalance * 100) / 100
+  const databaseBalance = Math.round((clientData.balance || 0) * 100) / 100
   const balanceDifference = Math.abs(calculatedBalance - databaseBalance)
   let wasUpdated = false
   
-  console.log(`Calculated balance: $${calculatedBalance}`)
-  console.log(`Database balance: $${databaseBalance}`)
-  console.log(`Difference: $${balanceDifference}`)
+  console.log(`📈 Calculated balance: $${calculatedBalance}`)
+  console.log(`💾 Database balance: $${databaseBalance}`)
+  console.log(`📐 Difference: $${balanceDifference}`)
   
   if (balanceDifference > 0.01) { // Allow for minor rounding differences
-    console.log(`⚠️  Balance mismatch detected. Updating client balance from $${databaseBalance} to $${calculatedBalance}`)
+    console.log(`⚠️ Balance mismatch detected. Updating client balance from $${databaseBalance} to $${calculatedBalance}`)
     
     try {
       // Update the client balance to match calculated balance
@@ -472,14 +473,14 @@ const fetchClientFinancialData = async (clientId: any) => {
         .eq('client_id', clientId)
       
       if (updateError) {
-        console.error('Failed to update client balance:', updateError)
+        console.error('❌ Failed to update client balance:', updateError)
         throw new Error(`Failed to update client balance: ${updateError.message}`)
       } else {
         console.log(`✅ Client balance updated successfully from $${databaseBalance} to $${calculatedBalance}`)
         wasUpdated = true
       }
     } catch (updateError) {
-      console.error('Error updating client balance:', updateError)
+      console.error('❌ Error updating client balance:', updateError)
       // Don't throw - continue with PDF generation but note the issue
     }
   } else {
@@ -761,7 +762,7 @@ await Promise.all(
         throw new Error('Invalid client financial report: missing clientId.')
       }
       
-      console.log(`Generating financial report for client ${data.clientId}`)
+      console.log(`📊 Generating enhanced financial report for client ${data.clientId}`)
       
       // Fetch client and company data first
       const clientReportData = await fetchClientDetails(data.clientId)
@@ -782,7 +783,7 @@ await Promise.all(
         companyDetails: clientCompanyData,
         financialData: clientFinancialData
       })
-      fileName = `financial_report_${clientReportData.name.replace(/\s+/g, '_') || 'client'}.pdf`
+      fileName = `financial_statement_${clientReportData.name.replace(/\s+/g, '_') || 'client'}_${format(new Date(), 'yyyy-MM-dd')}.pdf`
       break
     }
 
@@ -821,7 +822,7 @@ await Promise.all(
     document.body.removeChild(link)
     console.log(`✅ PDF generated successfully: ${fileName}`)
   } catch (err:any) {
-    console.error('PDF generation failed:', err)
+    console.error('❌ PDF generation failed:', err)
     throw new Error(`PDF generation failed: ${err.message}`)
   }
 }
