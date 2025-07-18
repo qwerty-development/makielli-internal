@@ -30,6 +30,54 @@ interface QuotationProduct {
   note: string
 }
 
+type PaymentInfoOption = 'frisson_llc' | 'frisson_sarl_chf' | 'frisson_sarl_usd'
+
+const PAYMENT_INFO_CONFIG = {
+  frisson_llc: {
+    label: 'Frisson International LLC - USD',
+    details: {
+      bank: 'Interaudi Bank',
+      bankAddress:
+        '19 East 54th Street\nNew York, NY 10022\nUnited States of America',
+      aba: '026006237',
+      swift: 'AUSAUS33',
+      accountName: 'Frisson International LLC',
+      accountNumber: '684631',
+      routingNumber: '026006237'
+    }
+  },
+  frisson_sarl_chf: {
+    label: 'Frisson Sarl - CHF',
+    details: {
+      intermediaryBank: 'Deutsche Bank (Frankfurt)',
+      intermediarySwift: 'DEUTDEFF',
+      iban: 'CH24 0483 5092 7957 0300 0',
+      ibanDetails: '(Deutsche Bank at Credit Suisse)',
+      beneficiaryBank: 'Interaudi Bank (New York)',
+      beneficiaryAccount: '958400400CHF',
+      beneficiaryAccountDetails: '(Interaudi Bank at Deutsche Bank)',
+      beneficiary: 'Frisson Sarl',
+      accountNumber: '749361-401-003',
+      routingNumber: '026006237',
+      baseAccountNumber: '749361'
+    }
+  },
+  frisson_sarl_usd: {
+    label: 'Frisson Sarl - USD',
+    details: {
+      bank: 'Interaudi Bank',
+      bankAddress:
+        '19 East 54th Street\nNew York, NY 10022\nUnited States of America',
+      aba: '026006237',
+      swift: 'AUSAUS33',
+      accountName: 'Frisson Sarl',
+      accountNumber: '749361-401-01',
+      routingNumber: '026006237',
+      baseAccountNumber: '749361'
+    }
+  }
+}
+
 interface Quotation {
   id: number
   created_at: string
@@ -50,6 +98,7 @@ interface Quotation {
     | '100% after delivery'| '100% prepayment'
   delivery_date: string
   shipping_fee: number
+  payment_info: PaymentInfoOption
 }
 
 interface LoadingStates {
@@ -59,6 +108,44 @@ interface LoadingStates {
   isOrderUpdating: boolean
   isOrderDeleting: boolean
   isOrderAccepting: boolean
+}
+
+const PaymentInfoDisplay: React.FC<{ option: PaymentInfoOption }> = ({ option }) => {
+  const config = PAYMENT_INFO_CONFIG[option]
+  const details: any = config.details
+
+  if (option === 'frisson_sarl_chf') {
+    return (
+      <div className='mt-4 text-sm'>
+        <p><strong>Intermediary Bank:</strong> {details.intermediaryBank || 'N/A'}</p>
+        <p><strong>Intermediary SWIFT:</strong> {details.intermediarySwift || 'N/A'}</p>
+        <p><strong>IBAN:</strong> {details.iban || 'N/A'} {details.ibanDetails || ''}</p>
+        <p><strong>Beneficiary Bank:</strong> {details.beneficiaryBank || 'N/A'}</p>
+        <p><strong>Beneficiary Account:</strong> {details.beneficiaryAccount || 'N/A'} {details.beneficiaryAccountDetails || ''}</p>
+        <p><strong>Beneficiary:</strong> {details.beneficiary || 'N/A'}</p>
+        <p><strong>Account Number:</strong> {details.accountNumber || 'N/A'}</p>
+        <p><strong>Routing Number:</strong> {details.routingNumber || 'N/A'}</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className='mt-4 text-sm'>
+      <p><strong>Bank:</strong> {details.bank || 'N/A'}</p>
+      <p><strong>Bank Address:</strong>{' '}
+        {details.bankAddress
+          ? details.bankAddress.split('\n').map((line: string, i: number) => (
+              <React.Fragment key={i}>{line}<br /></React.Fragment>
+            ))
+          : 'N/A'}
+      </p>
+      <p><strong>ABA:</strong> {details.aba || 'N/A'}</p>
+      <p><strong>SWIFT:</strong> {details.swift || 'N/A'}</p>
+      <p><strong>Account Name:</strong> {details.accountName || 'N/A'}</p>
+      <p><strong>Account Number:</strong> {details.accountNumber || 'N/A'}</p>
+      <p><strong>Routing Number:</strong> {details.routingNumber || 'N/A'}</p>
+    </div>
+  )
 }
 
 // Error Boundary Component
@@ -160,7 +247,8 @@ const QuotationsPage: React.FC = () => {
     currency: 'usd',
     payment_term: '30% deposit 70% before shipping',
     delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(),
-    shipping_fee: 0
+    shipping_fee: 0,
+    payment_info: 'frisson_llc'
   })
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [selectedVariants, setSelectedVariants] = useState<QuotationProduct[]>([])
@@ -497,7 +585,7 @@ const QuotationsPage: React.FC = () => {
         currency: quotation.currency || 'usd',
         payment_term: quotation.payment_term || '30% deposit 70% before shipping',
         delivery_date: quotation.delivery_date || new Date().toISOString(),
-        payment_info: 'frisson_llc',
+        payment_info: quotation.payment_info || 'frisson_llc',
         shipping_fee: quotation.shipping_fee || 0,
         quotation_id: quotation.id // Add the quotation_id reference
       };
@@ -674,6 +762,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
       currency: quotation.currency || 'usd',
       payment_term: quotation.payment_term || '30% deposit 70% before shipping',
       delivery_date: quotation.delivery_date || new Date().toISOString(),
+      payment_info: quotation.payment_info || 'frisson_llc',
       shipping_fee: quotation.shipping_fee || 0,
       order_number: quotation.order_number || '0'
     };
@@ -768,7 +857,8 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
         ...newQuotation,
         shipping_fee: shippingFee,
         total_price: totalPrice,
-        vat_amount: vatAmount
+        vat_amount: vatAmount,
+        payment_info: newQuotation.payment_info || 'frisson_llc'
       };
 
       const { error } = await supabase
@@ -918,7 +1008,8 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
         ...quotation,
         shipping_fee: quotation.shipping_fee || 0,
         products: quotation.products || [],
-        discounts: quotation.discounts || {}
+        discounts: quotation.discounts || {},
+        payment_info: quotation.payment_info || 'frisson_llc'
       })
       setShowModal(true)
     } catch (error) {
@@ -1096,7 +1187,8 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
         payment_term: '30% deposit 70% before shipping',
         delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(),
         client_id: undefined,
-        shipping_fee: 0
+        shipping_fee: 0,
+        payment_info: 'frisson_llc'
       })
       resetProductEditingState()
       setError(null)
@@ -1664,6 +1756,30 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                     />
                   </div>
                   <div className='mb-4'>
+                    <label className='block text-gray text-sm font-bold mb-2'>
+                      Payment Information
+                    </label>
+                    <select
+                      className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+                      value={newQuotation.payment_info || 'frisson_llc'}
+                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setNewQuotation({
+                          ...newQuotation,
+                          payment_info: e.target.value as PaymentInfoOption
+                        })
+                      }}
+                      required>
+                      <option value=''>Select Payment Information</option>
+                      {Object.entries(PAYMENT_INFO_CONFIG).map(([key, config]) => (
+                        <option key={key} value={key}>
+                          {config.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className='mb-4'>
                     <label className='flex items-center'>
                       <input
                         type='checkbox'
@@ -1773,38 +1889,38 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
 
   const renderQuotationDetails = () => {
     if (!selectedQuotation) return null;
-
+  
     try {
       const client = findClientSafely(selectedQuotation.client_id);
       const currency = selectedQuotation.currency || 'usd';
       const currencySymbol = currency === 'euro' ? '€' : '$';
-
+  
       const sizeOptions = [
         'OS', 'XXS', 'XS', 'S', 'S/M', 'M', 'M/L', 'L', 'XL', '2XL', '3XL',
         '36', '38', '40', '42', '44', '46', '48', '50', '52', '54', '56', '58'
       ];
-
+  
       const subtotal = (selectedQuotation.products || []).reduce((total, product) => {
         if (!product) return total;
         
         const parentProduct = findProductSafely(product.product_id || '');
         if (!parentProduct) return total;
-
+  
         const price = parentProduct.price || 0;
         return total + (price * (product.quantity || 0));
       }, 0);
-
+  
       const totalDiscount = (selectedQuotation.products || []).reduce((total, product) => {
         if (!product) return total;
         
         const discount = selectedQuotation.discounts?.[product.product_id || ''] || 0;
         return total + (discount * (product.quantity || 0));
       }, 0);
-
+  
       const totalBeforeVAT = subtotal - totalDiscount;
       const vatAmount = selectedQuotation.include_vat ? totalBeforeVAT * 0.11 : 0;
       const shippingFee = selectedQuotation.shipping_fee || 0;
-
+  
       const productsByNameColor: any = {};
       
       (selectedQuotation.products || []).forEach(product => {
@@ -1812,10 +1928,10 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
         
         const parentProduct = findProductSafely(product.product_id);
         if (!parentProduct) return;
-
+  
         const variant = findVariantSafely(parentProduct, product.product_variant_id || '');
         if (!variant) return;
-
+  
         const key = `${parentProduct.name}-${variant.color}`;
         if (!productsByNameColor[key]) {
           productsByNameColor[key] = {
@@ -1830,23 +1946,23 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
             discount: selectedQuotation.discounts?.[parentProduct.id] || 0
           };
         }
-
+  
         productsByNameColor[key].sizes[variant.size] =
           (productsByNameColor[key].sizes[variant.size] || 0) + (product.quantity || 0);
-
+  
         productsByNameColor[key].totalQuantity += (product.quantity || 0);
-
+  
         if (product.note) {
           productsByNameColor[key].notes.add(product.note);
         }
       });
-
+  
       const productsArray = Object.values(productsByNameColor).sort((a: any, b: any) => {
         const nameComparison = (a.name || '').localeCompare(b.name || '');
         if (nameComparison !== 0) return nameComparison;
         return (a.color || '').localeCompare(b.color || '');
       });
-
+  
       return (
         <ErrorBoundary>
           <div className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'>
@@ -1864,11 +1980,11 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                     <p className='text-sm'>United States Of America</p>
                   </div>
                 </div>
-
+  
                 <div className='mb-6 text-center'>
                   <h2 className='text-2xl font-bold text-blue'>PURCHASE ORDER</h2>
                 </div>
-
+  
                 <div className='flex justify-between mb-6'>
                   <div className='w-1/2 pr-4'>
                     <h4 className='font-bold mb-2'>Order To:</h4>
@@ -1878,7 +1994,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                     <p className='text-sm'>Email: {client?.email || 'N/A'}</p>
                     <p className='text-sm'>Tax Number: {client?.tax_number || 'N/A'}</p>
                   </div>
-
+  
                   <div className='w-1/2 pl-4'>
                     <h4 className='font-bold mb-2'>Order Details:</h4>
                     <p className='text-sm'>Order Number: {selectedQuotation.id || 'N/A'}</p>
@@ -1899,7 +2015,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                     }`}>{selectedQuotation.status}</span></p>
                   </div>
                 </div>
-
+  
                 <div className='mb-6 overflow-x-auto'>
                   <table className='min-w-full border border-neutral-300 text-xs'>
                     <thead>
@@ -1923,7 +2039,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                       {productsArray.map((product: any, index: any) => {
                         const priceAfterDiscount = (product.unitPrice || 0) - (product.discount || 0);
                         const lineTotal = priceAfterDiscount * (product.totalQuantity || 0);
-
+  
                         return (
                           <tr key={index} className='border-b border-neutral-300'>
                             <td className='p-1 text-center border-r border-neutral-300'>
@@ -1940,24 +2056,24 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                               ))}
                             </td>
                             <td className='p-1 text-xs text-center border-r border-neutral-300'>{product.color || 'N/A'}</td>
-
+  
                             {sizeOptions.map(size => (
                               <td key={size} className='p-0.5 text-xs text-center border-r border-neutral-300'>
                                 {product.sizes[size] ? product.sizes[size] : '-'}
                               </td>
                             ))}
-
+  
                             <td className='p-1 text-xs text-center border-r border-neutral-300'>{product.totalQuantity || 0}</td>
                             <td className='p-1 text-xs text-center border-r border-neutral-300'>
                               {currencySymbol}{(product.unitPrice || 0).toFixed(2)}
                             </td>
-
+  
                             {Object.values(productsByNameColor).some((p: any) => (p.discount || 0) > 0) && (
                               <td className='p-1 text-xs text-center border-r border-neutral-300'>
                                 {(product.discount || 0) > 0 ? `${currencySymbol}${product.discount.toFixed(2)}` : '-'}
                               </td>
                             )}
-
+  
                             <td className='p-1 text-xs text-center border-r border-neutral-300'>
                               {currencySymbol}{lineTotal.toFixed(2)}
                             </td>
@@ -1967,7 +2083,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                     </tbody>
                   </table>
                 </div>
-
+  
                 <div className='flex flex-col items-end mb-6 mt-4'>
                   {Math.abs(subtotal) !== Math.abs(selectedQuotation.total_price || 0) && (
                     <div className='flex justify-end mb-1 w-1/3'>
@@ -1977,7 +2093,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                       </div>
                     </div>
                   )}
-
+  
                   {totalDiscount > 0 && (
                     <div className='flex justify-end mb-1 w-1/3'>
                       <div className='w-1/2 font-bold text-right pr-4'>Total Discount:</div>
@@ -1986,7 +2102,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                       </div>
                     </div>
                   )}
-
+  
                   {selectedQuotation.include_vat && (
                     <>
                       {totalBeforeVAT !== subtotal && (
@@ -2005,7 +2121,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                       </div>
                     </>
                   )}
-
+  
                   {shippingFee > 0 && (
                     <div className='flex justify-end mb-1 w-1/3'>
                       <div className='w-1/2 font-bold text-right pr-4'>Shipping Fee:</div>
@@ -2014,37 +2130,45 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                       </div>
                     </div>
                   )}
-
+  
                   <div className='flex justify-end mb-1 w-1/3'>
                     <div className='w-1/2 font-bold text-right pr-4'>Total:</div>
                     <div className='w-1/2 text-right font-bold'>
                       {currencySymbol}{(selectedQuotation.total_price || 0).toFixed(2)}
                     </div>
                   </div>
-
+  
                   <div className='w-2/3 text-right italic text-sm text-neutral-600 mt-1'>
                     Amount in words: [Amount in words would appear here]
                   </div>
                 </div>
-
+  
+                {/* Payment Information Section - Updated to match invoice style */}
+                <div className='border-t border-neutral-300 pt-4 mb-6'>
+                  <h4 className='font-bold mb-2'>Payment Information:</h4>
+                  {selectedQuotation.payment_info && (
+                    <PaymentInfoDisplay option={selectedQuotation.payment_info} />
+                  )}
+                </div>
+  
                 {selectedQuotation.note && (
                   <div className='mb-6'>
                     <h4 className='font-bold mb-2'>Additional Notes:</h4>
                     <p className='text-sm'>{selectedQuotation.note}</p>
                   </div>
                 )}
-
+  
                 <div className='text-center text-neutral-500 text-sm mb-4'>
                   Thank you for your business!
                 </div>
-
+  
                 <div className='flex justify-center space-x-4 mt-6'>
                   <button
                     className='px-4 py-2 bg-blue text-white font-medium rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none'
                     onClick={() => handlePDFGeneration(selectedQuotation)}>
                     Download PDF
                   </button>
-
+  
                   <button
                     className='px-4 py-2 bg-blue text-white font-medium rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none'
                     onClick={() => {
@@ -2053,7 +2177,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                     }}>
                     Edit Order
                   </button>
-
+  
                   <button
                     className='px-4 py-2 bg-gray text-white font-medium rounded-md shadow-sm hover:bg-neutral-700 focus:outline-none'
                     onClick={() => setSelectedQuotation(null)}>
