@@ -30,7 +30,7 @@ interface QuotationProduct {
   note: string
 }
 
-type PaymentInfoOption = 'frisson_llc' | 'frisson_sarl_chf' | 'frisson_sarl_usd'
+type PaymentInfoOption = 'frisson_llc' | 'frisson_sarl_chf' | 'frisson_sarl_usd' | 'frisson_sarl_euro' | 'frisson_sarl_ach'
 
 const PAYMENT_INFO_CONFIG = {
   frisson_llc: {
@@ -75,6 +75,27 @@ const PAYMENT_INFO_CONFIG = {
       routingNumber: '026006237',
       baseAccountNumber: '749361'
     }
+  },
+  frisson_sarl_euro: {
+    label: 'Frisson Sarl - Euro Transfer',
+    details: {
+      intermediaryBank: 'Deutsche Bank (Frankfurt)',
+      intermediarySwift: 'DEUTDEFF',
+      beneficiaryBank: 'Interaudi Bank',
+      beneficiaryBankAddress: '19 East 54th Street\nNew York, NY 10022\nUnited States of America',
+      beneficiarySwift: 'AUSAUS33',
+      beneficiaryIban: 'DE66500700100958400410',
+      beneficiaryIbanDetails: '(Interaudi Bank at Deutsche Bank)',
+      accountName: 'Frisson Sarl',
+      accountNumber: '749361-401-099'
+    }
+  },
+  frisson_sarl_ach: {
+    label: 'Frisson Sarl - ACH',
+    details: {
+      routingNumber: '026006237',
+      accountNumber: '749361'
+    }
   }
 }
 
@@ -111,42 +132,72 @@ interface LoadingStates {
 }
 
 const PaymentInfoDisplay: React.FC<{ option: PaymentInfoOption }> = ({ option }) => {
-  const config = PAYMENT_INFO_CONFIG[option]
-  const details: any = config.details
-
-  if (option === 'frisson_sarl_chf') {
-    return (
-      <div className='mt-4 text-sm'>
-        <p><strong>Intermediary Bank:</strong> {details.intermediaryBank || 'N/A'}</p>
-        <p><strong>Intermediary SWIFT:</strong> {details.intermediarySwift || 'N/A'}</p>
-        <p><strong>IBAN:</strong> {details.iban || 'N/A'} {details.ibanDetails || ''}</p>
-        <p><strong>Beneficiary Bank:</strong> {details.beneficiaryBank || 'N/A'}</p>
-        <p><strong>Beneficiary Account:</strong> {details.beneficiaryAccount || 'N/A'} {details.beneficiaryAccountDetails || ''}</p>
-        <p><strong>Beneficiary:</strong> {details.beneficiary || 'N/A'}</p>
-        <p><strong>Account Number:</strong> {details.accountNumber || 'N/A'}</p>
-        <p><strong>Routing Number:</strong> {details.routingNumber || 'N/A'}</p>
-      </div>
-    )
+	const config = PAYMENT_INFO_CONFIG[option]
+	const details: any = config.details
+  
+	if (option === 'frisson_sarl_chf') {
+	  return (
+		<div className='mt-4 text-sm'>
+		  <p><strong>Intermediary Bank:</strong> {details.intermediaryBank || 'N/A'}</p>
+		  <p><strong>Intermediary SWIFT:</strong> {details.intermediarySwift || 'N/A'}</p>
+		  <p><strong>IBAN:</strong> {details.iban || 'N/A'} {details.ibanDetails || ''}</p>
+		  <p><strong>Beneficiary Bank:</strong> {details.beneficiaryBank || 'N/A'}</p>
+		  <p><strong>Beneficiary Account:</strong> {details.beneficiaryAccount || 'N/A'} {details.beneficiaryAccountDetails || ''}</p>
+		  <p><strong>Beneficiary:</strong> {details.beneficiary || 'N/A'}</p>
+		  <p><strong>Account Number:</strong> {details.accountNumber || 'N/A'}</p>
+		  <p><strong>Routing Number:</strong> {details.routingNumber || 'N/A'}</p>
+		</div>
+	  )
+	}
+  
+	if (option === 'frisson_sarl_euro') {
+	  return (
+		<div className='mt-4 text-sm'>
+		  <p><strong>Intermediary Bank:</strong> {details.intermediaryBank || 'N/A'}</p>
+		  <p><strong>Intermediary SWIFT:</strong> {details.intermediarySwift || 'N/A'}</p>
+		  <p><strong>Beneficiary Bank:</strong> {details.beneficiaryBank || 'N/A'}</p>
+		  <p><strong>Beneficiary Bank Address:</strong>{' '}
+			{details.beneficiaryBankAddress
+			  ? details.beneficiaryBankAddress.split('\n').map((line: string, i: number) => (
+				  <React.Fragment key={i}>{line}<br /></React.Fragment>
+				))
+			  : 'N/A'}
+		  </p>
+		  <p><strong>Beneficiary SWIFT:</strong> {details.beneficiarySwift || 'N/A'}</p>
+		  <p><strong>Beneficiary IBAN:</strong> {details.beneficiaryIban || 'N/A'} {details.beneficiaryIbanDetails || ''}</p>
+		  <p><strong>Account Name:</strong> {details.accountName || 'N/A'}</p>
+		  <p><strong>Account Number:</strong> {details.accountNumber || 'N/A'}</p>
+		</div>
+	  )
+	}
+  
+	if (option === 'frisson_sarl_ach') {
+	  return (
+		<div className='mt-4 text-sm'>
+		  <p><strong>Routing Number:</strong> {details.routingNumber || 'N/A'}</p>
+		  <p><strong>Account Number:</strong> {details.accountNumber || 'N/A'}</p>
+		</div>
+	  )
+	}
+  
+	return (
+	  <div className='mt-4 text-sm'>
+		<p><strong>Bank:</strong> {details.bank || 'N/A'}</p>
+		<p><strong>Bank Address:</strong>{' '}
+		  {details.bankAddress
+			? details.bankAddress.split('\n').map((line: string, i: number) => (
+				<React.Fragment key={i}>{line}<br /></React.Fragment>
+			  ))
+			: 'N/A'}
+		</p>
+		<p><strong>ABA:</strong> {details.aba || 'N/A'}</p>
+		<p><strong>SWIFT:</strong> {details.swift || 'N/A'}</p>
+		<p><strong>Account Name:</strong> {details.accountName || 'N/A'}</p>
+		<p><strong>Account Number:</strong> {details.accountNumber || 'N/A'}</p>
+		<p><strong>Routing Number:</strong> {details.routingNumber || 'N/A'}</p>
+	  </div>
+	)
   }
-
-  return (
-    <div className='mt-4 text-sm'>
-      <p><strong>Bank:</strong> {details.bank || 'N/A'}</p>
-      <p><strong>Bank Address:</strong>{' '}
-        {details.bankAddress
-          ? details.bankAddress.split('\n').map((line: string, i: number) => (
-              <React.Fragment key={i}>{line}<br /></React.Fragment>
-            ))
-          : 'N/A'}
-      </p>
-      <p><strong>ABA:</strong> {details.aba || 'N/A'}</p>
-      <p><strong>SWIFT:</strong> {details.swift || 'N/A'}</p>
-      <p><strong>Account Name:</strong> {details.accountName || 'N/A'}</p>
-      <p><strong>Account Number:</strong> {details.accountNumber || 'N/A'}</p>
-      <p><strong>Routing Number:</strong> {details.routingNumber || 'N/A'}</p>
-    </div>
-  )
-}
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component<

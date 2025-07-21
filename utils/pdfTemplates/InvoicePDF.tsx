@@ -11,8 +11,8 @@ import {
 import { format } from 'date-fns'
 import { ToWords } from 'to-words'
 
-// Payment info configuration remains the same
-type PaymentInfoOption = 'frisson_llc' | 'frisson_sarl_chf' | 'frisson_sarl_usd'
+// Updated payment info configuration with new options
+type PaymentInfoOption = 'frisson_llc' | 'frisson_sarl_chf' | 'frisson_sarl_usd' | 'frisson_sarl_euro' | 'frisson_sarl_ach'
 
 const PAYMENT_INFO_CONFIG = {
     frisson_llc: {
@@ -53,6 +53,25 @@ const PAYMENT_INFO_CONFIG = {
             accountNumber: '749361-401-01',
             routingNumber: '026006237',
             baseAccountNumber: '749361'
+        }
+    },
+    frisson_sarl_euro: {
+        details: {
+            intermediaryBank: 'Deutsche Bank (Frankfurt)',
+            intermediarySwift: 'DEUTDEFF',
+            beneficiaryBank: 'Interaudi Bank',
+            beneficiaryBankAddress: '19 East 54th Street\nNew York, NY 10022\nUnited States of America',
+            beneficiarySwift: 'AUSAUS33',
+            beneficiaryIban: 'DE66500700100958400410',
+            beneficiaryIbanDetails: '(Interaudi Bank at Deutsche Bank)',
+            accountName: 'Frisson Sarl',
+            accountNumber: '749361-401-099'
+        }
+    },
+    frisson_sarl_ach: {
+        details: {
+            routingNumber: '026006237',
+            accountNumber: '749361'
         }
     }
 }
@@ -389,6 +408,62 @@ const PaymentInfoRenderer: React.FC<{ paymentInfo: PaymentInfoOption }> = ({
                 <Text style={styles.paymentInfoRow}>
                     <Text style={styles.paymentInfoLabel}>Routing Number: </Text>
                     {config.details.routingNumber || 'N/A'}
+                </Text>
+            </View>
+        )
+    }
+
+    if (paymentInfo === 'frisson_sarl_euro') {
+        return (
+            <View style={styles.paymentInfoSection}>
+                <Text style={styles.paymentInfoTitle}>Payment Information (Euro Transfer):</Text>
+                <Text style={styles.paymentInfoRow}>
+                    <Text style={styles.paymentInfoLabel}>Intermediary Bank: </Text>
+                    {config.details.intermediaryBank || 'N/A'}
+                </Text>
+                <Text style={styles.paymentInfoRow}>
+                    <Text style={styles.paymentInfoLabel}>Intermediary SWIFT: </Text>
+                    {config.details.intermediarySwift || 'N/A'}
+                </Text>
+                <Text style={styles.paymentInfoRow}>
+                    <Text style={styles.paymentInfoLabel}>Beneficiary Bank: </Text>
+                    {config.details.beneficiaryBank || 'N/A'}
+                </Text>
+                <Text style={styles.paymentInfoRow}>
+                    <Text style={styles.paymentInfoLabel}>Beneficiary Bank Address: </Text>
+                    {config.details.beneficiaryBankAddress || 'N/A'}
+                </Text>
+                <Text style={styles.paymentInfoRow}>
+                    <Text style={styles.paymentInfoLabel}>Beneficiary SWIFT: </Text>
+                    {config.details.beneficiarySwift || 'N/A'}
+                </Text>
+                <Text style={styles.paymentInfoRow}>
+                    <Text style={styles.paymentInfoLabel}>Beneficiary IBAN: </Text>
+                    {config.details.beneficiaryIban || 'N/A'} {config.details.beneficiaryIbanDetails || ''}
+                </Text>
+                <Text style={styles.paymentInfoRow}>
+                    <Text style={styles.paymentInfoLabel}>Account Name: </Text>
+                    {config.details.accountName || 'N/A'}
+                </Text>
+                <Text style={styles.paymentInfoRow}>
+                    <Text style={styles.paymentInfoLabel}>Account Number: </Text>
+                    {config.details.accountNumber || 'N/A'}
+                </Text>
+            </View>
+        )
+    }
+
+    if (paymentInfo === 'frisson_sarl_ach') {
+        return (
+            <View style={styles.paymentInfoSection}>
+                <Text style={styles.paymentInfoTitle}>Payment Information (ACH):</Text>
+                <Text style={styles.paymentInfoRow}>
+                    <Text style={styles.paymentInfoLabel}>Routing Number: </Text>
+                    {config.details.routingNumber || 'N/A'}
+                </Text>
+                <Text style={styles.paymentInfoRow}>
+                    <Text style={styles.paymentInfoLabel}>Account Number: </Text>
+                    {config.details.accountNumber || 'N/A'}
                 </Text>
             </View>
         )
