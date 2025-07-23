@@ -79,7 +79,7 @@ interface Invoice {
 	quotation_id?: number | null
 }
 
-type PaymentInfoOption = 'frisson_llc' | 'frisson_sarl_chf' | 'frisson_sarl_usd' | 'frisson_sarl_euro' | 'frisson_sarl_ach'
+type PaymentInfoOption = 'frisson_llc' | 'frisson_llc_euro' | 'frisson_llc_ach' | 'frisson_sarl_chf' | 'frisson_sarl_usd' | 'frisson_sarl_euro' | 'frisson_sarl_ach' 
 
 const PAYMENT_INFO_CONFIG = {
   frisson_llc: {
@@ -93,6 +93,27 @@ const PAYMENT_INFO_CONFIG = {
       accountName: 'Frisson International LLC',
       accountNumber: '684631',
       routingNumber: '026006237'
+    }
+  },
+  frisson_llc_euro: {
+    label: 'Frisson International LLC - Euro Transfer',
+    details: {
+      intermediaryBank: 'Deutsche Bank (Frankfurt)',
+      intermediarySwift: 'DEUTDEFF',
+      beneficiaryBank: 'Interaudi Bank',
+      beneficiaryBankAddress: '19 East 54th Street\nNew York, NY 10022\nUnited States of America',
+      beneficiarySwift: 'AUSAUS33',
+      beneficiaryIban: 'DE66500700100958400410',
+      beneficiaryIbanDetails: '(Interaudi Bank at Deutsche Bank)',
+      accountName: 'Frisson International LLC',
+      accountNumber: '684631-401-099'
+    }
+  },
+  frisson_llc_ach: {
+    label: 'Frisson International LLC - ACH',
+    details: {
+      routingNumber: '026006237',
+      accountNumber: '684631'
     }
   },
   frisson_sarl_chf: {
@@ -336,7 +357,7 @@ const PaymentInfoDisplay: React.FC<{ option: PaymentInfoOption }> = ({ option })
 	  )
 	}
   
-	if (option === 'frisson_sarl_euro') {
+	if (option === 'frisson_sarl_euro' || option === 'frisson_llc_euro') {
 	  return (
 		<div className='mt-4 text-sm'>
 		  <p><strong>Intermediary Bank:</strong> {details.intermediaryBank || 'N/A'}</p>
@@ -357,7 +378,7 @@ const PaymentInfoDisplay: React.FC<{ option: PaymentInfoOption }> = ({ option })
 	  )
 	}
   
-	if (option === 'frisson_sarl_ach') {
+	if (option === 'frisson_sarl_ach' || option === 'frisson_llc_ach') {
 	  return (
 		<div className='mt-4 text-sm'>
 		  <p><strong>Routing Number:</strong> {details.routingNumber || 'N/A'}</p>

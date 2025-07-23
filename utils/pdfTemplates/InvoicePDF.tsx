@@ -11,69 +11,94 @@ import {
 import { format } from 'date-fns'
 import { ToWords } from 'to-words'
 
-// Updated payment info configuration with new options
-type PaymentInfoOption = 'frisson_llc' | 'frisson_sarl_chf' | 'frisson_sarl_usd' | 'frisson_sarl_euro' | 'frisson_sarl_ach'
+type PaymentInfoOption = 'frisson_llc' | 'frisson_llc_euro' | 'frisson_llc_ach' | 'frisson_sarl_chf' | 'frisson_sarl_usd' | 'frisson_sarl_euro' | 'frisson_sarl_ach' 
 
 const PAYMENT_INFO_CONFIG = {
-    frisson_llc: {
-        details: {
-            bank: 'Interaudi Bank',
-            bankAddress:
-                '19 East 54th Street\nNew York, NY 10022\nUnited States of America',
-            aba: '026006237',
-            swift: 'AUSAUS33',
-            accountName: 'Frisson International LLC',
-            accountNumber: '684631',
-            routingNumber: '026006237'
-        }
-    },
-    frisson_sarl_chf: {
-        details: {
-            intermediaryBank: 'Deutsche Bank (Frankfurt)',
-            intermediarySwift: 'DEUTDEFF',
-            iban: 'CH24 0483 5092 7957 0300 0',
-            ibanDetails: '(Deutsche Bank at Credit Suisse)',
-            beneficiaryBank: 'Interaudi Bank (New York)',
-            beneficiaryAccount: '958400400CHF',
-            beneficiaryAccountDetails: '(Interaudi Bank at Deutsche Bank)',
-            beneficiary: 'Frisson Sarl',
-            accountNumber: '749361-401-003',
-            routingNumber: '026006237',
-            baseAccountNumber: '749361'
-        }
-    },
-    frisson_sarl_usd: {
-        details: {
-            bank: 'Interaudi Bank',
-            bankAddress:
-                '19 East 54th Street\nNew York, NY 10022\nUnited States of America',
-            aba: '026006237',
-            swift: 'AUSAUS33',
-            accountName: 'Frisson Sarl',
-            accountNumber: '749361-401-01',
-            routingNumber: '026006237',
-            baseAccountNumber: '749361'
-        }
-    },
-    frisson_sarl_euro: {
-        details: {
-            intermediaryBank: 'Deutsche Bank (Frankfurt)',
-            intermediarySwift: 'DEUTDEFF',
-            beneficiaryBank: 'Interaudi Bank',
-            beneficiaryBankAddress: '19 East 54th Street\nNew York, NY 10022\nUnited States of America',
-            beneficiarySwift: 'AUSAUS33',
-            beneficiaryIban: 'DE66500700100958400410',
-            beneficiaryIbanDetails: '(Interaudi Bank at Deutsche Bank)',
-            accountName: 'Frisson Sarl',
-            accountNumber: '749361-401-099'
-        }
-    },
-    frisson_sarl_ach: {
-        details: {
-            routingNumber: '026006237',
-            accountNumber: '749361'
-        }
+  frisson_llc: {
+    label: 'Frisson International LLC - USD',
+    details: {
+      bank: 'Interaudi Bank',
+      bankAddress:
+        '19 East 54th Street\nNew York, NY 10022\nUnited States of America',
+      aba: '026006237',
+      swift: 'AUSAUS33',
+      accountName: 'Frisson International LLC',
+      accountNumber: '684631',
+      routingNumber: '026006237'
     }
+  },
+  frisson_llc_euro: {
+    label: 'Frisson International LLC - Euro Transfer',
+    details: {
+      intermediaryBank: 'Deutsche Bank (Frankfurt)',
+      intermediarySwift: 'DEUTDEFF',
+      beneficiaryBank: 'Interaudi Bank',
+      beneficiaryBankAddress: '19 East 54th Street\nNew York, NY 10022\nUnited States of America',
+      beneficiarySwift: 'AUSAUS33',
+      beneficiaryIban: 'DE66500700100958400410',
+      beneficiaryIbanDetails: '(Interaudi Bank at Deutsche Bank)',
+      accountName: 'Frisson International LLC',
+      accountNumber: '684631-401-099'
+    }
+  },
+  frisson_llc_ach: {
+    label: 'Frisson International LLC - ACH',
+    details: {
+      routingNumber: '026006237',
+      accountNumber: '684631'
+    }
+  },
+  frisson_sarl_chf: {
+    label: 'Frisson Sarl - CHF',
+    details: {
+      intermediaryBank: 'Deutsche Bank (Frankfurt)',
+      intermediarySwift: 'DEUTDEFF',
+      iban: 'CH24 0483 5092 7957 0300 0',
+      ibanDetails: '(Deutsche Bank at Credit Suisse)',
+      beneficiaryBank: 'Interaudi Bank (New York)',
+      beneficiaryAccount: '958400400CHF',
+      beneficiaryAccountDetails: '(Interaudi Bank at Deutsche Bank)',
+      beneficiary: 'Frisson Sarl',
+      accountNumber: '749361-401-003',
+      routingNumber: '026006237',
+      baseAccountNumber: '749361'
+    }
+  },
+  frisson_sarl_usd: {
+    label: 'Frisson Sarl - USD',
+    details: {
+      bank: 'Interaudi Bank',
+      bankAddress:
+        '19 East 54th Street\nNew York, NY 10022\nUnited States of America',
+      aba: '026006237',
+      swift: 'AUSAUS33',
+      accountName: 'Frisson Sarl',
+      accountNumber: '749361-401-01',
+      routingNumber: '026006237',
+      baseAccountNumber: '749361'
+    }
+  },
+  frisson_sarl_euro: {
+    label: 'Frisson Sarl - Euro Transfer',
+    details: {
+      intermediaryBank: 'Deutsche Bank (Frankfurt)',
+      intermediarySwift: 'DEUTDEFF',
+      beneficiaryBank: 'Interaudi Bank',
+      beneficiaryBankAddress: '19 East 54th Street\nNew York, NY 10022\nUnited States of America',
+      beneficiarySwift: 'AUSAUS33',
+      beneficiaryIban: 'DE66500700100958400410',
+      beneficiaryIbanDetails: '(Interaudi Bank at Deutsche Bank)',
+      accountName: 'Frisson Sarl',
+      accountNumber: '749361-401-099'
+    }
+  },
+  frisson_sarl_ach: {
+    label: 'Frisson Sarl - ACH',
+    details: {
+      routingNumber: '026006237',
+      accountNumber: '749361'
+    }
+  }
 }
 
 const toWords = new ToWords({
@@ -413,7 +438,7 @@ const PaymentInfoRenderer: React.FC<{ paymentInfo: PaymentInfoOption }> = ({
         )
     }
 
-    if (paymentInfo === 'frisson_sarl_euro') {
+    if (paymentInfo === 'frisson_sarl_euro' || paymentInfo === 'frisson_llc_euro') {
         return (
             <View style={styles.paymentInfoSection}>
                 <Text style={styles.paymentInfoTitle}>Payment Information (Euro Transfer):</Text>
@@ -453,7 +478,7 @@ const PaymentInfoRenderer: React.FC<{ paymentInfo: PaymentInfoOption }> = ({
         )
     }
 
-    if (paymentInfo === 'frisson_sarl_ach') {
+    if (paymentInfo === 'frisson_sarl_ach' || paymentInfo === 'frisson_llc_ach') {
         return (
             <View style={styles.paymentInfoSection}>
                 <Text style={styles.paymentInfoTitle}>Payment Information (ACH):</Text>
