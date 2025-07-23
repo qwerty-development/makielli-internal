@@ -9,17 +9,20 @@ import { format } from 'date-fns'
 
 // Enhanced image processing with base64 conversion and validation
 async function processImagesForPDF(products: any[]) {
+  console.log(`🖼️ Processing ${products.length} products for PDF generation...`)
   const processedProducts = []
   
-  for (const product of products) {
+  for (let i = 0; i < products.length; i++) {
+    const product = products[i]
     const processedProduct = { ...product }
     
     if (product.image) {
       try {
-        console.log(`Processing image for PDF: ${product.image}`)
+        console.log(`Processing image ${i + 1}/${products.length} for product: ${product.name}`)
+        console.log(`Image URL: ${product.image}`)
         
         // Convert image to base64 data URL for reliable PDF rendering
-        const base64Image = await convertImageToBase64(product.image)
+        const base64Image = await convertImageToBase64(product.image, product.name)
         
         if (base64Image) {
           processedProduct.image = base64Image
@@ -32,109 +35,32 @@ async function processImagesForPDF(products: any[]) {
         console.error(`❌ Error processing image for product ${product.name}:`, error)
         processedProduct.image = null // Will trigger fallback in PDF template
       }
+    } else {
+      console.log(`No image provided for product: ${product.name}`)
     }
     
     processedProducts.push(processedProduct)
   }
   
+  const successCount = processedProducts.filter(p => p.image && p.image.startsWith('data:')).length
+  console.log(`✅ Successfully processed ${successCount}/${products.length} product images`)
+  
   return processedProducts
 }
 
-// Convert image URL to base64 data URL
-async function convertImageToBase64(imageUrl: string): Promise<string | null> {
-  return new Promise((resolve) => {
-    try {
-      // Validate URL first
-      if (!isValidImageUrl(imageUrl)) {
-        console.warn(`Invalid image URL: ${imageUrl}`)
-        resolve(null)
-        return
-      }
-
-      const img = new Image()
-      img.crossOrigin = 'anonymous' // Handle CORS
-      
-      // Set timeout for image loading
-      const timeout = setTimeout(() => {
-        console.warn(`Image load timeout: ${imageUrl}`)
-        resolve(null)
-      }, 10000) // 10 second timeout
-
-      img.onload = () => {
-        try {
-          clearTimeout(timeout)
-          
-          // Check image dimensions (reject if too large)
-          if (img.width > 2000 || img.height > 2000) {
-            console.warn(`Image too large (${img.width}x${img.height}): ${imageUrl}`)
-            resolve(null)
-            return
-          }
-
-          // Create canvas and convert to base64
-          const canvas = document.createElement('canvas')
-          const ctx = canvas.getContext('2d')
-          
-          if (!ctx) {
-            console.error('Failed to get canvas context')
-            resolve(null)
-            return
-          }
-
-          // Resize image if needed (max 800px width/height for PDF efficiency)
-          const maxSize = 800
-          let { width, height } = img
-          
-          if (width > maxSize || height > maxSize) {
-            const ratio = Math.min(maxSize / width, maxSize / height)
-            width = width * ratio
-            height = height * ratio
-          }
-
-          canvas.width = width
-          canvas.height = height
-          
-          // Draw image on canvas
-          ctx.drawImage(img, 0, 0, width, height)
-          
-          // Convert to base64 (JPEG for smaller size)
-          const base64 = canvas.toDataURL('image/jpeg', 0.8)
-          
-          console.log(`✅ Converted image to base64 (${width}x${height}): ${imageUrl}`)
-          resolve(base64)
-          
-        } catch (error) {
-          clearTimeout(timeout)
-          console.error(`Error converting image to base64: ${imageUrl}`, error)
-          resolve(null)
-        }
-      }
-
-      img.onerror = (error) => {
-        clearTimeout(timeout)
-        console.error(`Failed to load image: ${imageUrl}`, error)
-        resolve(null)
-      }
-
-      // Start loading image
-      img.src = imageUrl
-      
-    } catch (error) {
-      console.error(`Error in convertImageToBase64: ${imageUrl}`, error)
-      resolve(null)
-    }
-  })
-}
-
-// Validate image URL
+// Enhanced image URL validation specifically for Supabase URLs
 function isValidImageUrl(url: string): boolean {
   try {
-    const validUrl = new URL(url)
+    if (!url || typeof url !== 'string' || url.trim().length === 0) {
+      return false
+    }
+
+    const validUrl = new URL(url.trim())
     const validProtocols = ['http:', 'https:', 'data:']
-    const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']
     
     // Check protocol
     if (!validProtocols.includes(validUrl.protocol)) {
+      console.warn(`Invalid protocol: ${validUrl.protocol}`)
       return false
     }
     
@@ -143,55 +69,203 @@ function isValidImageUrl(url: string): boolean {
       return url.startsWith('data:image/')
     }
     
-    // Check file extension or assume it's valid if no extension (some URLs don't have extensions)
+    // Enhanced validation for Supabase URLs
     const pathname = validUrl.pathname.toLowerCase()
+    const hostname = validUrl.hostname.toLowerCase()
+    
+    // Check if it's a Supabase URL
+    if (hostname.includes('supabase')) {
+      console.log(`Detected Supabase URL: ${hostname}`)
+      return true // Trust Supabase URLs
+    }
+    
+    // Check for valid image extensions
+    const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.tiff', '.avif']
     const hasValidExtension = validExtensions.some(ext => pathname.endsWith(ext))
+    
+    // Some URLs don't have extensions but are still valid
     const hasNoExtension = !pathname.includes('.')
+    
+    if (!hasValidExtension && !hasNoExtension) {
+      console.warn(`No valid image extension found in: ${pathname}`)
+    }
     
     return hasValidExtension || hasNoExtension
     
-  } catch {
+  } catch (error) {
+    console.error(`URL validation error for: ${url}`, error)
     return false
   }
 }
 
-// Legacy preload function (kept for fallback compatibility)
+// Enhanced base64 conversion with better error handling and format preservation
+async function convertImageToBase64(imageUrl: string, productName: string = 'Unknown'): Promise<string | null> {
+  return new Promise((resolve) => {
+    try {
+      console.log(`🔄 Starting conversion for: ${productName}`)
+      console.log(`Image URL: ${imageUrl}`)
+      
+      // Validate URL first
+      if (!isValidImageUrl(imageUrl)) {
+        console.warn(`❌ Invalid image URL for ${productName}: ${imageUrl}`)
+        resolve(null)
+        return
+      }
+
+      const img = new Image()
+      
+      // Enhanced CORS handling
+      if (imageUrl.startsWith('http')) {
+        img.crossOrigin = 'anonymous'
+      }
+      
+      // Increased timeout for larger images
+      const timeout = setTimeout(() => {
+        console.warn(`⏰ Image load timeout (15s) for ${productName}: ${imageUrl}`)
+        resolve(null)
+      }, 15000) // Increased to 15 seconds
+
+      img.onload = () => {
+        try {
+          clearTimeout(timeout)
+          
+          console.log(`📏 Image dimensions for ${productName}: ${img.width}x${img.height}`)
+          
+          // More lenient size check - only reject extremely large images
+          if (img.width > 4000 || img.height > 4000) {
+            console.warn(`📐 Image too large for ${productName} (${img.width}x${img.height}), but attempting conversion anyway`)
+            // Don't reject, just log warning and continue
+          }
+
+          // Create canvas and convert to base64
+          const canvas = document.createElement('canvas')
+          const ctx = canvas.getContext('2d')
+          
+          if (!ctx) {
+            console.error(`❌ Failed to get canvas context for ${productName}`)
+            resolve(null)
+            return
+          }
+
+          // Improved resizing logic - preserve aspect ratio
+          const maxSize = 1200 // Increased from 800 for better quality
+          let { width, height } = img
+          
+          if (width > maxSize || height > maxSize) {
+            const ratio = Math.min(maxSize / width, maxSize / height)
+            width = Math.floor(width * ratio)
+            height = Math.floor(height * ratio)
+            console.log(`📏 Resizing ${productName} to: ${width}x${height}`)
+          }
+
+          canvas.width = width
+          canvas.height = height
+          
+          // Set high-quality rendering
+          ctx.imageSmoothingEnabled = true
+          ctx.imageSmoothingQuality = 'high'
+          
+          // Draw image on canvas
+          ctx.drawImage(img, 0, 0, width, height)
+          
+          // Detect image format and preserve transparency
+          let base64: string
+          let format: string
+          
+          // Try to detect if image has transparency
+          const imageData = ctx.getImageData(0, 0, width, height)
+          let hasTransparency = false
+          
+          // Check alpha channel
+          for (let i = 3; i < imageData.data.length; i += 4) {
+            if (imageData.data[i] < 255) {
+              hasTransparency = true
+              break
+            }
+          }
+          
+          if (hasTransparency) {
+            // Use PNG for transparent images
+            base64 = canvas.toDataURL('image/png', 0.9)
+            format = 'PNG'
+          } else {
+            // Use JPEG for opaque images (smaller file size)
+            base64 = canvas.toDataURL('image/jpeg', 0.85)
+            format = 'JPEG'
+          }
+          
+          console.log(`✅ Successfully converted ${productName} to base64 ${format} (${width}x${height})`)
+          console.log(`📊 Base64 size: ${Math.round(base64.length / 1024)}KB`)
+          
+          resolve(base64)
+          
+        } catch (error) {
+          clearTimeout(timeout)
+          console.error(`❌ Error converting ${productName} to base64:`, error)
+          resolve(null)
+        }
+      }
+
+      img.onerror = (error) => {
+        clearTimeout(timeout)
+        console.error(`❌ Failed to load image for ${productName}:`, error)
+        console.error(`URL: ${imageUrl}`)
+        resolve(null)
+      }
+
+      // Start loading image
+      console.log(`📥 Loading image for ${productName}...`)
+      img.src = imageUrl
+      
+    } catch (error) {
+      console.error(`❌ Error in convertImageToBase64 for ${productName}:`, error)
+      resolve(null)
+    }
+  })
+}
+
+// Enhanced legacy preload function with better logging
 async function preloadImages(products: any[]) {
-  console.warn('Using legacy preloadImages - consider upgrading to processImagesForPDF')
-  const imageCache = new Map();
-  const imageFetchPromises = [];
+  console.warn('🔄 Using legacy preloadImages - consider upgrading to processImagesForPDF')
+  const imageCache = new Map()
+  const imageFetchPromises = []
 
   for (const product of products) {
     if (product.image && !imageCache.has(product.image)) {
       const fetchPromise = new Promise((resolve) => {
-        const img = new Image();
+        const img = new Image()
+
+        const timeout = setTimeout(() => {
+          console.warn(`⏰ Legacy image load timeout for ${product.name}: ${product.image}`)
+          resolve(false)
+        }, 10000)
 
         img.onload = () => {
-          imageCache.set(product.image, product.image);
-          resolve(true);
-        };
+          clearTimeout(timeout)
+          imageCache.set(product.image, product.image)
+          console.log(`✅ Legacy preload success for ${product.name}`)
+          resolve(true)
+        }
 
-        img.onerror = () => {
-          console.warn(`Failed to preload image: ${product.image}`);
-          resolve(false);
-        };
+        img.onerror = (error) => {
+          clearTimeout(timeout)
+          console.warn(`❌ Legacy preload failed for ${product.name}: ${product.image}`, error)
+          resolve(false)
+        }
 
-        setTimeout(() => {
-          if (!imageCache.has(product.image)) {
-            console.warn(`Image load timeout: ${product.image}`);
-            resolve(false);
-          }
-        }, 5000);
+        if (product.image.startsWith('http')) {
+          img.crossOrigin = 'anonymous'
+        }
+        img.src = product.image
+      })
 
-        img.src = product.image;
-      });
-
-      imageFetchPromises.push(fetchPromise);
+      imageFetchPromises.push(fetchPromise)
     }
   }
 
-  await Promise.allSettled(imageFetchPromises);
-  return imageCache;
+  await Promise.allSettled(imageFetchPromises)
+  console.log(`📊 Legacy preload completed: ${imageCache.size}/${products.length} images cached`)
+  return imageCache
 }
 
 // Fetch client details. Throws a clear error if not found.
