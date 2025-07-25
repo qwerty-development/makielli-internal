@@ -30,7 +30,7 @@ import {
   FaSave,
   FaUndo
 } from 'react-icons/fa'
-
+import { useRouter } from 'next/navigation'
 // Enhanced variant group interface with all sizes pre-populated
 interface ColorVariantGroup {
   color: string
@@ -799,40 +799,39 @@ export default function ProductsPage() {
     <div className='min-h-screen bg-slate-50 text-gray'>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
-        {/* Enhanced Header */}
-        <div className="mb-8">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
-            <div>
-              <h1 className='text-3xl font-bold text-slate-900'>Inventory Management</h1>
-              <p className="text-slate-600 mt-1">Manage your product inventory and stock levels</p>
-            </div>
-            <div className="flex items-center space-x-3">
-              <Link 
-                href="/analytics" 
-                className="inline-flex items-center px-4 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-all duration-200 shadow-sm"
-              >
-                <FaChartBar className="w-4 h-4 mr-2" />
-                Analytics
-              </Link>
-              <button
-                onClick={() => setShowProductForm(!showProductForm)}
-                className='inline-flex items-center px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-all duration-200 shadow-sm'
-              >
-                {showProductForm ? (
-                  <>
-                    <FaTimes className="w-4 h-4 mr-2" />
-                    Cancel
-                  </>
-                ) : (
-                  <>
-                    <FaPlus className="w-4 h-4 mr-2" />
-                    Add Product
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
+      <div className="flex items-center space-x-3">
+  <Link 
+    href="/products/history" 
+    className="inline-flex items-center px-4 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-all duration-200 shadow-sm"
+  >
+    <FaHistory className="w-4 h-4 mr-2" />
+    Product History
+  </Link>
+  <Link 
+    href="/analytics" 
+    className="inline-flex items-center px-4 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-all duration-200 shadow-sm"
+  >
+    <FaChartBar className="w-4 h-4 mr-2" />
+    Analytics
+  </Link>
+  <button
+    onClick={() => setShowProductForm(!showProductForm)}
+    className='inline-flex items-center px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-all duration-200 shadow-sm'
+  >
+    {showProductForm ? (
+      <>
+        <FaTimes className="w-4 h-4 mr-2" />
+        Cancel
+      </>
+    ) : (
+      <>
+        <FaPlus className="w-4 h-4 mr-2" />
+        Add Product
+      </>
+    )}
+  </button>
+</div>
+
 
         {/* Enhanced Stats Dashboard */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
