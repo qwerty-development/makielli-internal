@@ -49,7 +49,7 @@ const SearchableSelect: React.FC<{
 
       {/* Search input with dropdown appearance */}
       <div
-        className={`flex items-center border ${isFocused ? 'border-blue' : 'border-gray'} rounded bg-white overflow-hidden shadow-sm hover:border-blue cursor-pointer`}
+        className={`flex text-black items-center border ${isFocused ? 'border-blue' : 'border-gray'} rounded bg-white overflow-hidden shadow-sm hover:border-blue cursor-pointer`}
         onClick={() => setIsFocused(true)}
       >
         <div className="text-gray pl-3">
@@ -75,7 +75,7 @@ const SearchableSelect: React.FC<{
 
       {/* Dropdown menu */}
       {isFocused && (
-        <div className="absolute z-50 mt-1 w-full max-h-60 overflow-auto rounded-md bg-white border border-gray shadow-lg">
+        <div className="absolute z-50 text-black mt-1 w-full max-h-60 overflow-auto rounded-md bg-white border border-gray shadow-lg">
           {filteredOptions.length > 0 ? (
             filteredOptions.map(option => (
               <div
@@ -101,7 +101,7 @@ const SearchableSelect: React.FC<{
         required={required}
         value={value || ''}
         onChange={e => onChange(e.target.value)}
-        className="sr-only"
+        className="sr-only text-black"
       >
         <option value="">{placeholder}</option>
         {options.map(option => (

@@ -1,545 +1,424 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import React, { useState, useEffect, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'react-hot-toast'
-import { productHistoryFunctions } from '@/utils/functions/productHistory'
-import { productFunctions } from '@/utils/functions/products'
+import { productHistoryFunctions, ProductHistoryDetail, ProductHistorySummary, VariantSalesDetail, CustomerPurchaseHistory } from '@/utils/functions/productHistory'
+import { clientFunctions, Client } from '@/utils/functions/clients'
+import SearchableSelect from '@/components/SearchableSelect'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
 import { 
   FaHistory, 
   FaUsers, 
   FaCalendar, 
   FaBox,
-  FaArrowLeft,
-  FaDownload,
-  FaFilter,
   FaSpinner,
-  FaShoppingCart,
-  FaTruck,
-  FaExchangeAlt,
-  FaEdit,
-  FaFileInvoice
+  FaFileCsv,
+  FaArrowLeft,
+  FaChartLine,
+  FaChartBar,
+  FaUserTag,
+  FaFilter,
+  FaTag
 } from 'react-icons/fa'
 import { format } from 'date-fns'
-import DatePicker from 'react-datepicker'
-import 'react-datepicker/dist/react-datepicker.css'
-import type { 
-  ProductHistoryDetail, 
-  ProductHistorySummary, 
-  VariantSalesDetail,
-  CustomerPurchaseHistory 
-} from '@/utils/functions/productHistory'
-import type { Product } from '@/utils/functions/products'
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
-export default function ProductHistoryDetailPage() {
+const COLORS = {
+  primary: '#4F46E5',
+  secondary: '#10B981',
+  danger: '#EF4444',
+  warning: '#F59E0B',
+  info: '#3B82F6',
+  light: '#F9FAFB',
+  dark: '#1F2937',
+};
+
+interface ProductInfo {
+    name: string;
+    photo: string;
+}
+
+export default function ProductHistoryDetailPage({ params }: { params: { productId: string } }) {
   const router = useRouter()
-  const params = useParams()
-  const productId = params.productId as string
+  const { productId } = params
 
-  const [product, setProduct] = useState<Product | null>(null)
+  const [productInfo, setProductInfo] = useState<ProductInfo | null>(null)
   const [history, setHistory] = useState<ProductHistoryDetail[]>([])
+  const [filteredHistory, setFilteredHistory] = useState<ProductHistoryDetail[]>([])
   const [summary, setSummary] = useState<ProductHistorySummary | null>(null)
   const [variantSales, setVariantSales] = useState<VariantSalesDetail[]>([])
-  const [customerHistory, setCustomerHistory] = useState<CustomerPurchaseHistory[]>([])
+  const [customerPurchases, setCustomerPurchases] = useState<CustomerPurchaseHistory[]>([])
+  const [clients, setClients] = useState<Client[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'timeline' | 'variants' | 'customers'>('timeline')
-  
+
   // Filters
-  const [startDate, setStartDate] = useState<Date | null>(null)
-  const [endDate, setEndDate] = useState<Date | null>(null)
-  const [selectedVariant, setSelectedVariant] = useState<string>('')
-  const [selectedSourceType, setSelectedSourceType] = useState<string>('')
-  const [showFilters, setShowFilters] = useState(false)
+  const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([null, null]);
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null)
+  const [sourceType, setSourceType] = useState('')
 
   useEffect(() => {
-    if (productId) {
-      fetchAllData()
-    }
+    fetchData()
   }, [productId])
 
   useEffect(() => {
-    if (productId) {
-      fetchHistory()
-    }
-  }, [startDate, endDate, selectedVariant, selectedSourceType])
+    applyFilters()
+  }, [history, dateRange, selectedClientId, sourceType])
 
-  const fetchAllData = async () => {
+  const fetchData = async () => {
+    if (!productId) return
     try {
       setIsLoading(true)
-      
-      // Fetch product details
-      const products = await productFunctions.getAllProducts()
-      const currentProduct = products.find(p => p.id === productId)
-      if (currentProduct) {
-        setProduct(currentProduct)
-      }
-
-      // Fetch all history data in parallel
-      const [historyData, summaryData, variantData, customerData] = await Promise.all([
+      const [ 
+        historyData,
+        summaryData,
+        variantSalesData,
+        customerPurchasesData,
+        clientsData
+      ] = await Promise.all([
         productHistoryFunctions.getProductHistory(productId),
         productHistoryFunctions.getProductHistorySummary(productId),
         productHistoryFunctions.getVariantSalesDetails(productId),
-        productHistoryFunctions.getCustomerPurchaseHistory(productId)
+        productHistoryFunctions.getCustomerPurchaseHistory(productId),
+        clientFunctions.getAllClients()
       ])
 
       setHistory(historyData)
+      setFilteredHistory(historyData)
       setSummary(summaryData)
-      setVariantSales(variantData)
-      setCustomerHistory(customerData)
+      setVariantSales(variantSalesData)
+      setCustomerPurchases(customerPurchasesData)
+      setClients(clientsData)
+
+      if (historyData.length > 0) {
+        setProductInfo({
+            name: historyData[0].product_name,
+            photo: historyData[0].product_photo
+        })
+      }
+
     } catch (error) {
-      console.error('Error fetching product data:', error)
-      toast.error('Failed to load product history')
+      console.error('Error fetching product history details:', error)
+      toast.error('Failed to load product details')
     } finally {
       setIsLoading(false)
     }
   }
 
-  const fetchHistory = async () => {
-    try {
-      const filters: any = {}
-      if (startDate) filters.startDate = startDate
-      if (endDate) filters.endDate = endDate
-      if (selectedVariant) filters.variantId = selectedVariant
-      if (selectedSourceType) filters.sourceType = selectedSourceType
+  const applyFilters = () => {
+    let filtered = [...history]
+    const [startDate, endDate] = dateRange
 
-      const historyData = await productHistoryFunctions.getProductHistory(productId, filters)
-      setHistory(historyData)
-    } catch (error) {
-      console.error('Error fetching filtered history:', error)
-      toast.error('Failed to filter history')
+    if (startDate) {
+        filtered = filtered.filter(item => new Date(item.created_at) >= startDate)
     }
-  }
-
-  const getSourceTypeIcon = (sourceType: string) => {
-    switch (sourceType) {
-      case 'client_invoice':
-        return <FaFileInvoice className="text-blue" />
-      case 'supplier_invoice':
-        return <FaTruck className="text-green-600" />
-      case 'quotation':
-        return <FaShoppingCart className="text-purple-600" />
-      case 'adjustment':
-        return <FaEdit className="text-orange-600" />
-      case 'return':
-        return <FaExchangeAlt className="text-red-600" />
-      default:
-        return <FaHistory className="text-neutral-600" />
+    if (endDate) {
+        const endOfDay = new Date(endDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        filtered = filtered.filter(item => new Date(item.created_at) <= endOfDay)
     }
-  }
+    if (selectedClientId) {
+        filtered = filtered.filter(item => item.client_id === selectedClientId)
+    }
+    if (sourceType) {
+        filtered = filtered.filter(item => item.source_type === sourceType)
+    }
 
-  const getSourceTypeLabel = (sourceType: string) => {
-    return sourceType.split('_').map(word => 
-      word.charAt(0).toUpperCase() + word.slice(1)
-    ).join(' ')
+    setFilteredHistory(filtered)
   }
 
   const handleExportCSV = async () => {
     try {
       const csv = await productHistoryFunctions.exportProductHistoryToCSV(productId)
-      const blob = new Blob([csv], { type: 'text/csv' })
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${product?.name || 'product'}_history_${format(new Date(), 'yyyy-MM-dd')}.csv`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
-      toast.success('History exported successfully')
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `${productInfo?.name || 'product'}_history.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      toast.success('History exported to CSV')
     } catch (error) {
-      console.error('Error exporting history:', error)
-      toast.error('Failed to export history')
+      console.error('Error exporting CSV:', error)
+      toast.error('Failed to export CSV')
     }
   }
 
-  const clearFilters = () => {
-    setStartDate(null)
-    setEndDate(null)
-    setSelectedVariant('')
-    setSelectedSourceType('')
-  }
+  const salesOverTimeData = useMemo(() => {
+    const sales = filteredHistory
+        .filter(h => h.source_type === 'invoice' || h.source_type === 'quotation')
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+
+    const data = sales.map(s => ({
+        date: format(new Date(s.created_at), 'MMM d'),
+        quantity: Math.abs(s.quantity_change)
+    }))
+    return data
+  }, [filteredHistory])
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50">
         <div className="text-center">
-          <FaSpinner className="animate-spin text-4xl text-blue mb-4 mx-auto" />
-          <p className="text-neutral-600">Loading product history...</p>
+          <FaSpinner className="animate-spin text-4xl text-indigo-600 mb-4 mx-auto" />
+          <p className="text-neutral-600 text-lg">Loading Product Details...</p>
         </div>
       </div>
     )
   }
 
-  if (!product) {
+  if (!productInfo) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <FaBox className="text-6xl text-neutral-300 mb-4 mx-auto" />
-          <p className="text-neutral-600 text-lg mb-4">Product not found</p>
-          <button
-            onClick={() => router.push('/products/history')}
-            className="px-4 py-2 bg-blue text-white rounded-lg hover:bg-indigo-600"
-          >
-            Back to Products
-          </button>
-        </div>
+        <div className="min-h-screen flex items-center justify-center bg-neutral-50">
+            <div className="text-center">
+                <FaBox className="text-6xl text-neutral-300 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-neutral-700">Product Not Found</h3>
+                <p className="text-neutral-500 mt-2">Could not find history for this product.</p>
+                <button
+                    onClick={() => router.push('/products/history')}
+                    className="mt-6 flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                    <FaArrowLeft />
+                    Back to Product History
+                </button>
+            </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-neutral-100 p-4 sm:p-6 lg:p-8 text-black">
+      <div className="max-w-8xl mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => router.push('/products/history')}
-                className="p-2 hover:bg-neutral-100 rounded-lg transition-colors"
-              >
-                <FaArrowLeft className="text-neutral-600" />
-              </button>
-              
-              <div className="flex items-center gap-4">
-                {product.photo && (
-                  <img
-                    src={product.photo}
-                    alt={product.name}
-                    className="w-16 h-16 object-cover rounded-lg"
-                  />
-                )}
-                <div>
-                  <h1 className="text-2xl font-bold text-neutral-800">{product.name}</h1>
-                  <p className="text-neutral-600">Product History & Analytics</p>
+        <div className="bg-white rounded-xl shadow-md p-6 mb-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
+                <div className="flex items-center gap-4">
+                    {productInfo.photo ? (
+                        <img src={productInfo.photo} alt={productInfo.name} className="w-20 h-20 rounded-lg object-cover shadow-sm" />
+                    ) : (
+                        <div className="w-20 h-20 rounded-lg bg-neutral-200 flex items-center justify-center">
+                            <FaBox className="text-4xl text-neutral-400" />
+                        </div>
+                    )}
+                    <div>
+                        <h1 className="text-3xl font-bold text-neutral-800">{productInfo.name}</h1>
+                        <p className="text-neutral-500 mt-1">Detailed sales and stock history.</p>
+                    </div>
                 </div>
-              </div>
+                <div className="flex items-center gap-4 mt-4 sm:mt-0">
+                    <button
+                        onClick={() => router.push('/products/history')}
+                        className="flex items-center gap-2 px-4 py-2 bg-neutral-200 text-neutral-700 rounded-lg hover:bg-neutral-300 transition-colors"
+                    >
+                        <FaArrowLeft />
+                        Back
+                    </button>
+                    <button
+                        onClick={handleExportCSV}
+                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                    >
+                        <FaFileCsv />
+                        Export CSV
+                    </button>
+                </div>
             </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center gap-2 px-4 py-2 bg-neutral-200 text-neutral-700 rounded-lg hover:bg-neutral-300 transition-colors"
-              >
-                <FaFilter />
-                Filters
-              </button>
-              <button
-                onClick={handleExportCSV}
-                className="flex items-center gap-2 px-4 py-2 bg-blue text-white rounded-lg hover:bg-indigo-600 transition-colors"
-              >
-                <FaDownload />
-                Export CSV
-              </button>
-            </div>
-          </div>
-
-          {/* Summary Stats */}
-          {summary && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-              <div className="bg-neutral-50 rounded-lg p-3">
-                <p className="text-sm text-neutral-600">Total Sold</p>
-                <p className="text-2xl font-bold text-neutral-800">{summary.total_sold}</p>
-              </div>
-              <div className="bg-neutral-50 rounded-lg p-3">
-                <p className="text-sm text-neutral-600">Unique Customers</p>
-                <p className="text-2xl font-bold text-neutral-800">{summary.unique_customers}</p>
-              </div>
-              <div className="bg-neutral-50 rounded-lg p-3">
-                <p className="text-sm text-neutral-600">Avg. Sale Quantity</p>
-                <p className="text-2xl font-bold text-neutral-800">{summary.avg_sale_quantity || 0}</p>
-              </div>
-              <div className="bg-neutral-50 rounded-lg p-3">
-                <p className="text-sm text-neutral-600">Last Sale</p>
-                <p className="text-sm font-medium text-neutral-800">
-                  {summary.last_sale_date 
-                    ? format(new Date(summary.last_sale_date), 'MMM d, yyyy')
-                    : 'No sales yet'
-                  }
-                </p>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Filters Panel */}
-        {showFilters && (
-          <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">Start Date</label>
-                <DatePicker
-                  selected={startDate}
-                  onChange={setStartDate}
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-blue focus:border-transparent"
-                  placeholderText="Select start date"
-                  dateFormat="MM/dd/yyyy"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">End Date</label>
-                <DatePicker
-                  selected={endDate}
-                  onChange={setEndDate}
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-blue focus:border-transparent"
-                  placeholderText="Select end date"
-                  dateFormat="MM/dd/yyyy"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">Variant</label>
-                <select
-                  value={selectedVariant}
-                  onChange={(e) => setSelectedVariant(e.target.value)}
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-blue focus:border-transparent"
-                >
-                  <option value="">All Variants</option>
-                  {product.variants?.map((variant) => (
-                    <option key={variant.id} value={variant.id}>
-                      {variant.size} - {variant.color}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">Source Type</label>
-                <select
-                  value={selectedSourceType}
-                  onChange={(e) => setSelectedSourceType(e.target.value)}
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-blue focus:border-transparent"
-                >
-                  <option value="">All Types</option>
-                  <option value="client_invoice">Client Invoice</option>
-                  <option value="supplier_invoice">Supplier Invoice</option>
-                  <option value="quotation">Quotation</option>
-                  <option value="adjustment">Adjustment</option>
-                  <option value="return">Return</option>
-                </select>
-              </div>
+        {/* Summary Stats */}
+        {summary && (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-6">
+                <StatCard title="Total Sold" value={summary.total_sold} icon={FaHistory} color="green" />
+                <StatCard title="Total Purchased" value={summary.total_purchased} icon={FaBox} color="blue" />
+                <StatCard title="Adjustments" value={summary.total_adjusted} icon={FaTag} color="yellow" />
+                <StatCard title="Unique Customers" value={summary.unique_customers} icon={FaUsers} color="purple" />
+                <StatCard title="Avg. Sale Quantity" value={summary.avg_sale_quantity.toFixed(2)} icon={FaChartBar} color="indigo" />
             </div>
-
-            <button
-              onClick={clearFilters}
-              className="mt-4 text-sm text-blue hover:text-indigo-600"
-            >
-              Clear all filters
-            </button>
-          </div>
         )}
 
-        {/* Tabs */}
-        <div className="bg-white rounded-lg shadow-sm mb-6">
-          <div className="border-b border-neutral-200">
-            <nav className="flex -mb-px">
-              <button
-                onClick={() => setActiveTab('timeline')}
-                className={`px-6 py-3 text-sm font-medium ${
-                  activeTab === 'timeline'
-                    ? 'text-blue border-b-2 border-blue'
-                    : 'text-neutral-600 hover:text-neutral-800'
-                }`}
-              >
-                Timeline
-              </button>
-              <button
-                onClick={() => setActiveTab('variants')}
-                className={`px-6 py-3 text-sm font-medium ${
-                  activeTab === 'variants'
-                    ? 'text-blue border-b-2 border-blue'
-                    : 'text-neutral-600 hover:text-neutral-800'
-                }`}
-              >
-                Variant Analysis
-              </button>
-              <button
-                onClick={() => setActiveTab('customers')}
-                className={`px-6 py-3 text-sm font-medium ${
-                  activeTab === 'customers'
-                    ? 'text-blue border-b-2 border-blue'
-                    : 'text-neutral-600 hover:text-neutral-800'
-                }`}
-              >
-                Customer Analysis
-              </button>
-            </nav>
-          </div>
+        {/* Visualizations */}
+        <div className="mb-6">
+           
+            <ChartCard title="Variant Performance" icon={FaChartBar}>
+                <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={variantSales} layout="vertical" margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis type="number" />
+                        <YAxis type="category" dataKey="size" width={80} />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="total_sold" fill={COLORS.secondary} name="Total Sold" />
+                        <Bar dataKey="current_stock" fill={COLORS.info} name="Current Stock" />
+                    </BarChart>
+                </ResponsiveContainer>
+            </ChartCard>
+        </div>
 
-          <div className="p-6">
-            {/* Timeline Tab */}
-            {activeTab === 'timeline' && (
-              <div className="space-y-4">
-                {history.length === 0 ? (
-                  <div className="text-center py-12">
-                    <FaHistory className="text-6xl text-neutral-300 mx-auto mb-4" />
-                    <p className="text-neutral-600">No history found for the selected filters</p>
-                  </div>
-                ) : (
-                  history.map((record) => (
-                    <div key={record.id} className="flex gap-4 border-b border-neutral-100 pb-4 last:border-0">
-                      <div className="flex-shrink-0 mt-1">
-                        {getSourceTypeIcon(record.source_type)}
-                      </div>
-                      
-                      <div className="flex-grow">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <p className="font-medium text-neutral-800">
-                              {getSourceTypeLabel(record.source_type)}
-                              {record.invoice_order_number && (
-                                <span className="ml-2 text-sm text-neutral-600">
-                                  #{record.invoice_order_number}
-                                </span>
-                              )}
-                            </p>
-                            
-                            <div className="mt-1 space-y-1">
-                              <p className="text-sm text-neutral-600">
-                                {record.client_name && (
-                                  <span>Customer: <span className="font-medium">{record.client_name}</span></span>
-                                )}
-                              </p>
-                              
-                              <p className="text-sm text-neutral-600">
-                                Variant: <span className="font-medium">{record.size} - {record.color}</span>
-                              </p>
-                              
-                              <p className="text-sm text-neutral-600">
-                                Quantity: 
-                                <span className={`font-medium ml-1 ${
-                                  record.quantity_change < 0 ? 'text-red-600' : 'text-green-600'
-                                }`}>
-                                  {record.quantity_change > 0 ? '+' : ''}{record.quantity_change}
-                                </span>
-                              </p>
-
-                              {record.notes && (
-                                <p className="text-sm text-neutral-500 italic">{record.notes}</p>
-                              )}
+        {/* Customer & History Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Top Customers */}
+            <div className="lg:col-span-1">
+                <div className="bg-white rounded-xl shadow-md p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                        <FaUserTag className="text-xl text-indigo-600" />
+                        <h3 className="font-semibold text-neutral-700 text-lg">Top Customers</h3>
+                    </div>
+                    <div className="space-y-4 max-h-[600px] overflow-y-auto">
+                        {customerPurchases.map(c => (
+                            <div key={c.client_id} className="p-3 bg-neutral-50 rounded-lg">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="font-semibold text-neutral-800 hover:text-indigo-600 cursor-pointer" onClick={() => router.push(`/clients/details/${c.client_id}`)}>{c.client_name}</p>
+                                        <p className="text-sm text-neutral-500">Last purchase: {format(new Date(c.last_purchase_date), 'MMM d, yyyy')}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="font-bold text-indigo-600">{c.total_purchased} units</p>
+                                        <p className="text-sm text-neutral-500">in {c.purchase_count} orders</p>
+                                    </div>
+                                </div>
+                                <div className="mt-2 pt-2 border-t border-neutral-200">
+                                    <p className="text-xs font-semibold text-neutral-600 mb-1">Variants Purchased:</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {c.variants_purchased.map((v, i) => (
+                                            <span key={i} className="px-2 py-1 bg-indigo-100 text-indigo-800 text-xs rounded-full">
+                                                {v.size} / {v.color} ({v.quantity})
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
-                          </div>
-                          
-                          <div className="text-right">
-                            <p className="text-sm text-neutral-500">
-                              {format(new Date(record.created_at), 'MMM d, yyyy')}
-                            </p>
-                            <p className="text-xs text-neutral-400">
-                              {format(new Date(record.created_at), 'h:mm a')}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-
-            {/* Variants Tab */}
-            {activeTab === 'variants' && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {variantSales.map((variant) => (
-                    <div key={variant.variant_id} className="bg-neutral-50 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-medium text-neutral-800">
-                          {variant.size} - {variant.color}
-                        </h4>
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          variant.current_stock === 0
-                            ? 'bg-red-100 text-red-600'
-                            : variant.current_stock < 10
-                            ? 'bg-yellow-100 text-yellow-600'
-                            : 'bg-green-100 text-green-600'
-                        }`}>
-                          Stock: {variant.current_stock}
-                        </span>
-                      </div>
-                      
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-neutral-600">Units Sold</span>
-                          <span className="font-medium">{variant.total_sold}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-neutral-600">Customers</span>
-                          <span className="font-medium">{variant.unique_customers}</span>
-                        </div>
-                      </div>
-
-                      {/* Progress bar showing stock level */}
-                      <div className="mt-3">
-                        <div className="w-full bg-neutral-200 rounded-full h-2">
-                          <div 
-                            className="bg-blue h-2 rounded-full"
-                            style={{ 
-                              width: `${Math.min(100, (variant.current_stock / (variant.current_stock + variant.total_sold)) * 100)}%` 
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Customers Tab */}
-            {activeTab === 'customers' && (
-              <div className="space-y-4">
-                {customerHistory.length === 0 ? (
-                  <div className="text-center py-12">
-                    <FaUsers className="text-6xl text-neutral-300 mx-auto mb-4" />
-                    <p className="text-neutral-600">No customer purchases yet</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full">
-                      <thead>
-                        <tr className="border-b border-neutral-200">
-                          <th className="text-left py-3 px-4 text-sm font-medium text-neutral-700">Customer</th>
-                          <th className="text-center py-3 px-4 text-sm font-medium text-neutral-700">Total Units</th>
-                          <th className="text-center py-3 px-4 text-sm font-medium text-neutral-700">Purchases</th>
-                          <th className="text-left py-3 px-4 text-sm font-medium text-neutral-700">Variants Purchased</th>
-                          <th className="text-center py-3 px-4 text-sm font-medium text-neutral-700">Last Purchase</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-neutral-100">
-                        {customerHistory.map((customer) => (
-                          <tr key={customer.client_id} className="hover:bg-neutral-50">
-                            <td className="py-3 px-4">
-                              <p className="font-medium text-neutral-800">{customer.client_name}</p>
-                            </td>
-                            <td className="text-center py-3 px-4 font-medium">{customer.total_purchased}</td>
-                            <td className="text-center py-3 px-4">{customer.purchase_count}</td>
-                            <td className="py-3 px-4">
-                              <div className="flex flex-wrap gap-1">
-                                {customer.variants_purchased.map((variant, index) => (
-                                  <span 
-                                    key={index}
-                                    className="inline-block px-2 py-1 text-xs bg-neutral-100 rounded"
-                                  >
-                                    {variant.size}-{variant.color} ({variant.quantity})
-                                  </span>
-                                ))}
-                              </div>
-                            </td>
-                            <td className="text-center py-3 px-4 text-sm text-neutral-600">
-                              {format(new Date(customer.last_purchase_date), 'MMM d, yyyy')}
-                            </td>
-                          </tr>
                         ))}
-                      </tbody>
+                         {customerPurchases.length === 0 && (
+                            <p className="text-neutral-500 text-center py-4">No customer purchase history found.</p>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Detailed History Table */}
+            <div className="lg:col-span-2 bg-white rounded-xl shadow-md p-6">
+                <div className="flex items-center gap-3 mb-4">
+                    <FaHistory className="text-xl text-indigo-600" />
+                    <h3 className="font-semibold text-neutral-700 text-lg">Detailed History</h3>
+                </div>
+                {/* Filters for table */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 p-4 bg-neutral-50 rounded-lg">
+                    <DatePicker
+                        selectsRange={true}
+                        startDate={dateRange[0] || undefined}
+                        endDate={dateRange[1] || undefined}
+                        onChange={(update) => setDateRange(update || [null, null])}
+                        isClearable={true}
+                        placeholderText="Filter by date"
+                        className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <SearchableSelect
+                        options={clients}
+                        value={selectedClientId}
+                        onChange={(value) => setSelectedClientId(value ? Number(value) : null)}
+                        placeholder="Filter by client"
+                        label="Clients"
+                        idField="client_id"
+                    />
+                    <select 
+                        value={sourceType} 
+                        onChange={e => setSourceType(e.target.value)}
+                        className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-black"
+                    >
+                        <option value="">All Source Types</option>
+                        <option value="invoice">Invoice</option>
+                        <option value="quotation">Quotation</option>
+                        <option value="inventory_adjustment">Inventory Adjustment</option>
+                        <option value="purchase_order">Purchase Order</option>
+                    </select>
+                </div>
+
+                <div className="max-h-[600px] overflow-y-auto">
+                    <table className="w-full text-sm text-left text-neutral-600">
+                        <thead className="text-xs text-neutral-700 uppercase bg-neutral-100 sticky top-0">
+                            <tr>
+                                <th scope="col" className="px-4 py-3">Date</th>
+                                <th scope="col" className="px-4 py-3">Type</th>
+                                <th scope="col" className="px-4 py-3">Reference</th>
+                                <th scope="col" className="px-4 py-3">Quantity</th>
+                                <th scope="col" className="px-4 py-3">Variant</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredHistory.map(item => (
+                                <tr key={item.id} className="border-b hover:bg-neutral-50">
+                                    <td className="px-4 py-3 font-medium">{format(new Date(item.created_at), 'MMM d, yyyy')}</td>
+                                    <td className="px-4 py-3"><SourceTypeBadge type={item.source_type} /></td>
+                                    <td className="px-4 py-3 font-mono text-xs">{item.invoice_order_number || item.quotation_order_number || item.source_reference}</td>
+                                    <td className={`px-4 py-3 font-bold ${item.quantity_change > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                        {item.quantity_change > 0 ? `+${item.quantity_change}` : item.quantity_change}
+                                    </td>
+                                    <td className="px-4 py-3">{item.size} / {item.color}</td>
+                                </tr>
+                            ))}
+                            {filteredHistory.length === 0 && (
+                                <tr>
+                                    <td colSpan={5} className="text-center py-8 text-neutral-500">No history records match your filters.</td>
+                                </tr>
+                            )}
+                        </tbody>
                     </table>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+                </div>
+            </div>
         </div>
       </div>
     </div>
   )
+}
+
+// Helper components
+const StatCard = ({ title, value, icon: Icon, color }: { title: string, value: string | number, icon: React.ElementType, color: string }) => {
+    const colors: { [key: string]: string } = {
+      indigo: 'text-indigo-600 bg-indigo-100',
+      green: 'text-green-600 bg-green-100',
+      purple: 'text-purple-600 bg-purple-100',
+      red: 'text-red-600 bg-red-100',
+      blue: 'text-blue-600 bg-blue-100',
+      yellow: 'text-yellow-600 bg-yellow-100',
+    }
+    return (
+      <div className="bg-white rounded-xl shadow-md p-4">
+        <div className="flex items-center gap-4">
+            <div className={`p-3 rounded-full ${colors[color]}`}>
+                <Icon className="text-2xl" />
+            </div>
+            <div>
+                <p className="text-neutral-600 text-sm font-medium">{title}</p>
+                <p className="text-2xl font-bold text-neutral-800">{value}</p>
+            </div>
+        </div>
+      </div>
+    )
+}
+
+const ChartCard = ({ title, icon: Icon, children }: { title: string, icon: React.ElementType, children: React.ReactNode }) => (
+  <div className="bg-white rounded-xl shadow-md p-6">
+    <div className="flex items-center gap-3 mb-4">
+      <Icon className="text-xl text-indigo-600" />
+      <h3 className="font-semibold text-neutral-700 text-lg">{title}</h3>
+    </div>
+    {children}
+  </div>
+)
+
+const SourceTypeBadge = ({ type }: { type: string }) => {
+    const typeStyles: { [key: string]: string } = {
+        invoice: 'bg-blue-100 text-blue-800',
+        quotation: 'bg-purple-100 text-purple-800',
+        inventory_adjustment: 'bg-yellow-100 text-yellow-800',
+        purchase_order: 'bg-green-100 text-green-800',
+        default: 'bg-neutral-100 text-neutral-800'
+    }
+    const style = typeStyles[type] || typeStyles.default
+    return (
+        <span className={`px-2 py-1 text-xs font-medium rounded-full ${style}`}>
+            {type.replace('_', ' ').toUpperCase()}
+        </span>
+    )
 }

@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation';
 import React, { useState, useEffect } from 'react'
 import {
   clientFunctions,
@@ -8,7 +9,7 @@ import {
 } from '../../../../utils/functions/clients'
 import { supabase } from '../../../../utils/supabase'
 import { format } from 'date-fns'
-import { FaSort, FaFile, FaDownload, FaInfoCircle, FaSync } from 'react-icons/fa'
+import { FaSort, FaFile, FaDownload, FaInfoCircle, FaSync, FaHistory } from 'react-icons/fa'
 import { generatePDF } from '@/utils/pdfGenerator'
 import { toast } from 'react-hot-toast'
 
@@ -72,6 +73,7 @@ export default function ClientDetailsPage({
 }: {
   params: { clientId: string }
 }) {
+  const router = useRouter()
   const [client, setClient] = useState<Client | null>(null)
   const [companies, setCompanies] = useState<Company[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -463,6 +465,11 @@ export default function ClientDetailsPage({
         className='bg-blue hover:bg-black text-white font-bold py-2 px-4 rounded mr-2 mb-5'>
         Download Financial Report
       </button>
+      <button
+        onClick={() => router.push(`/clients/history/${client?.client_id}`)}
+        className='bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded mr-2 mb-5'>
+        View Product History
+      </button>
       {client && (
         <div>
           <div className='mb-4'>
@@ -493,15 +500,7 @@ export default function ClientDetailsPage({
               }`}>
               Orders
             </button>
-            <button
-              onClick={() => setActiveTab('receipts')}
-              className={`px-4 py-2 rounded ${
-                activeTab === 'receipts'
-                  ? 'bg-blue text-white'
-                  : 'bg-gray text-white'
-              }`}>
-              Receipts
-            </button>
+            
           </div>
 
           {activeTab === 'details' && (
@@ -977,6 +976,8 @@ export default function ClientDetailsPage({
               </table>
             </div>
           )}
+
+          
 
           {selectedInvoice && (
             <div

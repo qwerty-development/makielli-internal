@@ -745,13 +745,7 @@ export default function ProductsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => handleOpenProductHistory(product)}
-                          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all duration-200"
-                          title="View history"
-                        >
-                          <FaHistory className="w-4 h-4" />
-                        </button>
+                  
                         <button
                           onClick={() => {
                             setEditingProduct(product)
@@ -1280,13 +1274,7 @@ export default function ProductsPage() {
                                       }`}>
                                         {variant.quantity}
                                       </span>
-                                      <button
-                                        onClick={() => handleOpenVariantHistory(product, variant)}
-                                        className="p-0.5 text-slate-400 hover:text-indigo-600 rounded transition-colors"
-                                        title="View history"
-                                      >
-                                        <FaHistory className="w-3 h-3" />
-                                      </button>
+                                   
                                     </div>
                                   </div>
                                 ))}
@@ -1320,13 +1308,7 @@ export default function ProductsPage() {
                             Edit
                           </button>
 
-                          <button
-                            onClick={() => handleOpenProductHistory(product)}
-                            className='p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all duration-200'
-                            title="View history"
-                          >
-                            <FaHistory className="w-4 h-4" />
-                          </button>
+                   
 
                           <button
                             onClick={() => handleDeleteProduct(product.id, product.photo)}

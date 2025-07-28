@@ -530,5 +530,7 @@ export const clientFunctions = {
       console.error('Error getting client statistics:', error)
       throw error
     }
-  }
+  },
+
+  
 }
