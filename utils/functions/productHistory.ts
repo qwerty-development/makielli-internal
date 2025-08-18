@@ -143,6 +143,7 @@ export const productHistoryFunctions = {
         .eq('product_id', productId)
         .lt('quantity_change', 0) // Only sales (negative changes)
         .not('client_id', 'is', null)
+        .not('client_name', 'is', null) // Ensure we have customer names
 
       if (historyError) throw historyError
 
@@ -151,12 +152,15 @@ export const productHistoryFunctions = {
 
       for (const record of historyData || []) {
         const clientId = record.client_id
-        if (!clientId) continue
+        const clientName = record.client_name
+        
+        // Skip if no client info
+        if (!clientId || !clientName || clientName === 'N/A') continue
 
         if (!customerMap.has(clientId)) {
           customerMap.set(clientId, {
             client_id: clientId,
-            client_name: record.client_name,
+            client_name: clientName,
             total_purchased: 0,
             last_purchase_date: record.created_at,
             purchase_count: 0,

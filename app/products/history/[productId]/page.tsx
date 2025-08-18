@@ -233,7 +233,7 @@ export default function ProductHistoryDetailPage({ params }: { params: { product
                 <StatCard title="Total Purchased" value={summary.total_purchased} icon={FaBox} color="blue" />
                 <StatCard title="Adjustments" value={summary.total_adjusted} icon={FaTag} color="yellow" />
                 <StatCard title="Unique Customers" value={summary.unique_customers} icon={FaUsers} color="purple" />
-                <StatCard title="Avg. Sale Quantity" value={summary.avg_sale_quantity.toFixed(2)} icon={FaChartBar} color="indigo" />
+ 
             </div>
         )}
 
