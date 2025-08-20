@@ -267,11 +267,12 @@ export default function ProductsPage() {
     return sizeQuantities
   }
 
-  // Flatten color variant groups into format expected by database (filter out zero quantities)
+  // Flatten color variant groups into format expected by database (include ALL variants)
   const flattenColorVariantGroups = (): Partial<ProductVariant>[] => {
     return colorVariantGroups.flatMap(colorGroup =>
       Object.entries(colorGroup.sizeQuantities)
-        .filter(([_, sizeData]) => sizeData.quantity > 0) // Only include non-zero quantities
+        // FIXED: Include ALL variants, even those with zero quantities
+        // This prevents variants from being accidentally deleted during updates
         .map(([size, sizeData]) => ({
           ...(sizeData.id ? { id: sizeData.id } : {}),
           color: colorGroup.color,
