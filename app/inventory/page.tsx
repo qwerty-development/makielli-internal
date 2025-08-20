@@ -22,20 +22,22 @@ import {
   FaEdit,
   FaTrash,
   FaEye,
-
   FaList,
   FaExclamationTriangle,
   FaCheckCircle,
   FaImage,
   FaSave,
-  FaUndo
+  FaUndo,
+  FaToggleOn,
+  FaToggleOff
 } from 'react-icons/fa'
 import { useRouter } from 'next/navigation'
-// Enhanced variant group interface with all sizes pre-populated
+
+// Enhanced variant group interface with active size tracking
 interface ColorVariantGroup {
   color: string
-  // Map of size to quantity with variant ID for editing
-  sizeQuantities: { [size: string]: { quantity: number; id?: string } }
+  // Map of size to quantity with variant ID and active flag for editing
+  sizeQuantities: { [size: string]: { quantity: number; id?: string; active: boolean } }
 }
 
 const imageCompressionOptions = {
@@ -114,7 +116,7 @@ export default function ProductsPage() {
     type: 'Stock'
   })
   
-  // Enhanced color variant groups with all sizes pre-populated
+  // Enhanced color variant groups with active size tracking
   const [colorVariantGroups, setColorVariantGroups] = useState<ColorVariantGroup[]>([])
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
@@ -258,26 +260,26 @@ export default function ProductsPage() {
     }
   }
 
-  // Create initial size quantities object with all sizes set to 0
-  const createInitialSizeQuantities = (): { [size: string]: { quantity: number; id?: string } } => {
-    const sizeQuantities: { [size: string]: { quantity: number; id?: string } } = {}
+  // Create initial size quantities object with all sizes set to inactive and 0 quantity
+  const createInitialSizeQuantities = (): { [size: string]: { quantity: number; id?: string; active: boolean } } => {
+    const sizeQuantities: { [size: string]: { quantity: number; id?: string; active: boolean } } = {}
     sizeOptions.forEach(size => {
-      sizeQuantities[size] = { quantity: 0 }
+      sizeQuantities[size] = { quantity: 0, active: false }
     })
     return sizeQuantities
   }
 
-  // Flatten color variant groups into format expected by database (include ALL variants)
+  // FIXED: Only include ACTIVE variants in the flatten function
   const flattenColorVariantGroups = (): Partial<ProductVariant>[] => {
     return colorVariantGroups.flatMap(colorGroup =>
       Object.entries(colorGroup.sizeQuantities)
-        // FIXED: Include ALL variants, even those with zero quantities
-        // This prevents variants from being accidentally deleted during updates
+        // FIXED: Only include variants that are explicitly active or already exist in the database
+        .filter(([size, sizeData]) => sizeData.active || sizeData.id)
         .map(([size, sizeData]) => ({
           ...(sizeData.id ? { id: sizeData.id } : {}),
           color: colorGroup.color,
           size,
-          quantity: sizeData.quantity
+          quantity: sizeData.quantity // Allow any quantity including 0 and negative for adjustments
         }))
     )
   }
@@ -305,7 +307,18 @@ export default function ProductsPage() {
     const updatedGroups = [...colorVariantGroups]
     updatedGroups[groupIndex].sizeQuantities[size] = {
       ...updatedGroups[groupIndex].sizeQuantities[size],
-      quantity: Math.max(0, quantity) // Ensure quantity is not negative
+      quantity: quantity // Allow negative quantities for adjustments
+    }
+    setColorVariantGroups(updatedGroups)
+  }
+
+  // FIXED: Toggle size active state
+  const toggleSizeActive = (groupIndex: number, size: string) => {
+    const updatedGroups = [...colorVariantGroups]
+    const currentSizeData = updatedGroups[groupIndex].sizeQuantities[size]
+    updatedGroups[groupIndex].sizeQuantities[size] = {
+      ...currentSizeData,
+      active: !currentSizeData.active
     }
     setColorVariantGroups(updatedGroups)
   }
@@ -318,41 +331,72 @@ export default function ProductsPage() {
     Object.entries(fromGroup.sizeQuantities).forEach(([size, sizeData]) => {
       updatedGroups[toIndex].sizeQuantities[size] = {
         ...updatedGroups[toIndex].sizeQuantities[size],
-        quantity: sizeData.quantity
+        quantity: sizeData.quantity,
+        active: sizeData.active // Also copy active state
       }
     })
     
     setColorVariantGroups(updatedGroups)
-    toast.success(`Quantities copied from ${fromGroup.color} to ${updatedGroups[toIndex].color}`)
+    toast.success(`Quantities and selections copied from ${fromGroup.color} to ${updatedGroups[toIndex].color}`)
   }
 
-  // Fill all sizes with the same quantity for a color
+  // Fill all ACTIVE sizes with the same quantity for a color
   const fillAllSizes = (groupIndex: number, quantity: number) => {
     const updatedGroups = [...colorVariantGroups]
-    Object.keys(updatedGroups[groupIndex].sizeQuantities).forEach(size => {
-      updatedGroups[groupIndex].sizeQuantities[size] = {
-        ...updatedGroups[groupIndex].sizeQuantities[size],
-        quantity: Math.max(0, quantity)
+    Object.entries(updatedGroups[groupIndex].sizeQuantities).forEach(([size, sizeData]) => {
+      if (sizeData.active || sizeData.id) { // Only fill active or existing variants
+        updatedGroups[groupIndex].sizeQuantities[size] = {
+          ...sizeData,
+          quantity: quantity // Allow negative quantities for adjustments
+        }
       }
     })
     setColorVariantGroups(updatedGroups)
   }
 
-  // Clear all quantities for a color
+  // Clear all quantities for ACTIVE sizes in a color
   const clearAllQuantities = (groupIndex: number) => {
+    const updatedGroups = [...colorVariantGroups]
+    Object.entries(updatedGroups[groupIndex].sizeQuantities).forEach(([size, sizeData]) => {
+      if (sizeData.active || sizeData.id) { // Only clear active or existing variants
+        updatedGroups[groupIndex].sizeQuantities[size] = {
+          ...sizeData,
+          quantity: 0
+        }
+      }
+    })
+    setColorVariantGroups(updatedGroups)
+  }
+
+  // FIXED: Activate all sizes for a color
+  const activateAllSizes = (groupIndex: number) => {
     const updatedGroups = [...colorVariantGroups]
     Object.keys(updatedGroups[groupIndex].sizeQuantities).forEach(size => {
       updatedGroups[groupIndex].sizeQuantities[size] = {
         ...updatedGroups[groupIndex].sizeQuantities[size],
-        quantity: 0
+        active: true
       }
     })
     setColorVariantGroups(updatedGroups)
   }
 
-  // Convert from database variant format to enhanced color-first format
+  // FIXED: Deactivate all sizes for a color (except existing ones)
+  const deactivateAllSizes = (groupIndex: number) => {
+    const updatedGroups = [...colorVariantGroups]
+    Object.entries(updatedGroups[groupIndex].sizeQuantities).forEach(([size, sizeData]) => {
+      if (!sizeData.id) { // Don't deactivate existing variants
+        updatedGroups[groupIndex].sizeQuantities[size] = {
+          ...sizeData,
+          active: false
+        }
+      }
+    })
+    setColorVariantGroups(updatedGroups)
+  }
+
+  // FIXED: Convert from database variant format to enhanced color-first format with active tracking
   const groupVariantsByColor = (variants: ProductVariant[]): ColorVariantGroup[] => {
-    const groups: { [color: string]: { [size: string]: { quantity: number; id?: string } } } = {}
+    const groups: { [color: string]: { [size: string]: { quantity: number; id?: string; active: boolean } } } = {}
 
     // Initialize all colors found in variants
     variants.forEach(variant => {
@@ -361,7 +405,8 @@ export default function ProductsPage() {
       }
       groups[variant.color][variant.size] = {
         quantity: variant.quantity,
-        id: variant.id
+        id: variant.id,
+        active: true // Existing variants are automatically active
       }
     })
 
@@ -387,13 +432,13 @@ export default function ProductsPage() {
       return
     }
 
-    // Check if any variants have quantities > 0
-    const hasValidVariants = colorVariantGroups.some(group => 
-      Object.values(group.sizeQuantities).some(sizeData => sizeData.quantity > 0)
+    // Check if any variants are active (selected)
+    const hasActiveVariants = colorVariantGroups.some(group => 
+      Object.values(group.sizeQuantities).some(sizeData => sizeData.active)
     )
 
-    if (!hasValidVariants) {
-      toast.error('Please add quantities for at least one size in any color')
+    if (!hasActiveVariants) {
+      toast.error('Please select at least one size variant by toggling the switches')
       return
     }
 
@@ -403,7 +448,7 @@ export default function ProductsPage() {
         photoUrl = await handleFileUpload()
       }
       const productWithPhoto = { ...newProduct, photo: photoUrl }
-      const newVariants:any = flattenColorVariantGroups()
+      const newVariants: any = flattenColorVariantGroups()
       
       await productFunctions.addProduct(productWithPhoto, newVariants)
       
@@ -521,117 +566,190 @@ export default function ProductsPage() {
     'Numeric Sizes': ['36', '38', '40', '42', '44', '46', '48', '50', '52', '54', '56', '58']
   }
 
-  // Render the enhanced size grid for a color group
-  const renderSizeGrid = (colorGroup: ColorVariantGroup, groupIndex: number) => {
-    const getTotalQuantity = () => {
-      return Object.values(colorGroup.sizeQuantities).reduce((sum, sizeData) => sum + sizeData.quantity, 0)
-    }
+const renderSizeGrid = (colorGroup: ColorVariantGroup, groupIndex: number) => {
+  const getTotalQuantity = () => {
+    return Object.values(colorGroup.sizeQuantities)
+      .filter(sizeData => sizeData.active || sizeData.id)
+      .reduce((sum, sizeData) => sum + sizeData.quantity, 0)
+  }
 
-    return (
-      <div className="space-y-6">
-        {/* Enhanced Quick Actions Bar */}
-        <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                min="0"
-                placeholder="Qty"
-                className="w-20 h-9 px-3 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    const value = parseInt((e.target as HTMLInputElement).value) || 0
-                    fillAllSizes(groupIndex, value)
-                    ;(e.target as HTMLInputElement).value = ''
-                  }
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  const input = document.querySelector(`input[placeholder="Qty"]:nth-of-type(${groupIndex + 1})`) as HTMLInputElement
-                  const value = parseInt(input?.value || '0') || 0
-                  fillAllSizes(groupIndex, value)
-                  if (input) input.value = ''
-                }}
-                className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-all duration-200 flex items-center gap-2"
-              >
-                <FaArrowUp className="w-3 h-3" />
-                Fill All
-              </button>
-            </div>
-            
+  const getActiveCount = () => {
+    return Object.values(colorGroup.sizeQuantities).filter(sizeData => sizeData.active || sizeData.id).length
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Enhanced Quick Actions Bar */}
+      <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              placeholder="Qty"
+              className="w-20 h-9 px-3 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const inputValue = (e.target as HTMLInputElement).value
+                  const value = inputValue === '' ? 0 : parseInt(inputValue, 10)
+                  const finalValue = isNaN(value) ? 0 : value
+                  fillAllSizes(groupIndex, finalValue)
+                  ;(e.target as HTMLInputElement).value = ''
+                }
+              }}
+            />
             <button
               type="button"
-              onClick={() => clearAllQuantities(groupIndex)}
-              className="h-9 px-4 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition-all duration-200 flex items-center gap-2"
+              onClick={() => {
+                const input = document.querySelector(`input[placeholder="Qty"]:nth-of-type(${groupIndex + 1})`) as HTMLInputElement
+                const inputValue = input?.value || ''
+                const value = inputValue === '' ? 0 : parseInt(inputValue, 10)
+                const finalValue = isNaN(value) ? 0 : value
+                fillAllSizes(groupIndex, finalValue)
+                if (input) input.value = ''
+              }}
+              className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-all duration-200 flex items-center gap-2"
             >
-              <FaTimes className="w-3 h-3" />
-              Clear
+              <FaArrowUp className="w-3 h-3" />
+              Fill Active
             </button>
+          </div>
+          
+          <button
+            type="button"
+            onClick={() => clearAllQuantities(groupIndex)}
+            className="h-9 px-4 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition-all duration-200 flex items-center gap-2"
+          >
+            <FaTimes className="w-3 h-3" />
+            Clear Active
+          </button>
 
-            {colorVariantGroups.length > 1 && (
-              <div className="flex items-center gap-2">
-                <select
-                  className="h-9 px-3 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
-                  onChange={(e) => {
-                    const fromIndex = parseInt(e.target.value)
-                    if (fromIndex !== groupIndex && fromIndex >= 0) {
-                      copyQuantitiesFromColor(fromIndex, groupIndex)
-                    }
-                    e.target.value = ''
-                  }}
-                  defaultValue=""
-                >
-                  <option value="" disabled>Copy from color...</option>
-                  {colorVariantGroups.map((group, idx) => 
-                    idx !== groupIndex && group.color ? (
-                      <option key={idx} value={idx}>{group.color}</option>
-                    ) : null
-                  )}
-                </select>
-              </div>
-            )}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => activateAllSizes(groupIndex)}
+              className="h-9 px-3 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg transition-all duration-200 flex items-center gap-2"
+            >
+              <FaToggleOn className="w-3 h-3" />
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => deactivateAllSizes(groupIndex)}
+              className="h-9 px-3 bg-gray-500 hover:bg-gray-600 text-white text-sm font-medium rounded-lg transition-all duration-200 flex items-center gap-2"
+            >
+              <FaToggleOff className="w-3 h-3" />
+              None
+            </button>
+          </div>
 
-            <div className="ml-auto flex items-center gap-2">
-              <span className="text-sm text-slate-600">Total:</span>
-              <span className="text-lg font-semibold text-slate-900">{getTotalQuantity()}</span>
-              <span className="text-sm text-slate-500">items</span>
+          {colorVariantGroups.length > 1 && (
+            <div className="flex items-center gap-2">
+              <select
+                className="h-9 px-3 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                onChange={(e) => {
+                  const fromIndex = parseInt(e.target.value)
+                  if (fromIndex !== groupIndex && fromIndex >= 0) {
+                    copyQuantitiesFromColor(fromIndex, groupIndex)
+                  }
+                  e.target.value = ''
+                }}
+                defaultValue=""
+              >
+                <option value="" disabled>Copy from color...</option>
+                {colorVariantGroups.map((group, idx) => 
+                  idx !== groupIndex && group.color ? (
+                    <option key={idx} value={idx}>{group.color}</option>
+                  ) : null
+                )}
+              </select>
             </div>
+          )}
+
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-sm text-slate-600">Active:</span>
+            <span className="text-sm font-semibold text-indigo-600">{getActiveCount()}</span>
+            <span className="text-sm text-slate-600">• Total:</span>
+            <span className={`text-lg font-semibold ${getTotalQuantity() >= 0 ? 'text-slate-900' : 'text-red-600'}`}>
+              {getTotalQuantity()}
+            </span>
+            <span className="text-sm text-slate-500">items</span>
           </div>
         </div>
+      </div>
 
-        {/* Enhanced Size Grid by Categories */}
-        {Object.entries(sizeCategories).map(([categoryName, sizes]) => (
-          <div key={categoryName} className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-            <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
-              <h5 className="text-sm font-semibold text-slate-800">{categoryName}</h5>
-            </div>
-            <div className="p-4">
-              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-12 gap-3">
-                {sizes.map(size => (
-                  <div key={size} className="flex flex-col items-center space-y-2">
-                    <label className="text-xs font-medium text-slate-600 min-h-[16px]">{size}</label>
+      {/* Enhanced Size Grid by Categories */}
+      {Object.entries(sizeCategories).map(([categoryName, sizes]) => (
+        <div key={categoryName} className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+          <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
+            <h5 className="text-sm font-semibold text-slate-800">{categoryName}</h5>
+          </div>
+          <div className="p-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {sizes.map(size => {
+                const sizeData = colorGroup.sizeQuantities[size]
+                const isActive = sizeData.active || !!sizeData.id
+                const isExisting = !!sizeData.id
+                
+                return (
+                  <div key={size} className={`flex flex-col items-center space-y-2 p-3 rounded-lg border-2 transition-all duration-200 ${
+                    isActive 
+                      ? 'border-indigo-300 bg-indigo-50' 
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}>
+                    <div className="flex items-center justify-between w-full">
+                      <label className="text-xs font-medium text-slate-600">{size}</label>
+                      <button
+                        type="button"
+                        onClick={() => toggleSizeActive(groupIndex, size)}
+                        className={`text-lg transition-all duration-200 ${
+                          isActive 
+                            ? 'text-indigo-600 hover:text-indigo-700' 
+                            : 'text-slate-400 hover:text-slate-500'
+                        }`}
+                        disabled={isExisting}
+                        title={isExisting ? 'Existing variant (always active)' : 'Toggle size activation'}
+                      >
+                        {isActive ? <FaToggleOn /> : <FaToggleOff />}
+                      </button>
+                    </div>
+                    
                     <input
                       type="number"
-                      min="0"
-                      value={colorGroup.sizeQuantities[size]?.quantity || 0}
-                      onChange={(e) => updateSizeQuantity(groupIndex, size, parseInt(e.target.value) || 0)}
+                      value={sizeData.quantity || 0}
+                      onChange={(e) => {
+                        const inputValue = e.target.value
+                        if (inputValue === '') {
+                          updateSizeQuantity(groupIndex, size, 0)
+                        } else {
+                          const value = parseInt(inputValue, 10)
+                          updateSizeQuantity(groupIndex, size, isNaN(value) ? 0 : value)
+                        }
+                      }}
+                      disabled={!isActive}
                       className={`w-full h-10 px-2 border rounded-lg text-center text-sm font-medium transition-all duration-200 ${
-                        colorGroup.sizeQuantities[size]?.quantity > 0 
+                        !isActive 
+                          ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'
+                          : sizeData.quantity > 0 
                           ? 'border-emerald-400 bg-emerald-50 text-emerald-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500' 
+                          : sizeData.quantity < 0
+                          ? 'border-red-400 bg-red-50 text-red-800 focus:ring-2 focus:ring-red-500 focus:border-red-500'
                           : 'border-slate-300 bg-white text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
                       }`}
                     />
+                    
+                    {isExisting && (
+                      <div className="text-xs text-indigo-600 font-medium">Existing</div>
+                    )}
                   </div>
-                ))}
-              </div>
+                )
+              })}
             </div>
           </div>
-        ))}
-      </div>
-    )
-  }
+        </div>
+      ))}
+    </div>
+  )
+}
 
   // Enhanced table view for inventory
   const renderTableView = () => (
@@ -746,7 +864,6 @@ export default function ProductsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-2">
-                  
                         <button
                           onClick={() => {
                             setEditingProduct(product)
@@ -960,7 +1077,7 @@ export default function ProductsPage() {
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="bg-slate-50 px-6 py-4 border-b border-slate-200">
                 <h2 className='text-lg font-semibold text-slate-900'>Add New Product</h2>
-                <p className="text-sm text-slate-600 mt-1">Create a new product with variants and inventory</p>
+                <p className="text-sm text-slate-600 mt-1">Create a new product with variants and inventory. Use the toggle switches to select which sizes to include.</p>
               </div>
               
               <form onSubmit={handleCreateProduct} className='p-6 space-y-8'>
@@ -1062,7 +1179,7 @@ export default function ProductsPage() {
                   <div className="flex items-center justify-between mb-6">
                     <div>
                       <h3 className='text-base font-semibold text-slate-900'>Color Variants & Inventory</h3>
-                      <p className="text-sm text-slate-600 mt-1">Add different colors and their size quantities</p>
+                      <p className="text-sm text-slate-600 mt-1">Add different colors and select which sizes to include using the toggle switches</p>
                     </div>
                     <button
                       type='button'
@@ -1275,7 +1392,6 @@ export default function ProductsPage() {
                                       }`}>
                                         {variant.quantity}
                                       </span>
-                                   
                                     </div>
                                   </div>
                                 ))}
@@ -1309,8 +1425,6 @@ export default function ProductsPage() {
                             Edit
                           </button>
 
-                   
-
                           <button
                             onClick={() => handleDeleteProduct(product.id, product.photo)}
                             className='p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200'
@@ -1336,7 +1450,7 @@ export default function ProductsPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className='text-lg font-semibold text-slate-900'>Edit Product</h3>
-                    <p className="text-sm text-slate-600">{editingProduct.name}</p>
+                    <p className="text-sm text-slate-600">{editingProduct.name} - Use toggle switches to select which sizes to include</p>
                   </div>
                   <button
                     onClick={() => {
@@ -1455,7 +1569,7 @@ export default function ProductsPage() {
                     <div className="flex items-center justify-between mb-6">
                       <div>
                         <h4 className='text-base font-semibold text-slate-900'>Color Variants & Inventory</h4>
-                        <p className="text-sm text-slate-600 mt-1">Manage colors and their size quantities</p>
+                        <p className="text-sm text-slate-600 mt-1">Manage colors and their size quantities. Toggle switches to activate/deactivate sizes.</p>
                       </div>
                       <button
                         type='button'

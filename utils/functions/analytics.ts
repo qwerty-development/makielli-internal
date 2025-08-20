@@ -722,8 +722,8 @@ export const analyticsService = {
         product_id: productId,
         variant_id: variantId,
         quantity_change: quantityChange,
-        previous_quantity: previousQuantity,
-        new_quantity: newQuantity,
+        old_value: previousQuantity.toString(),
+        new_value: newQuantity.toString(),
         source_type: sourceType,
         source_id: sourceId,
         notes

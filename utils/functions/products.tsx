@@ -40,9 +40,7 @@ const validateVariant = (variant: Partial<ProductVariant>): void => {
 	if (!variant.color?.trim()) {
 		throw new Error('Variant color is required')
 	}
-	if (variant.quantity !== undefined && variant.quantity < 0) {
-		throw new Error('Quantity cannot be negative')
-	}
+	// NOTE: Negative quantities are now allowed for inventory adjustments
 }
 
 export const productFunctions = {
@@ -96,7 +94,7 @@ export const productFunctions = {
 				notes: 'Initial cost set'
 			})
 
-			// Create variants
+			// Create variants - only those that are provided (already filtered by active in frontend)
 			const { data: newVariants, error: variantError } = await supabase
 				.from('ProductVariants')
 				.insert(
@@ -118,20 +116,19 @@ export const productFunctions = {
 					notes: `Added variant: ${variant.size} - ${variant.color}`
 				})
 
-				// Track initial inventory if quantity > 0
-				if (variant.quantity > 0) {
-					await analyticsFunctions.recordProductChange({
-						productId: newProduct.id,
-						variantId: variant.id,
-						changeType: 'inventory',
-						quantityChange: variant.quantity,
-						oldValue: 0,
-						newValue: variant.quantity,
-						sourceType: 'manual',
-						sourceReference: 'Initial stock',
-						notes: 'Initial inventory'
-					})
-				}
+				// Track initial inventory for any quantity (including 0 and negative for adjustments)
+				await analyticsFunctions.recordProductChange({
+					productId: newProduct.id,
+					variantId: variant.id,
+					changeType: 'inventory',
+					quantityChange: variant.quantity,
+					oldValue: 0,
+					newValue: variant.quantity,
+					sourceType: 'manual',
+					sourceReference: 'Initial stock',
+					notes: variant.quantity === 0 ? 'Initial variant with zero stock' : 
+						   variant.quantity < 0 ? 'Initial variant with negative adjustment' : 'Initial inventory'
+				})
 			}
 
 			return { ...newProduct, variants: newVariants }
@@ -187,7 +184,7 @@ export const productFunctions = {
 	},
 
 	/**
-	 * Update product with comprehensive change tracking
+	 * FIXED: Update product with improved variant management - never deletes variants automatically
 	 */
 	async updateProduct(
 		id: string,
@@ -287,187 +284,156 @@ export const productFunctions = {
 
 			if (productError) throw productError
 
-			// Fetch existing variants
-			const { data: existingVariants, error: fetchVariantsError } = await supabase
-				.from('ProductVariants')
-				.select('*')
-				.eq('product_id', id)
-
-			if (fetchVariantsError) throw fetchVariantsError
-
-			// Process variant updates
+			// FIXED: Process variant updates - only handle provided variants, never auto-delete
 			for (const variant of variants) {
 				if (variant.id) {
 					// Update existing variant
-					const originalVariant = existingVariants.find(v => v.id === variant.id)
-					
-					if (originalVariant) {
-						// Track size/color changes
-						if (variant.size && variant.size !== originalVariant.size) {
-							await analyticsFunctions.recordProductChange({
-								productId: id,
-								variantId: variant.id,
-								changeType: 'details',
-								fieldName: 'size',
-								oldValue: originalVariant.size,
-								newValue: variant.size,
-								sourceType: 'manual'
-							})
-						}
-
-						if (variant.color && variant.color !== originalVariant.color) {
-							await analyticsFunctions.recordProductChange({
-								productId: id,
-								variantId: variant.id,
-								changeType: 'details',
-								fieldName: 'color',
-								oldValue: originalVariant.color,
-								newValue: variant.color,
-								sourceType: 'manual'
-							})
-						}
-
-						// Track quantity changes
-						if (variant.quantity !== undefined && variant.quantity !== originalVariant.quantity) {
-							const quantityChange = variant.quantity - originalVariant.quantity
-							await analyticsFunctions.recordProductChange({
-								productId: id,
-								variantId: variant.id,
-								changeType: 'inventory',
-								quantityChange: quantityChange,
-								oldValue: originalVariant.quantity,
-								newValue: variant.quantity,
-								sourceType: 'adjustment',
-								sourceReference: 'Manual inventory adjustment',
-								notes: 'Manual inventory adjustment'
-							})
-						}
-
-						// Update the variant
-						const { error } = await supabase
-							.from('ProductVariants')
-							.update({
-								size: variant.size,
-								color: variant.color,
-								quantity: variant.quantity
-							})
-							.eq('id', variant.id)
-
-						if (error) throw error
-					}
-				} else {
-					// Check if variant already exists by size and color
-					const { data: existingVariant } = await supabase
+					const { data: originalVariant, error: fetchVariantError } = await supabase
 						.from('ProductVariants')
 						.select('*')
-						.eq('product_id', id)
-						.eq('size', variant.size!)
-						.eq('color', variant.color!)
-						.maybeSingle()
+						.eq('id', variant.id)
+						.single()
+					
+					if (fetchVariantError) {
+						console.warn(`Could not fetch original variant ${variant.id}:`, fetchVariantError)
+						continue
+					}
 
-					if (existingVariant) {
-						// Update existing variant
-						if (variant.quantity !== undefined && variant.quantity !== existingVariant.quantity) {
-							const quantityChange = variant.quantity - existingVariant.quantity
-							await analyticsFunctions.recordProductChange({
-								productId: id,
-								variantId: existingVariant.id,
-								changeType: 'inventory',
-								quantityChange: quantityChange,
-								oldValue: existingVariant.quantity,
-								newValue: variant.quantity,
-								sourceType: 'adjustment',
-								sourceReference: 'Manual inventory adjustment',
-								notes: 'Manual inventory adjustment'
-							})
-
-							const { error } = await supabase
-								.from('ProductVariants')
-								.update({ quantity: variant.quantity })
-								.eq('id', existingVariant.id)
-
-							if (error) throw error
-						}
-					} else {
-						// Create new variant
-						const { data: newVariant, error } = await supabase
-							.from('ProductVariants')
-							.insert({
-								size: variant.size!,
-								color: variant.color!,
-								quantity: variant.quantity || 0,
-								product_id: id
-							})
-							.select()
-							.single()
-
-						if (error) throw error
-
-						// Track new variant
+					// Track size/color changes
+					if (variant.size && variant.size !== originalVariant.size) {
 						await analyticsFunctions.recordProductChange({
 							productId: id,
-							variantId: newVariant.id,
-							changeType: 'variant',
-							newValue: 'added',
-							sourceType: 'manual',
-							notes: `Added variant: ${variant.size} - ${variant.color}`
+							variantId: variant.id,
+							changeType: 'details',
+							fieldName: 'size',
+							oldValue: originalVariant.size,
+							newValue: variant.size,
+							sourceType: 'manual'
 						})
+					}
 
-						// Track initial inventory
-						if (variant.quantity && variant.quantity > 0) {
+					if (variant.color && variant.color !== originalVariant.color) {
+						await analyticsFunctions.recordProductChange({
+							productId: id,
+							variantId: variant.id,
+							changeType: 'details',
+							fieldName: 'color',
+							oldValue: originalVariant.color,
+							newValue: variant.color,
+							sourceType: 'manual'
+						})
+					}
+
+					// Track quantity changes (including zero and negative quantities)
+					if (variant.quantity !== undefined && variant.quantity !== originalVariant.quantity) {
+						const quantityChange = variant.quantity - originalVariant.quantity
+						await analyticsFunctions.recordProductChange({
+							productId: id,
+							variantId: variant.id,
+							changeType: 'inventory',
+							quantityChange: quantityChange,
+							oldValue: originalVariant.quantity,
+							newValue: variant.quantity,
+							sourceType: 'adjustment',
+							sourceReference: 'Manual inventory adjustment',
+							notes: variant.quantity === 0 ? 'Set quantity to zero (variant kept)' :
+								   variant.quantity < 0 ? 'Negative quantity adjustment' : 'Manual inventory adjustment'
+						})
+					}
+
+					// Update the variant - always update, even with zero quantity
+					const updateData: any = {}
+					if (variant.size !== undefined) updateData.size = variant.size
+					if (variant.color !== undefined) updateData.color = variant.color
+					if (variant.quantity !== undefined) updateData.quantity = variant.quantity
+
+					const { error } = await supabase
+						.from('ProductVariants')
+						.update(updateData)
+						.eq('id', variant.id)
+
+					if (error) throw error
+				} else {
+					// Create new variant only if explicitly provided (frontend filters by active)
+					if (variant.size && variant.color) {
+						// Check if variant already exists by size and color
+						const { data: existingVariant } = await supabase
+							.from('ProductVariants')
+							.select('*')
+							.eq('product_id', id)
+							.eq('size', variant.size)
+							.eq('color', variant.color)
+							.maybeSingle()
+
+						if (existingVariant) {
+							// Update existing variant quantity
+							if (variant.quantity !== undefined && variant.quantity !== existingVariant.quantity) {
+								const quantityChange = variant.quantity - existingVariant.quantity
+								await analyticsFunctions.recordProductChange({
+									productId: id,
+									variantId: existingVariant.id,
+									changeType: 'inventory',
+									quantityChange: quantityChange,
+									oldValue: existingVariant.quantity,
+									newValue: variant.quantity,
+									sourceType: 'adjustment',
+									sourceReference: 'Manual inventory adjustment',
+									notes: 'Manual inventory adjustment'
+								})
+
+								const { error } = await supabase
+									.from('ProductVariants')
+									.update({ quantity: variant.quantity })
+									.eq('id', existingVariant.id)
+
+								if (error) throw error
+							}
+						} else {
+							// Create new variant
+							const { data: newVariant, error } = await supabase
+								.from('ProductVariants')
+								.insert({
+									size: variant.size,
+									color: variant.color,
+									quantity: variant.quantity || 0,
+									product_id: id
+								})
+								.select()
+								.single()
+
+							if (error) throw error
+
+							// Track new variant
+							await analyticsFunctions.recordProductChange({
+								productId: id,
+								variantId: newVariant.id,
+								changeType: 'variant',
+								newValue: 'added',
+								sourceType: 'manual',
+								notes: `Added variant: ${variant.size} - ${variant.color}`
+							})
+
+							// Track initial inventory (even if zero)
 							await analyticsFunctions.recordProductChange({
 								productId: id,
 								variantId: newVariant.id,
 								changeType: 'inventory',
-								quantityChange: variant.quantity,
+								quantityChange: variant.quantity || 0,
 								oldValue: 0,
-								newValue: variant.quantity,
+								newValue: variant.quantity || 0,
 								sourceType: 'manual',
 								sourceReference: 'Initial stock for new variant',
-								notes: 'Initial stock for new variant'
+								notes: (variant.quantity || 0) === 0 ? 'New variant with zero stock' : 
+									   (variant.quantity || 0) < 0 ? 'New variant with negative adjustment' : 'Initial stock for new variant'
 							})
 						}
 					}
 				}
 			}
 
-			// Handle removed variants
-			const variantIdsToKeep = variants.filter(v => v.id).map(v => v.id)
-			const variantsToRemove = existingVariants.filter(v => !variantIdsToKeep.includes(v.id))
-
-			for (const variantToRemove of variantsToRemove) {
-				// Track variant removal
-				await analyticsFunctions.recordProductChange({
-					productId: id,
-					variantId: variantToRemove.id,
-					changeType: 'variant',
-					newValue: 'removed',
-					sourceType: 'manual',
-					notes: `Removed variant: ${variantToRemove.size} - ${variantToRemove.color}`
-				})
-
-				// Track inventory removal if there was stock
-				if (variantToRemove.quantity > 0) {
-					await analyticsFunctions.recordProductChange({
-						productId: id,
-						variantId: variantToRemove.id,
-						changeType: 'inventory',
-						quantityChange: -variantToRemove.quantity,
-						oldValue: variantToRemove.quantity,
-						newValue: 0,
-						sourceType: 'adjustment',
-						sourceReference: 'Stock removed due to variant deletion',
-						notes: 'Stock removed due to variant deletion'
-					})
-				}
-
-				const { error } = await supabase
-					.from('ProductVariants')
-					.delete()
-					.eq('id', variantToRemove.id)
-
-				if (error) throw error
-			}
+			// IMPORTANT: Never automatically delete variants
+			// Variants should only be deleted explicitly through the deleteVariant function
+			// This ensures that setting quantity to 0 doesn't delete the variant
 
 			// Return updated product with fresh variants
 			return await this.getProduct(id)
@@ -496,7 +462,7 @@ export const productFunctions = {
 
 			// Track deletion of variants and their inventory
 			for (const variant of product.variants || []) {
-				if (variant.quantity > 0) {
+				if (variant.quantity !== 0) { // Track any non-zero quantity removal
 					await analyticsFunctions.recordProductChange({
 						productId: id,
 						variantId: variant.id,
@@ -552,7 +518,7 @@ export const productFunctions = {
 			if (fetchError) throw fetchError
 
 			// Track inventory removal if there was stock
-			if (variant.quantity > 0) {
+			if (variant.quantity !== 0) {
 				await analyticsFunctions.recordProductChange({
 					productId: variant.product_id,
 					variantId: variantId,
@@ -613,32 +579,22 @@ export const productFunctions = {
 			const oldQuantity = variant.quantity
 			const newQuantity = oldQuantity + quantityChange
 
-			// Prevent negative inventory for sales (but allow for adjustments)
-			if (newQuantity < 0 && sourceType !== 'adjustment') {
+			// Allow negative quantities for manual adjustments and specific source types
+			// Only prevent negative inventory for sales transactions
+			if (newQuantity < 0 && sourceType === 'client_invoice') {
 				throw new Error(`Insufficient inventory. Current: ${oldQuantity}, Requested change: ${quantityChange}`)
 			}
 
-			// Use RPC function for atomic operation if available
-			let updatedVariant: ProductVariant
-			try {
-				const { data, error } = await supabase.rpc(
-					'update_product_variant_quantity',
-					{ variant_id: variantId, quantity_change: quantityChange }
-				)
-				if (error) throw error
-				updatedVariant = data
-			} catch (rpcError) {
-				// Fallback to direct update if RPC is not available
-				const { data, error } = await supabase
-					.from('ProductVariants')
-					.update({ quantity: newQuantity })
-					.eq('id', variantId)
-					.select()
-					.single()
+			// Always use direct update - NEVER delete variants for zero quantity
+			const { data, error } = await supabase
+				.from('ProductVariants')
+				.update({ quantity: newQuantity })
+				.eq('id', variantId)
+				.select()
+				.single()
 
-				if (error) throw error
-				updatedVariant = data
-			}
+			if (error) throw error
+			const updatedVariant = data
 
 			// Build source reference
 			let sourceReference = ''
@@ -670,12 +626,89 @@ export const productFunctions = {
 				sourceType: sourceType as any,
 				sourceId: sourceId,
 				sourceReference: sourceReference,
-				notes: notes
+				notes: newQuantity === 0 ? 'Quantity set to zero (variant preserved)' : notes
 			})
 
 			return updatedVariant
 		} catch (error) {
 			console.error('Error updating product variant quantity:', error)
+			throw error
+		}
+	},
+
+	/**
+	 * FIXED: Set variant quantity directly (useful for inventory adjustments)
+	 */
+	async setProductVariantQuantity(
+		variantId: string,
+		newQuantity: number,
+		sourceType: 'client_invoice' | 'supplier_invoice' | 'adjustment' | 'manual' | 'quotation' | 'return' = 'manual',
+		sourceId: string = '',
+		notes: string = ''
+	): Promise<ProductVariant> {
+		try {
+			// Get current variant data
+			const { data: variant, error: fetchError } = await supabase
+				.from('ProductVariants')
+				.select('*, product_id')
+				.eq('id', variantId)
+				.single()
+
+			if (fetchError || !variant) {
+				throw new Error(`Variant not found: ${variantId}`)
+			}
+
+			const oldQuantity = variant.quantity
+			const quantityChange = newQuantity - oldQuantity
+
+			// Allow zero and negative quantities - NEVER delete the variant
+			const { data, error } = await supabase
+				.from('ProductVariants')
+				.update({ quantity: newQuantity })
+				.eq('id', variantId)
+				.select()
+				.single()
+
+			if (error) throw error
+			const updatedVariant = data
+
+			// Build source reference
+			let sourceReference = ''
+			switch (sourceType) {
+				case 'client_invoice':
+					sourceReference = `Client Invoice #${sourceId}`
+					break
+				case 'supplier_invoice':
+					sourceReference = `Supplier Invoice #${sourceId}`
+					break
+				case 'quotation':
+					sourceReference = `Quotation #${sourceId}`
+					break
+				case 'return':
+					sourceReference = `Return #${sourceId}`
+					break
+				default:
+					sourceReference = sourceType.charAt(0).toUpperCase() + sourceType.slice(1)
+			}
+
+			// Record the change in analytics
+			await analyticsFunctions.recordProductChange({
+				productId: variant.product_id,
+				variantId: variantId,
+				changeType: 'inventory',
+				quantityChange: quantityChange,
+				oldValue: oldQuantity,
+				newValue: newQuantity,
+				sourceType: sourceType as any,
+				sourceId: sourceId,
+				sourceReference: sourceReference,
+				notes: newQuantity === 0 ? 'Quantity set to zero (variant preserved)' : 
+					   newQuantity < 0 ? 'Negative quantity set (adjustment)' : notes
+			})
+
+			return updatedVariant
+		} catch (error) {
+			console.error('Error setting product variant quantity:', error)
 			throw error
 		}
 	},
@@ -724,6 +757,49 @@ export const productFunctions = {
 				product:Products(name)
 			`)
 			.lte('quantity', threshold)
+			.gte('quantity', 0) // Only include positive quantities for low stock alerts
+			.order('quantity', { ascending: true })
+
+		if (error) throw error
+
+		return data.map(variant => ({
+			...variant,
+			product_name: variant.product.name
+		}))
+	},
+
+	/**
+	 * Get out of stock variants
+	 */
+	async getOutOfStockVariants(): Promise<(ProductVariant & { product_name: string })[]> {
+		const { data, error } = await supabase
+			.from('ProductVariants')
+			.select(`
+				*,
+				product:Products(name)
+			`)
+			.eq('quantity', 0)
+			.order('product_id')
+
+		if (error) throw error
+
+		return data.map(variant => ({
+			...variant,
+			product_name: variant.product.name
+		}))
+	},
+
+	/**
+	 * Get variants with negative quantities (adjustments)
+	 */
+	async getNegativeQuantityVariants(): Promise<(ProductVariant & { product_name: string })[]> {
+		const { data, error } = await supabase
+			.from('ProductVariants')
+			.select(`
+				*,
+				product:Products(name)
+			`)
+			.lt('quantity', 0)
 			.order('quantity', { ascending: true })
 
 		if (error) throw error
@@ -743,6 +819,8 @@ export const productFunctions = {
 		totalStockValue: number
 		averagePrice: number
 		recentChanges: number
+		zeroStockVariants: number
+		negativeStockVariants: number
 	}> {
 		const product = await this.getProduct(productId)
 		
@@ -750,6 +828,8 @@ export const productFunctions = {
 		const totalStock = product.variants.reduce((sum, v) => sum + v.quantity, 0)
 		const totalStockValue = totalStock * (product.cost || 0)
 		const averagePrice = product.price || 0
+		const zeroStockVariants = product.variants.filter(v => v.quantity === 0).length
+		const negativeStockVariants = product.variants.filter(v => v.quantity < 0).length
 
 		// Get recent changes (last 30 days)
 		const thirtyDaysAgo = new Date()
@@ -768,7 +848,9 @@ export const productFunctions = {
 			totalStock,
 			totalStockValue,
 			averagePrice,
-			recentChanges: recentChanges?.length || 0
+			recentChanges: recentChanges?.length || 0,
+			zeroStockVariants,
+			negativeStockVariants
 		}
 	}
 }
