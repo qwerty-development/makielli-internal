@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run supabase:status:*)",
+      "Bash(npx supabase:*)",
+      "Bash(npm run supabase:start:*)",
+      "Bash(mkdir:*)",
+      "Bash(npm run supabase:pull:*)",
+      "Bash(npm run supabase:reset:*)",
+      "Bash(npm run supabase:gen-types:*)",
+      "Bash(npm run supabase:diff:*)",
+      "Bash(rm:*)",
+      "Bash(grep:*)",
+      "Bash(curl:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
