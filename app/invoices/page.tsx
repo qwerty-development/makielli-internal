@@ -27,7 +27,12 @@ import {
 	FaSpinner,
 	FaExclamationTriangle,
 	FaLink,
-	FaFileInvoice
+	FaFileInvoice,
+	FaTruck,
+	FaShippingFast,
+	FaCheckCircle,
+	FaExclamationCircle,
+	FaFileAlt
 } from 'react-icons/fa'
 import { generatePDF } from '@/utils/pdfGenerator'
 import { debounce } from 'lodash'
@@ -35,6 +40,9 @@ import { format } from 'date-fns'
 import SearchableSelect from '@/components/SearchableSelect'
 import { productFunctions } from '../../utils/functions/products'
 import { analyticsFunctions } from '../../utils/functions/product-history'
+import ShippingInvoiceModal from '@/components/ShippingInvoiceModal'
+import ShippingHistory from '@/components/ShippingHistory'
+import { shippingInvoiceFunctions } from '@/utils/functions/shipping-invoices'
 
 interface LoadingStates {
 	isMainLoading: boolean
@@ -77,6 +85,7 @@ interface Invoice {
 	payment_info: PaymentInfoOption
 	shipping_fee: number
 	quotation_id?: number | null
+	shipping_status?: 'unshipped' | 'partially_shipped' | 'fully_shipped'
 }
 
 type PaymentInfoOption = 'frisson_llc' | 'frisson_llc_euro' | 'frisson_llc_ach' | 'frisson_sarl_chf' | 'frisson_sarl_usd' | 'frisson_sarl_euro' | 'frisson_sarl_ach' 
@@ -458,6 +467,41 @@ const ErrorDisplay: React.FC<{
 	)
 }
 
+// Shipping Status Badge Component
+const ShippingStatusBadge: React.FC<{ status: string }> = ({ status }) => {
+	const getStatusConfig = () => {
+		switch (status) {
+			case 'fully_shipped':
+				return { 
+					color: 'bg-green-100 text-green-800', 
+					icon: <FaCheckCircle className="inline mr-1" />,
+					text: 'Fully Shipped'
+				}
+			case 'partially_shipped':
+				return { 
+					color: 'bg-yellow-100 text-yellow-800', 
+					icon: <FaExclamationCircle className="inline mr-1" />,
+					text: 'Partially Shipped'
+				}
+			default:
+				return { 
+					color: 'bg-gray-100 text-gray-800', 
+					icon: <FaTruck className="inline mr-1" />,
+					text: 'Unshipped'
+				}
+		}
+	}
+	
+	const config = getStatusConfig()
+	
+	return (
+		<span className={`px-2 py-1 rounded-full text-xs font-medium ${config.color}`}>
+			{config.icon}
+			{config.text}
+		</span>
+	)
+}
+
 const InvoicesPage: React.FC = () => {
 	const [activeTab, setActiveTab] = useState<'client' | 'supplier'>('client')
 	const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -487,6 +531,12 @@ const InvoicesPage: React.FC = () => {
 		isInvoiceDeleting: false,
 		isFileUploading: false
 	})
+
+	// Shipping-related state
+	const [showShippingModal, setShowShippingModal] = useState(false)
+	const [selectedInvoiceForShipping, setSelectedInvoiceForShipping] = useState<Invoice | null>(null)
+	const [showShippingHistory, setShowShippingHistory] = useState(false)
+	const [selectedInvoiceForHistory, setSelectedInvoiceForHistory] = useState<Invoice | null>(null)
 
 	// Enhanced state for validation
 	const [validationErrors, setValidationErrors] = useState<string[]>([])
@@ -615,6 +665,68 @@ const InvoicesPage: React.FC = () => {
 			handleError(error, 'generate PDF')
 		} finally {
 			updateLoadingState('isPDFGenerating', false)
+		}
+	}
+
+	// Shipping handler functions
+	const handleCreateShippingInvoice = (invoice: Invoice) => {
+		// Don't allow shipping for return invoices
+		if (invoice.type === 'return') {
+			toast.error('Cannot create shipping invoice for return invoices')
+			return
+		}
+		
+		// Check if invoice has products
+		if (!invoice.products || invoice.products.length === 0) {
+			toast.error('Invoice has no products to ship')
+			return
+		}
+		
+		setSelectedInvoiceForShipping(invoice)
+		setShowShippingModal(true)
+	}
+
+	const handleViewShippingHistory = (invoice: Invoice) => {
+		setSelectedInvoiceForHistory(invoice)
+		setShowShippingHistory(true)
+	}
+
+	const handleShippingInvoicePDF = async (shippingInvoiceId: number) => {
+		updateLoadingState('isPDFGenerating', true)
+		try {
+			await generatePDF('shippingInvoice', {
+				shippingInvoiceId: shippingInvoiceId,
+				isClient: activeTab === 'client',
+				logoBase64: null
+			})
+			toast.success('Shipping invoice PDF generated successfully')
+		} catch (error) {
+			handleError(error, 'generate shipping invoice PDF')
+		} finally {
+			updateLoadingState('isPDFGenerating', false)
+		}
+	}
+
+	const handleDownloadLatestShippingPDF = async (invoice: Invoice) => {
+		try {
+			const shippingInvoices = await shippingInvoiceFunctions.getShippingInvoices(
+				invoice.id,
+				activeTab === 'client'
+			)
+			
+			if (shippingInvoices.length === 0) {
+				toast.error('No shipping invoices found for this invoice')
+				return
+			}
+			
+			// Get the latest shipping invoice
+			const latestShipping = shippingInvoices.sort((a, b) => 
+				new Date(b.shipped_at).getTime() - new Date(a.shipped_at).getTime()
+			)[0]
+			
+			await handleShippingInvoicePDF(latestShipping.id)
+		} catch (error) {
+			handleError(error, 'download shipping invoice PDF')
 		}
 	}
 
@@ -1769,6 +1881,7 @@ const InvoicesPage: React.FC = () => {
 							<th className='py-3 px-6 text-center'>Files</th>
 							<th className='py-3 px-6 text-center'>Actions</th>
 							<th className='py-3 px-6 text-center'>Type</th>
+							<th className='py-3 px-6 text-center'>Shipping Status</th>
 						</tr>
 					</thead>
 					<tbody className='text-gray text-sm font-light'>
@@ -1867,6 +1980,39 @@ const InvoicesPage: React.FC = () => {
 												}}>
 												<FaTrash />
 											</button>
+											{invoice.type !== 'return' && (
+												<>
+													<button
+														className='mr-2 bg-green-500 text-white p-1 rounded-lg text-nowrap transform hover:scale-110'
+														onClick={e => {
+															e.stopPropagation()
+															handleCreateShippingInvoice(invoice)
+														}}>
+														<FaShippingFast className="inline mr-1" />
+														Ship
+													</button>
+													<button
+														className='mr-2 bg-purple-500 text-white p-1 rounded-lg text-nowrap transform hover:scale-110'
+														onClick={e => {
+															e.stopPropagation()
+															handleViewShippingHistory(invoice)
+														}}>
+														<FaTruck className="inline mr-1" />
+														History
+													</button>
+													{invoice.shipping_status !== 'unshipped' && (
+														<button
+															className='mr-2 bg-orange-500 text-white p-1 rounded-lg text-nowrap transform hover:scale-110'
+															onClick={e => {
+																e.stopPropagation()
+																handleDownloadLatestShippingPDF(invoice)
+															}}>
+															<FaFileAlt className="inline mr-1" />
+															PDF
+														</button>
+													)}
+												</>
+											)}
 										</div>
 									</td>
 									<td className='py-3 px-6 text-center'>
@@ -1878,6 +2024,11 @@ const InvoicesPage: React.FC = () => {
 											}`}>
 											{invoice.type === 'return' ? 'Return' : 'Regular'}
 										</span>
+									</td>
+									<td className='py-3 px-6 text-center'>
+										{invoice.shipping_status && (
+											<ShippingStatusBadge status={invoice.shipping_status} />
+										)}
 									</td>
 								</tr>
 							)
@@ -2871,6 +3022,33 @@ const renderInvoiceDetails = () => {
 							)}
 						</div>
 
+						{/* Shipping Information Section */}
+						{selectedInvoice.shipping_status && (
+							<div className='mb-6'>
+								<h4 className='font-bold mb-2'>Shipping Status:</h4>
+								<ShippingStatusBadge status={selectedInvoice.shipping_status} />
+								
+								{selectedInvoice.shipping_status !== 'unshipped' && (
+									<div className='mt-4'>
+										<ShippingHistory
+											invoiceId={selectedInvoice.id}
+											isClientInvoice={activeTab === 'client'}
+											products={products}
+											onUpdate={() => {
+												fetchInvoices()
+												// Refresh the selected invoice details
+												if (selectedInvoice) {
+													const updated = invoices.find(inv => inv.id === selectedInvoice.id)
+													if (updated) setSelectedInvoice(updated)
+												}
+											}}
+											onDownloadPDF={handleShippingInvoicePDF}
+										/>
+									</div>
+								)}
+							</div>
+						)}
+
 						{/* Files Section */}
 						{selectedInvoice.files && selectedInvoice.files.length > 0 && (
 							<div className='mb-6'>
@@ -3003,6 +3181,82 @@ const renderInvoiceDetails = () => {
 						}>
 						{renderInvoiceDetails()}
 					</LoadingOverlay>
+				</div>
+			)}
+
+			{/* Shipping Invoice Modal */}
+			{showShippingModal && selectedInvoiceForShipping && (
+				<ShippingInvoiceModal
+					isOpen={showShippingModal}
+					onClose={() => {
+						setShowShippingModal(false)
+						setSelectedInvoiceForShipping(null)
+					}}
+					invoice={selectedInvoiceForShipping}
+					products={products}
+					isClientInvoice={activeTab === 'client'}
+					onSuccess={() => {
+						fetchInvoices()
+						toast.success('Shipping invoice created successfully!')
+					}}
+				/>
+			)}
+
+			{/* Shipping History Modal */}
+			{showShippingHistory && selectedInvoiceForHistory && (
+				<div className='fixed z-10 inset-0 overflow-y-auto'>
+					<div className='flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0'>
+						<div className='fixed inset-0 transition-opacity' aria-hidden='true'>
+							<div className='absolute inset-0 bg-gray-500 opacity-75'></div>
+						</div>
+						
+						<span className='hidden sm:inline-block sm:align-middle sm:h-screen' aria-hidden='true'>
+							&#8203;
+						</span>
+						
+						<div className='inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full'>
+							<div className='bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4'>
+								<div className='flex items-center mb-4'>
+									<FaTruck className='text-blue-500 text-2xl mr-3' />
+									<h3 className='text-lg leading-6 font-medium text-gray-900'>
+										Shipping History - Invoice #{selectedInvoiceForHistory.id}
+									</h3>
+								</div>
+								
+								<div className='mb-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-blue-700'>
+									<p className='text-sm'>
+										Order Number: {selectedInvoiceForHistory.order_number}
+									</p>
+									<p className='text-xs mt-1'>
+										Status: <ShippingStatusBadge status={selectedInvoiceForHistory.shipping_status || 'unshipped'} />
+									</p>
+								</div>
+								
+								<ShippingHistory
+									invoiceId={selectedInvoiceForHistory.id}
+									isClientInvoice={activeTab === 'client'}
+									products={products}
+									onUpdate={() => {
+										fetchInvoices()
+									}}
+									onDownloadPDF={handleShippingInvoicePDF}
+								/>
+							</div>
+							
+							<div className='bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse'>
+								<button
+									type='button'
+									onClick={() => {
+										setShowShippingHistory(false)
+										setSelectedInvoiceForHistory(null)
+									}}
+									className='w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm'
+								>
+									Close
+								</button>
+							</div>
+						</div>
+					</div>
 				</div>
 			)}
 		</div>

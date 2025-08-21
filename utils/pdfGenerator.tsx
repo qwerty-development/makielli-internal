@@ -4,6 +4,7 @@ import ReceiptPDF from './pdfTemplates/ReceiptPDF'
 import QuotationPDF from './pdfTemplates/QuotationPDF'
 import ClientFinancialReportPDF from './pdfTemplates/ClientFinancialReportPDF'
 import SupplierFinancialReportPDF from './pdfTemplates/SupplierFinancialReportPDF'
+import ShippingInvoicePDF from './pdfTemplates/ShippingInvoicePDF'
 import { supabase } from './supabase'
 import { format } from 'date-fns'
 
@@ -725,6 +726,89 @@ await Promise.all(
   }
   
   switch (type) {
+       case 'shippingInvoice': {
+      if (!data.shippingInvoiceId) {
+        throw new Error('Invalid shipping invoice: missing shippingInvoiceId.')
+      }
+      
+      const isClientShipping = data.isClient !== undefined ? data.isClient : true
+      const shippingTable = isClientShipping ? 'ClientShippingInvoices' : 'SupplierShippingInvoices'
+      const invoiceTable = isClientShipping ? 'ClientInvoices' : 'SupplierInvoices'
+      
+      // Fetch shipping invoice
+      const { data: shippingInvoice, error: shippingError } = await supabase
+        .from(shippingTable)
+        .select('*')
+        .eq('id', data.shippingInvoiceId)
+        .single()
+      
+      if (shippingError || !shippingInvoice) {
+        throw new Error(`Unable to fetch shipping invoice: ${shippingError?.message || 'Not found'}`)
+      }
+      
+      // Fetch original invoice
+      const { data: originalInvoice, error: invoiceError } = await supabase
+        .from(invoiceTable)
+        .select('*')
+        .eq('id', shippingInvoice.invoice_id)
+        .single()
+      
+      if (invoiceError || !originalInvoice) {
+        throw new Error(`Unable to fetch original invoice: ${invoiceError?.message || 'Not found'}`)
+      }
+      
+      // Fetch entity data
+      let entityData, companyData
+      if (isClientShipping) {
+        entityData = await fetchClientDetails(shippingInvoice.client_id)
+        companyData = await fetchCompanyDetails(entityData.company_id)
+      } else {
+        entityData = await fetchSupplierDetails(shippingInvoice.supplier_id)
+        companyData = await fetchCompanyDetails(entityData.company_id)
+      }
+      
+      // Process shipped products
+      const shippedProducts = await Promise.all(
+        (shippingInvoice.products || []).map(async (product: any) => {
+          try {
+            const details = await fetchProductDetails(product.product_variant_id)
+            return {
+              ...details,
+              quantity: product.quantity,
+              note: product.note || '',
+              shipped_quantity: product.quantity
+            }
+          } catch (error) {
+            console.error(`Error fetching product details for variant ${product.product_variant_id}:`, error)
+            return {
+              name: 'Product Not Found',
+              color: 'N/A',
+              size: 'N/A',
+              quantity: product.quantity,
+              note: product.note || '',
+              shipped_quantity: product.quantity,
+              image: null
+            }
+          }
+        })
+      )
+      
+      // Process images for shipped products
+      const processedProducts = await processImagesForPDF(shippedProducts)
+      
+      component = ShippingInvoicePDF({
+        shippingInvoice: shippingInvoice,
+        originalInvoice: originalInvoice,
+        entity: entityData,
+        company: companyData,
+        products: processedProducts,
+        isClient: isClientShipping,
+        logoBase64: data.logoBase64 || null
+      })
+      
+      fileName = `shipping_invoice_${shippingInvoice.shipping_number || 'unknown'}.pdf`
+      break
+    }
     case 'invoice': {
       let entityData, companyData, isClientInvoice
       if (data.client_id) {
