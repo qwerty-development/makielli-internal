@@ -733,47 +733,38 @@ const QuotationPDF: React.FC<{
           })}
         </View>
 
-        {Math.abs(subtotal) !== Math.abs(safeQuotation.total_price || 0) && (
-          <View style={styles.subtotal}>
-            <Text style={styles.subtotalLabel}>Subtotal:</Text>
-            <Text style={styles.subtotalValue}>
-              {currencySymbol}
-              {subtotal.toFixed(2)}
-            </Text>
-          </View>
-        )}
+        {/* Step 1: Show subtotal (base price x quantity) */}
+        <View style={styles.subtotal}>
+          <Text style={styles.subtotalLabel}>Subtotal:</Text>
+          <Text style={styles.subtotalValue}>
+            {currencySymbol}
+            {subtotal.toFixed(2)}
+          </Text>
+        </View>
 
+        {/* Step 2: Show discount if any */}
         {totalDiscount > 0 && (
           <View style={styles.subtotal}>
-            <Text style={styles.subtotalLabel}>Total Discount:</Text>
+            <Text style={styles.subtotalLabel}>Discount:</Text>
             <Text style={styles.subtotalValue}>
-              {currencySymbol}
+              -{currencySymbol}
               {totalDiscount.toFixed(2)}
             </Text>
           </View>
         )}
 
-        {safeQuotation.include_vat && (
-          <>
-            {totalBeforeVAT !== subtotal && (
-              <View style={styles.subtotal}>
-                <Text style={styles.subtotalLabel}>Total Before VAT:</Text>
-                <Text style={styles.subtotalValue}>
-                  {currencySymbol}
-                  {totalBeforeVAT.toFixed(2)}
-                </Text>
-              </View>
-            )}
-            <View style={styles.subtotal}>
-              <Text style={styles.subtotalLabel}>VAT (11%):</Text>
-              <Text style={styles.subtotalValue}>
-                {currencySymbol}
-                {vatAmount.toFixed(2)}
-              </Text>
-            </View>
-          </>
+        {/* Step 3: Show total after discount (if discount exists) */}
+        {totalDiscount > 0 && (
+          <View style={styles.subtotal}>
+            <Text style={styles.subtotalLabel}>Total After Discount:</Text>
+            <Text style={styles.subtotalValue}>
+              {currencySymbol}
+              {totalBeforeVAT.toFixed(2)}
+            </Text>
+          </View>
         )}
 
+        {/* Step 4: Show shipping fee if any */}
         {shippingFee > 0 && (
           <View style={styles.subtotal}>
             <Text style={styles.subtotalLabel}>Shipping Fee:</Text>
@@ -784,6 +775,29 @@ const QuotationPDF: React.FC<{
           </View>
         )}
 
+        {/* Step 5: Show total after discount + shipping (before VAT) if both discount and shipping exist */}
+        {totalDiscount > 0 && shippingFee > 0 && (
+          <View style={styles.subtotal}>
+            <Text style={styles.subtotalLabel}>Total After Discount + Shipping:</Text>
+            <Text style={styles.subtotalValue}>
+              {currencySymbol}
+              {(totalBeforeVAT + shippingFee).toFixed(2)}
+            </Text>
+          </View>
+        )}
+
+        {/* Step 6: Show VAT if included */}
+        {safeQuotation.include_vat && (
+          <View style={styles.subtotal}>
+            <Text style={styles.subtotalLabel}>VAT (11%):</Text>
+            <Text style={styles.subtotalValue}>
+              {currencySymbol}
+              {vatAmount.toFixed(2)}
+            </Text>
+          </View>
+        )}
+
+        {/* Step 7: Final total */}
         <View style={styles.subtotal}>
           <Text style={styles.subtotalLabel}>Total:</Text>
           <Text style={styles.subtotalValue}>
