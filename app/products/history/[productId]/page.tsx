@@ -256,114 +256,170 @@ export default function ProductHistoryDetailPage({ params }: { params: { product
         </div>
 
         {/* Customer & History Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Top Customers */}
-            <div className="lg:col-span-1">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Top Customers - Expanded */}
+            <div className="lg:col-span-3">
                 <div className="bg-white rounded-xl shadow-md p-6">
-                    <div className="flex items-center gap-3 mb-4">
-                        <FaUserTag className="text-xl text-indigo-600" />
-                        <h3 className="font-semibold text-neutral-700 text-lg">Top Customers</h3>
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                            <FaUserTag className="text-2xl text-indigo-600" />
+                            <h3 className="font-bold text-neutral-800 text-xl">Top Customers</h3>
+                        </div>
+                        <div className="text-sm text-neutral-500">
+                            {customerPurchases.length} customers total
+                        </div>
                     </div>
-                    <div className="space-y-4 max-h-[600px] overflow-y-auto">
-                        {customerPurchases.map(c => (
-                            <div key={c.client_id} className="p-3 bg-neutral-50 rounded-lg">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="font-semibold text-neutral-800 hover:text-indigo-600 cursor-pointer" onClick={() => router.push(`/clients/details/${c.client_id}`)}>{c.client_name}</p>
-                                        <p className="text-sm text-neutral-500">Last purchase: {format(new Date(c.last_purchase_date), 'MMM d, yyyy')}</p>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="font-bold text-indigo-600">{c.total_purchased} units</p>
-                                        <p className="text-sm text-neutral-500">in {c.purchase_count} orders</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 max-h-[700px] overflow-y-auto">
+                        {customerPurchases.map((c, index) => (
+                            <div key={c.client_id} className="p-5 bg-gradient-to-br from-neutral-50 to-neutral-100 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-neutral-200">
+                                <div className="flex items-start justify-between mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-lg">
+                                            {index + 1}
+                                        </div>
+                                        <div>
+                                            <p 
+                                                className="font-bold text-lg text-neutral-800 hover:text-indigo-600 cursor-pointer transition-colors" 
+                                                onClick={() => router.push(`/clients/details/${c.client_id}`)}
+                                            >
+                                                {c.client_name}
+                                            </p>
+                                            <p className="text-sm text-neutral-500">
+                                                Customer since {format(new Date(c.last_purchase_date), 'MMM yyyy')}
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="mt-2 pt-2 border-t border-neutral-200">
-                                    <p className="text-xs font-semibold text-neutral-600 mb-1">Variants Purchased:</p>
-                                    <div className="flex flex-wrap gap-2">
-                                        {c.variants_purchased.map((v, i) => (
-                                            <span key={i} className="px-2 py-1 bg-indigo-100 text-indigo-800 text-xs rounded-full">
-                                                {v.size} / {v.color} ({v.quantity})
-                                            </span>
-                                        ))}
+
+                                {/* Key Metrics */}
+                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                    <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                                        <p className="text-2xl font-bold text-indigo-600">{c.total_purchased}</p>
+                                        <p className="text-xs text-neutral-600 font-medium">Total Units</p>
                                     </div>
+                                    <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                                        <p className="text-2xl font-bold text-green-600">{c.purchase_count}</p>
+                                        <p className="text-xs text-neutral-600 font-medium">Orders</p>
+                                    </div>
+                                </div>
+
+                                {/* Additional Details */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="text-neutral-600 font-medium">Last Purchase:</span>
+                                        <span className="text-neutral-800 font-semibold">{format(new Date(c.last_purchase_date), 'MMM d, yyyy')}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="text-neutral-600 font-medium">Avg per Order:</span>
+                                        <span className="text-neutral-800 font-semibold">{Math.round(c.total_purchased / c.purchase_count)} units</span>
+                                    </div>
+                                </div>
+
+                                {/* Variants Section */}
+                                <div className="mt-4 pt-4 border-t border-neutral-200">
+                                    <p className="text-sm font-bold text-neutral-700 mb-3">Favorite Variants:</p>
+                                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                                        {c.variants_purchased
+                                            .sort((a, b) => b.quantity - a.quantity)
+                                            .slice(0, 5)
+                                            .map((v, i) => (
+                                            <div key={i} className="flex items-center justify-between p-2 bg-white rounded-md shadow-sm">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-3 h-3 bg-indigo-400 rounded-full"></div>
+                                                    <span className="text-sm font-medium text-neutral-800">
+                                                        {v.size} / {v.color}
+                                                    </span>
+                                                </div>
+                                                <span className="text-sm font-bold text-indigo-600">
+                                                    {v.quantity} units
+                                                </span>
+                                            </div>
+                                        ))}
+                                        {c.variants_purchased.length > 5 && (
+                                            <p className="text-xs text-neutral-500 text-center pt-1">
+                                                +{c.variants_purchased.length - 5} more variants
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Quick Actions */}
+                                <div className="mt-4 pt-3 border-t border-neutral-200">
+                                    <button
+                                        onClick={() => router.push(`/clients/details/${c.client_id}`)}
+                                        className="w-full px-3 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+                                    >
+                                        View Customer Details
+                                    </button>
                                 </div>
                             </div>
                         ))}
-                         {customerPurchases.length === 0 && (
-                            <p className="text-neutral-500 text-center py-4">No customer purchase history found.</p>
+                        {customerPurchases.length === 0 && (
+                            <div className="col-span-full text-center py-12">
+                                <FaUsers className="text-6xl text-neutral-300 mx-auto mb-4" />
+                                <p className="text-neutral-500 text-lg">No customer purchase history found.</p>
+                            </div>
                         )}
                     </div>
                 </div>
             </div>
 
-            {/* Detailed History Table */}
-            <div className="lg:col-span-2 bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center gap-3 mb-4">
-                    <FaHistory className="text-xl text-indigo-600" />
-                    <h3 className="font-semibold text-neutral-700 text-lg">Detailed History</h3>
+            {/* Compact History Table */}
+            <div className="lg:col-span-1 bg-white rounded-xl shadow-md p-4">
+                <div className="flex items-center gap-3 mb-3">
+                    <FaHistory className="text-lg text-indigo-600" />
+                    <h3 className="font-semibold text-neutral-700">Recent History</h3>
                 </div>
-                {/* Filters for table */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 p-4 bg-neutral-50 rounded-lg">
-                    <DatePicker
-                        selectsRange={true}
-                        startDate={dateRange[0] || undefined}
-                        endDate={dateRange[1] || undefined}
-                        onChange={(update) => setDateRange(update || [null, null])}
-                        isClearable={true}
-                        placeholderText="Filter by date"
-                        className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                    />
-                    <SearchableSelect
-                        options={clients}
-                        value={selectedClientId}
-                        onChange={(value) => setSelectedClientId(value ? Number(value) : null)}
-                        placeholder="Filter by client"
-                        label="Clients"
-                        idField="client_id"
-                    />
+                
+                {/* Simplified Filters */}
+                <div className="space-y-2 mb-4">
                     <select 
                         value={sourceType} 
                         onChange={e => setSourceType(e.target.value)}
-                        className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-black"
+                        className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-black"
                     >
-                        <option value="">All Source Types</option>
+                        <option value="">All Types</option>
                         <option value="invoice">Invoice</option>
                         <option value="quotation">Quotation</option>
-                        <option value="inventory_adjustment">Inventory Adjustment</option>
-                        <option value="purchase_order">Purchase Order</option>
+                        <option value="inventory_adjustment">Adjustment</option>
+                        <option value="purchase_order">Purchase</option>
                     </select>
                 </div>
 
-                <div className="max-h-[600px] overflow-y-auto">
-                    <table className="w-full text-sm text-left text-neutral-600">
-                        <thead className="text-xs text-neutral-700 uppercase bg-neutral-100 sticky top-0">
-                            <tr>
-                                <th scope="col" className="px-4 py-3">Date</th>
-                                <th scope="col" className="px-4 py-3">Type</th>
-                                <th scope="col" className="px-4 py-3">Reference</th>
-                                <th scope="col" className="px-4 py-3">Quantity</th>
-                                <th scope="col" className="px-4 py-3">Variant</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filteredHistory.map(item => (
-                                <tr key={item.id} className="border-b hover:bg-neutral-50">
-                                    <td className="px-4 py-3 font-medium">{format(new Date(item.created_at), 'MMM d, yyyy')}</td>
-                                    <td className="px-4 py-3"><SourceTypeBadge type={item.source_type} /></td>
-                                    <td className="px-4 py-3 font-mono text-xs">{item.invoice_order_number || item.quotation_order_number || item.source_reference}</td>
-                                    <td className={`px-4 py-3 font-bold ${item.quantity_change > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <div className="max-h-[500px] overflow-y-auto">
+                    <div className="space-y-2">
+                        {filteredHistory.slice(0, 15).map(item => (
+                            <div key={item.id} className="p-3 border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors">
+                                <div className="flex items-center justify-between mb-1">
+                                    <SourceTypeBadge type={item.source_type} />
+                                    <span className="text-xs text-neutral-500">{format(new Date(item.created_at), 'MMM d')}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs text-neutral-600">{item.size} / {item.color}</span>
+                                    <span className={`text-sm font-bold ${item.quantity_change > 0 ? 'text-green-600' : 'text-red-600'}`}>
                                         {item.quantity_change > 0 ? `+${item.quantity_change}` : item.quantity_change}
-                                    </td>
-                                    <td className="px-4 py-3">{item.size} / {item.color}</td>
-                                </tr>
-                            ))}
-                            {filteredHistory.length === 0 && (
-                                <tr>
-                                    <td colSpan={5} className="text-center py-8 text-neutral-500">No history records match your filters.</td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                        {filteredHistory.length === 0 && (
+                            <div className="text-center py-8">
+                                <FaHistory className="text-3xl text-neutral-300 mx-auto mb-2" />
+                                <p className="text-neutral-500 text-sm">No history records</p>
+                            </div>
+                        )}
+                        {filteredHistory.length > 15 && (
+                            <div className="text-center py-2">
+                                <p className="text-xs text-neutral-500">Showing latest 15 of {filteredHistory.length} records</p>
+                                <button 
+                                    onClick={handleExportCSV}
+                                    className="text-xs text-indigo-600 hover:text-indigo-800 mt-1"
+                                >
+                                    Export all to CSV
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
