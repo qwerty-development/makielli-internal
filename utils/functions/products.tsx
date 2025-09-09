@@ -852,5 +852,102 @@ export const productFunctions = {
 			zeroStockVariants,
 			negativeStockVariants
 		}
+	},
+
+	/**
+	 * Get variant details with product information for invoices and quotations
+	 */
+	async getVariantWithProductDetails(variantId: string): Promise<{
+		id: string
+		size: string
+		color: string
+		quantity: number
+		product: {
+			id: string
+			name: string
+			price: number
+			photo: string | null
+		}
+	} | null> {
+		try {
+			const { data, error } = await supabase
+				.from('ProductVariants')
+				.select(`
+					id,
+					size,
+					color,
+					quantity,
+					Products (
+						id,
+						name,
+						price,
+						photo
+					)
+				`)
+				.eq('id', variantId)
+				.single()
+
+			if (error) {
+				console.error('Error fetching variant details:', error)
+				return null
+			}
+
+			// Transform the data to match expected structure
+			return {
+				...data,
+				product: Array.isArray(data.Products) ? data.Products[0] : data.Products
+			} as any
+		} catch (error) {
+			console.error('Error fetching variant details:', error)
+			return null
+		}
+	},
+
+	/**
+	 * Get multiple variant details with product information for invoices and quotations
+	 */
+	async getVariantsWithProductDetails(variantIds: string[]): Promise<Array<{
+		id: string
+		size: string
+		color: string
+		quantity: number
+		product: {
+			id: string
+			name: string
+			price: number
+			photo: string | null
+		}
+	}>> {
+		try {
+			const { data, error } = await supabase
+				.from('ProductVariants')
+				.select(`
+					id,
+					size,
+					color,
+					quantity,
+					Products (
+						id,
+						name,
+						price,
+						photo
+					)
+				`)
+				.in('id', variantIds)
+
+			if (error) {
+				console.error('Error fetching variants details:', error)
+				return []
+			}
+
+			// Transform the data to match expected structure
+			return (data || []).map(item => ({
+				...item,
+				product: Array.isArray(item.Products) ? item.Products[0] : item.Products
+			})) as any
+		} catch (error) {
+			console.error('Error fetching variants details:', error)
+			return []
+		}
 	}
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import React, { useState, useEffect } from 'react'
 import {
   clientFunctions,
@@ -8,8 +9,9 @@ import {
   Company
 } from '../../../../utils/functions/clients'
 import { supabase } from '../../../../utils/supabase'
+import { productFunctions } from '../../../../utils/functions/products'
 import { format } from 'date-fns'
-import { FaSort, FaFile, FaDownload, FaInfoCircle, FaSync, FaHistory } from 'react-icons/fa'
+import { FaSort, FaFile, FaDownload, FaInfoCircle, FaSync, FaHistory, FaBox } from 'react-icons/fa'
 import { generatePDF } from '@/utils/pdfGenerator'
 import { toast } from 'react-hot-toast'
 
@@ -17,6 +19,21 @@ interface InvoiceProduct {
   product_variant_id: string
   quantity: number
   note: string
+}
+
+interface InvoiceProductWithDetails extends InvoiceProduct {
+  variantDetails?: {
+    id: string
+    size: string
+    color: string
+    quantity: number
+    product: {
+      id: string
+      name: string
+      price: number
+      photo: string | null
+    }
+  }
 }
 
 interface Invoice {
@@ -83,6 +100,7 @@ export default function ClientDetailsPage({
   const [isEditing, setIsEditing] = useState(false)
   const [editedClient, setEditedClient] = useState<Client | null>(null)
   const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [invoiceProductDetails, setInvoiceProductDetails] = useState<{[invoiceId: number]: InvoiceProductWithDetails[]}>({})
   const [receipts, setReceipts] = useState<Receipt[]>([])
   const [quotations, setQuotations] = useState<Quotation[]>([])
   const [activeTab, setActiveTab] = useState('details')
@@ -281,6 +299,32 @@ export default function ClientDetailsPage({
 
       if (error) throw error
       setInvoices(data || [])
+
+      // Fetch product details for each invoice
+      const productDetailsMap: {[invoiceId: number]: InvoiceProductWithDetails[]} = {}
+      
+      for (const invoice of data || []) {
+        if (invoice.products && Array.isArray(invoice.products)) {
+          const variantIds = invoice.products.map((p: InvoiceProduct) => p.product_variant_id)
+          
+          try {
+            const variantDetails = await productFunctions.getVariantsWithProductDetails(variantIds)
+            
+            productDetailsMap[invoice.id] = invoice.products.map((product: InvoiceProduct) => {
+              const details = variantDetails.find(v => v.id === product.product_variant_id)
+              return {
+                ...product,
+                variantDetails: details || undefined
+              }
+            })
+          } catch (productError) {
+            console.error(`Error fetching product details for invoice ${invoice.id}:`, productError)
+            productDetailsMap[invoice.id] = invoice.products
+          }
+        }
+      }
+      
+      setInvoiceProductDetails(productDetailsMap)
     } catch (error:any) {
       console.error('Error fetching invoices:', error)
       toast.error('Failed to fetch invoices. Please try again later.'+ error.message)
@@ -446,6 +490,34 @@ export default function ClientDetailsPage({
 
   const getCurrencySymbol = (currency: string | undefined): string => {
     return currency === 'euro' ? '€' : '$'
+  }
+
+  const getInvoiceProductsPreview = (invoiceId: number): string => {
+    const products = invoiceProductDetails[invoiceId] || []
+    if (products.length === 0) return 'No products'
+    
+    if (products.length === 1) {
+      const product = products[0]
+      if (product.variantDetails) {
+        return `${product.variantDetails.product.name} (${product.quantity}x)`
+      }
+      return `${product.quantity} items`
+    }
+    
+    const totalItems = products.reduce((sum, p) => sum + p.quantity, 0)
+    const uniqueProducts = new Set(products.map(p => 
+      p.variantDetails ? p.variantDetails.product.name : 'Unknown'
+    )).size
+    
+    return `${uniqueProducts} products (${totalItems} items)`
+  }
+
+  const getProductDisplayName = (product: InvoiceProductWithDetails): string => {
+    if (product.variantDetails) {
+      const { variantDetails } = product
+      return `${variantDetails.product.name} - ${variantDetails.size} (${variantDetails.color})`
+    }
+    return `Product ID: ${product.product_variant_id}`
   }
 
   if (isLoading) {
@@ -724,6 +796,9 @@ export default function ClientDetailsPage({
                       Source
                     </th>
                     <th className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider'>
+                      Products
+                    </th>
+                    <th className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider'>
                       Notes
                     </th>
                     <th className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider'>
@@ -772,6 +847,14 @@ export default function ClientDetailsPage({
                           ) : (
                             <span className="text-neutral-400 text-xs">Direct</span>
                           )}
+                        </td>
+                        <td className='px-6 py-4 border-b border-white'>
+                          <div className='flex items-center space-x-2'>
+                            <FaBox className='text-blue text-sm' />
+                            <span className='text-sm text-gray-300' title={getInvoiceProductsPreview(invoice.id)}>
+                              {getInvoiceProductsPreview(invoice.id)}
+                            </span>
+                          </div>
                         </td>
                         <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
                           {invoice.products.some(product => product.note) ? (
@@ -984,7 +1067,7 @@ export default function ClientDetailsPage({
               className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'
               onClick={() => setSelectedInvoice(null)}>
               <div
-                className='relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white'
+                className='relative top-10 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white'
                 onClick={e => e.stopPropagation()}>
                 <div className='mt-3 text-center'>
                   <h3 className='text-lg leading-6 font-medium text-neutral-900'>
@@ -1017,21 +1100,44 @@ export default function ClientDetailsPage({
                     <h4 className='text-sm font-medium text-neutral-900 mt-4'>
                       Products:
                     </h4>
-                    <ul className='list-disc list-inside'>
-                      {selectedInvoice.products.map((product, index) => (
-                        <li key={index} className='text-sm text-neutral-500'>
-                          <div>
-                            ID: {product.product_variant_id}, Quantity:{' '}
-                            {product.quantity}
-                          </div>
-                          {product.note && (
-                            <div className='ml-4 text-xs italic'>
-                              Note: {product.note}
+                    <div className='space-y-3 max-h-48 overflow-y-auto'>
+                      {(invoiceProductDetails[selectedInvoice.id] || selectedInvoice.products).map((product, index) => {
+                        const productWithDetails = product as InvoiceProductWithDetails
+                        return (
+                          <div key={index} className='bg-gray-50 p-3 rounded border'>
+                            <div className='flex items-center justify-between'>
+                              <div className='flex-1'>
+                                <div className='font-medium text-neutral-800'>
+                                  {getProductDisplayName(productWithDetails)}
+                                </div>
+                                <div className='text-sm text-neutral-600'>
+                                  Quantity: {productWithDetails.quantity}
+                                  {productWithDetails.variantDetails && (
+                                    <span className='ml-3 text-blue-600'>
+                                      ${productWithDetails.variantDetails.product.price.toFixed(2)} each
+                                    </span>
+                                  )}
+                                </div>
+                                {productWithDetails.variantDetails?.product.photo && (
+                                  <Image 
+                                    src={productWithDetails.variantDetails.product.photo} 
+                                    alt={productWithDetails.variantDetails.product.name}
+                                    width={64}
+                                    height={64}
+                                    className='mt-2 w-16 h-16 object-cover rounded border'
+                                  />
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
+                            {productWithDetails.note && (
+                              <div className='mt-2 text-xs italic text-neutral-600 bg-yellow-50 p-2 rounded'>
+                                Note: {productWithDetails.note}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
                     <h4 className='text-sm font-medium text-neutral-900 mt-4'>
                       Files:
                     </h4>
