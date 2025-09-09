@@ -84,43 +84,17 @@ export const analyticsFunctions = {
     try {
       const { error } = await supabase
         .from('ProductHistory')
-        .insert([{
-          product_id: entry.product_id,
-          variant_id: entry.variant_id || null,
-          change_type: entry.change_type,
-          field_name: entry.field_name || null,
-          old_value: entry.old_value?.toString() || null,
-          new_value: entry.new_value?.toString() || null,
-          quantity_change: entry.quantity_change || null,
-          source_type: entry.source_type,
-          source_id: entry.source_id || null,
-          source_reference: entry.source_reference || null,
-          notes: entry.notes || null
-        }])
-
-      if (error) {
-        console.error('Error recording product change:', error)
-        throw error
-      }
+        .insert([{...entry, variant_id: entry.variant_id || null, field_name: entry.field_name || null, old_value: entry.old_value?.toString() || null, new_value: entry.new_value?.toString() || null, quantity_change: entry.quantity_change || null, source_id: entry.source_id || null, source_reference: entry.source_reference || null, notes: entry.notes || null }])
+      if (error) throw error
     } catch (error) {
       console.error('Failed to record product change:', error)
-      // Don't throw here to prevent breaking the main operation
-      // throw error
     }
   },
 
-  /**
-   * Get product history entries from the base table
-   */
+  /** Get product history entries from the base table */
   async getProductHistory(
     productId: string,
-    options: {
-      variantId?: string
-      startDate?: Date
-      endDate?: Date
-      limit?: number
-      changeType?: string
-    } = {}
+    options: { variantId?: string; startDate?: Date; endDate?: Date; limit?: number; changeType?: string } = {}
   ): Promise<ProductHistoryEntry[]> {
     try {
       let query = supabase
@@ -129,28 +103,13 @@ export const analyticsFunctions = {
         .eq('product_id', productId)
         .order('created_at', { ascending: false })
 
-      if (options.variantId) {
-        query = query.eq('variant_id', options.variantId)
-      }
-
-      if (options.startDate) {
-        query = query.gte('created_at', options.startDate.toISOString())
-      }
-
-      if (options.endDate) {
-        query = query.lte('created_at', options.endDate.toISOString())
-      }
-
-      if (options.changeType) {
-        query = query.eq('change_type', options.changeType)
-      }
-
-      if (options.limit) {
-        query = query.limit(options.limit)
-      }
+      if (options.variantId) query = query.eq('variant_id', options.variantId)
+      if (options.startDate) query = query.gte('created_at', options.startDate.toISOString())
+      if (options.endDate) query = query.lte('created_at', options.endDate.toISOString())
+      if (options.changeType) query = query.eq('change_type', options.changeType)
+      if (options.limit) query = query.limit(options.limit)
 
       const { data, error } = await query
-
       if (error) throw error
       return data || []
     } catch (error) {
@@ -159,45 +118,24 @@ export const analyticsFunctions = {
     }
   },
 
-  /**
-   * Get variant-specific history
-   */
+  /** Get variant-specific history */
   async getVariantHistory(
     productId: string,
     variantId: string,
-    options: {
-      startDate?: Date
-      endDate?: Date
-      limit?: number
-    } = {}
+    options: { startDate?: Date; endDate?: Date; limit?: number } = {}
   ): Promise<ProductHistoryEntry[]> {
-    return this.getProductHistory(productId, {
-      ...options,
-      variantId
-    })
+    return this.getProductHistory(productId, { ...options, variantId })
   },
 
-  /**
-   * Get inventory change history only
-   */
+  /** Inventory change history only */
   async getInventoryHistory(
     productId: string,
-    options: {
-      variantId?: string
-      startDate?: Date
-      endDate?: Date
-      limit?: number
-    } = {}
+    options: { variantId?: string; startDate?: Date; endDate?: Date; limit?: number } = {}
   ): Promise<ProductHistoryEntry[]> {
-    return this.getProductHistory(productId, {
-      ...options,
-      changeType: 'inventory'
-    })
+    return this.getProductHistory(productId, { ...options, changeType: 'inventory' })
   },
 
-  /**
-   * Get recent product changes across all products
-   */
+  /** Recent product changes across all products */
   async getRecentChanges(
     limit: number = 50,
     changeType?: string
@@ -205,28 +143,19 @@ export const analyticsFunctions = {
     try {
       let query = supabase
         .from('ProductHistory')
-        .select(`
-          *,
-          product:Products!inner(name),
-          variant:ProductVariants(size, color)
-        `)
+        .select(`*, product:Products!inner(name), variant:ProductVariants(size, color)`) 
         .order('created_at', { ascending: false })
         .limit(limit)
 
-      if (changeType) {
-        query = query.eq('change_type', changeType)
-      }
+      if (changeType) query = query.eq('change_type', changeType)
 
       const { data, error } = await query
-
       if (error) throw error
 
       return (data || []).map(item => ({
         ...item,
         product_name: item.product?.name || 'Unknown Product',
-        variant_info: item.variant 
-          ? `${item.variant.color} - ${item.variant.size}`
-          : undefined
+        variant_info: item.variant ? `${item.variant.color} - ${item.variant.size}` : undefined
       }))
     } catch (error) {
       console.error('Error fetching recent changes:', error)
@@ -235,93 +164,68 @@ export const analyticsFunctions = {
   }
 }
 
-export const productHistoryFunctions:any = {
-  // Get complete product history with all details (tries advanced view first, falls back to basic)
+export const productHistoryFunctions: any = {
+  // Prefer invoice-only history view; fallback to advanced then basic
   async getProductHistory(
     productId: string,
-    filters?: {
-      startDate?: Date
-      endDate?: Date
-      clientId?: number
-      variantId?: string
-      sourceType?: string
-    }
+    filters?: { startDate?: Date; endDate?: Date; clientId?: number; variantId?: string; sourceType?: string }
   ): Promise<ProductHistoryDetail[]> {
     try {
-      // First try the advanced view with sales details
       let query = supabase
+        .from('product_sales_history_invoice')
+        .select('*')
+        .eq('product_id', productId)
+        .order('created_at', { ascending: false })
+
+      if (filters?.startDate) query = query.gte('created_at', filters.startDate.toISOString())
+      if (filters?.endDate) query = query.lte('created_at', filters.endDate.toISOString())
+      if (filters?.clientId) query = query.eq('client_id', filters.clientId)
+      if (filters?.variantId) query = query.eq('variant_id', filters.variantId)
+      if (filters?.sourceType) query = query.eq('source_type', filters.sourceType)
+
+      const { data, error } = await query
+      if (!error && data) return data as any
+
+      let query2 = supabase
         .from('product_sales_history')
         .select('*')
         .eq('product_id', productId)
         .order('created_at', { ascending: false })
 
-      if (filters?.startDate) {
-        query = query.gte('created_at', filters.startDate.toISOString())
-      }
-      if (filters?.endDate) {
-        query = query.lte('created_at', filters.endDate.toISOString())
-      }
-      if (filters?.clientId) {
-        query = query.eq('client_id', filters.clientId)
-      }
-      if (filters?.variantId) {
-        query = query.eq('variant_id', filters.variantId)
-      }
-      if (filters?.sourceType) {
-        query = query.eq('source_type', filters.sourceType)
-      }
+      if (filters?.startDate) query2 = query2.gte('created_at', filters.startDate.toISOString())
+      if (filters?.endDate) query2 = query2.lte('created_at', filters.endDate.toISOString())
+      if (filters?.clientId) query2 = query2.eq('client_id', filters.clientId)
+      if (filters?.variantId) query2 = query2.eq('variant_id', filters.variantId)
+      if (filters?.sourceType) query2 = query2.eq('source_type', filters.sourceType)
 
-      const { data, error } = await query
-
-      if (error) {
-        console.warn('product_sales_history view not found or error occurred, falling back to basic history:', error)
-        // Fallback to basic history
-        return this.getBasicProductHistory(productId, filters)
-      }
-      return data || []
+      const { data: data2, error: error2 } = await query2
+      if (error2) return this.getBasicProductHistory(productId, filters)
+      return data2 || []
     } catch (error) {
       console.error('Error fetching product history, trying fallback:', error)
       return this.getBasicProductHistory(productId, filters)
     }
   },
 
-  // Fallback method using basic ProductHistory table with joins
+  // Fallback basic method unchanged
   async getBasicProductHistory(
     productId: string,
-    filters?: {
-      startDate?: Date
-      endDate?: Date
-      variantId?: string
-      sourceType?: string
-    }
+    filters?: { startDate?: Date; endDate?: Date; variantId?: string; sourceType?: string }
   ): Promise<Partial<ProductHistoryDetail>[]> {
     try {
       let query = supabase
         .from('ProductHistory')
-        .select(`
-          *,
-          product:Products!inner(name, photo, price),
-          variant:ProductVariants(size, color, quantity)
-        `)
+        .select(`*, product:Products!inner(name, photo, price), variant:ProductVariants(size, color, quantity)`) 
         .eq('product_id', productId)
         .eq('change_type', 'inventory')
         .order('created_at', { ascending: false })
 
-      if (filters?.startDate) {
-        query = query.gte('created_at', filters.startDate.toISOString())
-      }
-      if (filters?.endDate) {
-        query = query.lte('created_at', filters.endDate.toISOString())
-      }
-      if (filters?.variantId) {
-        query = query.eq('variant_id', filters.variantId)
-      }
-      if (filters?.sourceType) {
-        query = query.eq('source_type', filters.sourceType)
-      }
+      if (filters?.startDate) query = query.gte('created_at', filters.startDate.toISOString())
+      if (filters?.endDate) query = query.lte('created_at', filters.endDate.toISOString())
+      if (filters?.variantId) query = query.eq('variant_id', filters.variantId)
+      if (filters?.sourceType) query = query.eq('source_type', filters.sourceType)
 
       const { data, error } = await query
-
       if (error) throw error
 
       return (data || []).map(item => ({
@@ -357,219 +261,214 @@ export const productHistoryFunctions:any = {
     }
   },
 
-  // Get product history summary (tries RPC first, falls back to calculation)
+  // Summary: prefer invoice-only summary
   async getProductHistorySummary(productId: string): Promise<ProductHistorySummary> {
     try {
-      // First try the RPC function
-      const { data, error }: any = await supabase
-        .rpc('get_product_history_summary', { p_product_id: productId })
+      // Compute from invoice items (single source of truth)
+      const computed = await this.computeSummaryFromInvoices(productId)
+      if (computed) return computed
+
+      // Fallback to view if compute path fails
+      const { data, error } = await supabase
+        .from('product_sales_summary_from_invoices')
+        .select('total_sold, unique_customers, first_sale_date, last_sale_date, avg_sale_quantity')
+        .eq('product_id', productId)
         .single()
 
-      if (error) {
-        console.warn('RPC get_product_history_summary not found, calculating manually:', error)
-        return this.calculateProductHistorySummary(productId)
+      if (!error && data) {
+        return {
+          total_sold: data.total_sold || 0,
+          total_purchased: 0,
+          total_adjusted: 0,
+          unique_customers: data.unique_customers || 0,
+          first_sale_date: data.first_sale_date || null,
+          last_sale_date: data.last_sale_date || null,
+          avg_sale_quantity: Number(data.avg_sale_quantity) || 0
+        }
       }
-      return data
+
+      return this.calculateProductHistorySummary(productId)
     } catch (error) {
       console.error('Error fetching product history summary, calculating manually:', error)
       return this.calculateProductHistorySummary(productId)
     }
   },
 
-  // Fallback calculation for summary
+  // Fallback calculation now uses invoice-only view
   async calculateProductHistorySummary(productId: string): Promise<ProductHistorySummary> {
     try {
-      const { data, error } = await supabase
-        .from('ProductHistory')
-        .select('quantity_change, source_type, created_at')
-        .eq('product_id', productId)
-        .eq('change_type', 'inventory')
-
-      if (error) throw error
-
-      const history = data || []
-      
-      const total_sold = Math.abs(history
-        .filter(h => h.source_type === 'client_invoice' && (h.quantity_change || 0) < 0)
-        .reduce((sum, h) => sum + (h.quantity_change || 0), 0))
-      
-      const total_purchased = history
-        .filter(h => h.source_type === 'supplier_invoice' && (h.quantity_change || 0) > 0)
-        .reduce((sum, h) => sum + (h.quantity_change || 0), 0)
-      
-      const total_adjusted = history
-        .filter(h => ['adjustment', 'manual', 'trigger'].includes(h.source_type))
-        .reduce((sum, h) => sum + Math.abs(h.quantity_change || 0), 0)
-
-      const salesHistory = history.filter(h => h.source_type === 'client_invoice' && (h.quantity_change || 0) < 0)
-      const unique_customers = 0 // Would need to join with invoice data to get this accurately
-      const first_sale_date = salesHistory.length > 0 ? salesHistory[salesHistory.length - 1].created_at : null
-      const last_sale_date = salesHistory.length > 0 ? salesHistory[0].created_at : null
-      const avg_sale_quantity = salesHistory.length > 0 ? total_sold / salesHistory.length : 0
-
-      return {
-        total_sold,
-        total_purchased,
-        total_adjusted,
-        unique_customers,
-        first_sale_date,
-        last_sale_date,
-        avg_sale_quantity
-      }
+      const computed = await this.computeSummaryFromInvoices(productId)
+      if (computed) return computed
+      // Last resort - zero summary
+      return { total_sold: 0, total_purchased: 0, total_adjusted: 0, unique_customers: 0, first_sale_date: null, last_sale_date: null, avg_sale_quantity: 0 }
     } catch (error) {
       console.error('Error calculating product history summary:', error)
-      // Return empty summary on error
-      return {
-        total_sold: 0,
-        total_purchased: 0,
-        total_adjusted: 0,
-        unique_customers: 0,
-        first_sale_date: null,
-        last_sale_date: null,
-        avg_sale_quantity: 0
-      }
+      return { total_sold: 0, total_purchased: 0, total_adjusted: 0, unique_customers: 0, first_sale_date: null, last_sale_date: null, avg_sale_quantity: 0 }
     }
   },
 
-  // Get variant-specific sales details (tries RPC first, falls back to calculation)
+  // Derive summary purely from invoices as the single source of truth
+  async computeSummaryFromInvoices(productId: string): Promise<ProductHistorySummary | null> {
+    try {
+      const { data: items, error: itemsError } = await supabase
+        .from('client_invoice_items_expanded')
+        .select('invoice_id, client_id, quantity, created_at')
+        .eq('product_id', productId)
+
+      if (itemsError) return null
+      const rows = (items || []).filter(r => !!r.client_id)
+      if (rows.length === 0) return { total_sold: 0, total_purchased: 0, total_adjusted: 0, unique_customers: 0, first_sale_date: null, last_sale_date: null, avg_sale_quantity: 0 }
+
+      const invoiceIds = Array.from(new Set(rows.map(r => r.invoice_id).filter(Boolean))) as number[]
+      let invoiceTypeById: Record<string, string> = {}
+      if (invoiceIds.length > 0) {
+        const { data: invoices } = await supabase
+          .from('ClientInvoices')
+          .select('id, type, created_at')
+          .in('id', invoiceIds)
+        ;(invoices || []).forEach(inv => { invoiceTypeById[inv.id] = inv.type })
+      }
+
+      const filtered = rows.filter(r => invoiceTypeById[r.invoice_id] !== 'return')
+      const total_sold = filtered.reduce((sum, r) => sum + Math.abs(Number(r.quantity) || 0), 0)
+      const unique_customers = new Set(filtered.map(r => r.client_id)).size
+      const dates = filtered.map(r => new Date(r.created_at).getTime()).sort((a, b) => a - b)
+      const first_sale_date = dates.length ? new Date(dates[0]).toISOString() : null
+      const last_sale_date = dates.length ? new Date(dates[dates.length - 1]).toISOString() : null
+      // average sale quantity per line-item
+      const avg_sale_quantity = filtered.length ? Number((total_sold / filtered.length).toFixed(2)) : 0
+
+      return { total_sold, total_purchased: 0, total_adjusted: 0, unique_customers, first_sale_date, last_sale_date, avg_sale_quantity }
+    } catch (e) {
+      console.error('Error computing summary from invoices:', e)
+      return null
+    }
+  },
+
+  // Variant sales: compute from expanded invoices
   async getVariantSalesDetails(productId: string): Promise<VariantSalesDetail[]> {
     try {
-      // First try the RPC function
       const { data, error } = await supabase
-        .rpc('get_variant_sales_details', { p_product_id: productId })
+        .from('client_invoice_items_expanded')
+        .select('variant_id, quantity')
+        .eq('product_id', productId)
 
-      if (error) {
-        console.warn('RPC get_variant_sales_details not found, calculating manually:', error)
-        return this.calculateVariantSalesDetails(productId)
-      }
-      return data || []
+      if (error) return this.calculateVariantSalesDetails(productId)
+
+      const { data: variants } = await supabase
+        .from('ProductVariants')
+        .select('id, size, color, quantity')
+        .eq('product_id', productId)
+
+      const totals: Record<string, number> = {}
+      ;(data || []).forEach((row: any) => {
+        if (!row.variant_id) return
+        totals[row.variant_id] = (totals[row.variant_id] || 0) + (row.quantity || 0)
+      })
+
+      const result: VariantSalesDetail[] = (variants || []).map(v => ({
+        variant_id: v.id,
+        size: v.size,
+        color: v.color,
+        total_sold: totals[v.id] || 0,
+        current_stock: v.quantity,
+        unique_customers: 0
+      }))
+
+      return result.sort((a, b) => b.total_sold - a.total_sold)
     } catch (error) {
       console.error('Error fetching variant sales details, calculating manually:', error)
       return this.calculateVariantSalesDetails(productId)
     }
   },
 
-  // Fallback calculation for variant sales details
-  async calculateVariantSalesDetails(productId: string): Promise<VariantSalesDetail[]> {
-    try {
-      // Get all variants for this product
-      const { data: variants, error: variantsError } = await supabase
-        .from('ProductVariants')
-        .select('id, size, color, quantity')
-        .eq('product_id', productId)
-
-      if (variantsError) throw variantsError
-
-      // Get sales history for each variant
-      const variantSalesDetails = await Promise.all(
-        (variants || []).map(async (variant) => {
-          const { data: salesHistory, error: historyError } = await supabase
-            .from('ProductHistory')
-            .select('quantity_change')
-            .eq('product_id', productId)
-            .eq('variant_id', variant.id)
-            .eq('change_type', 'inventory')
-            .eq('source_type', 'client_invoice')
-            .lt('quantity_change', 0)
-
-          if (historyError) {
-            console.error('Error fetching variant history:', historyError)
-            return {
-              variant_id: variant.id,
-              size: variant.size,
-              color: variant.color,
-              total_sold: 0,
-              current_stock: variant.quantity,
-              unique_customers: 0
-            }
-          }
-
-          const total_sold = Math.abs((salesHistory || [])
-            .reduce((sum, h) => sum + (h.quantity_change || 0), 0))
-
-          return {
-            variant_id: variant.id,
-            size: variant.size,
-            color: variant.color,
-            total_sold,
-            current_stock: variant.quantity,
-            unique_customers: 0 // Would need invoice data to calculate this
-          }
-        })
-      )
-
-      return variantSalesDetails.sort((a, b) => b.total_sold - a.total_sold)
-    } catch (error) {
-      console.error('Error calculating variant sales details:', error)
-      return []
-    }
-  },
-
   // Get customer purchase history for a product
   async getCustomerPurchaseHistory(productId: string): Promise<CustomerPurchaseHistory[]> {
     try {
-      // Try the advanced view first
-      const { data: historyData, error: historyError } = await supabase
-        .from('product_sales_history')
-        .select('*')
+      // Use expanded invoice items as single source of truth, filtered to regular invoices
+      const { data: items, error: itemsError } = await supabase
+        .from('client_invoice_items_expanded')
+        .select('invoice_id, client_id, variant_id, quantity, created_at')
         .eq('product_id', productId)
-        .lt('quantity_change', 0) // Only sales (negative changes)
-        .not('client_id', 'is', null)
-        .not('client_name', 'is', null) // Ensure we have customer names
 
-      if (historyError) {
-        console.warn('product_sales_history view not available, using fallback method:', historyError)
+      if (itemsError) {
+        console.warn('client_invoice_items_expanded view not available, using basic fallback:', itemsError)
         return this.getBasicCustomerPurchaseHistory(productId)
       }
 
+      const rows = (items || []).filter(r => !!r.client_id)
+      if (rows.length === 0) return []
+
+      // Fetch invoice types to exclude returns
+      const invoiceIds = Array.from(new Set(rows.map(r => r.invoice_id).filter(Boolean))) as number[]
+      let invoiceTypeById: Record<string, string> = {}
+      if (invoiceIds.length > 0) {
+        const { data: invoices } = await supabase
+          .from('ClientInvoices')
+          .select('id, type')
+          .in('id', invoiceIds)
+        ;(invoices || []).forEach(inv => { invoiceTypeById[inv.id] = inv.type })
+      }
+
+      const filtered = rows.filter(r => invoiceTypeById[r.invoice_id] !== 'return')
+
+      // Fetch clients to get names
+      const clientIds = Array.from(new Set(filtered.map(r => r.client_id))) as number[]
+      const { data: clients } = await supabase
+        .from('Clients')
+        .select('client_id, name')
+        .in('client_id', clientIds)
+      const clientNameById: Record<number, string> = {}
+      ;(clients || []).forEach(c => { clientNameById[c.client_id] = c.name })
+
+      // Fetch variants for size/color
+      const variantIds = Array.from(new Set(filtered.map(r => r.variant_id).filter(Boolean))) as string[]
+      const { data: variants } = await supabase
+        .from('ProductVariants')
+        .select('id, size, color')
+        .in('id', variantIds)
+      const variantById: Record<string, { size: string; color: string }> = {}
+      ;(variants || []).forEach(v => { variantById[v.id] = { size: v.size, color: v.color } })
+
       // Group by customer
       const customerMap = new Map<number, CustomerPurchaseHistory>()
-
-      for (const record of historyData || []) {
-        const clientId = record.client_id
-        const clientName = record.client_name
-        
-        // Skip if no client info
-        if (!clientId || !clientName || clientName === 'N/A') continue
+      for (const r of filtered) {
+        const clientId = r.client_id as number
+        const clientName = clientNameById[clientId]
+        if (!clientId || !clientName) continue
 
         if (!customerMap.has(clientId)) {
           customerMap.set(clientId, {
             client_id: clientId,
             client_name: clientName,
             total_purchased: 0,
-            last_purchase_date: record.created_at,
+            last_purchase_date: r.created_at,
             purchase_count: 0,
             variants_purchased: []
           })
         }
 
         const customer = customerMap.get(clientId)!
-        customer.total_purchased += Math.abs(record.quantity_change)
+        const qty = Math.abs(Number(r.quantity) || 0)
+        customer.total_purchased += qty
         customer.purchase_count += 1
-        
-        if (new Date(record.created_at) > new Date(customer.last_purchase_date)) {
-          customer.last_purchase_date = record.created_at
+        if (new Date(r.created_at) > new Date(customer.last_purchase_date)) {
+          customer.last_purchase_date = r.created_at
         }
 
-        // Add variant info
+        // Variant details
+        const v = r.variant_id ? variantById[r.variant_id] : { size: '', color: '' }
         const existingVariant = customer.variants_purchased.find(
-          v => v.size === record.size && v.color === record.color
+          x => x.size === (v?.size || '') && x.color === (v?.color || '')
         )
-        
         if (existingVariant) {
-          existingVariant.quantity += Math.abs(record.quantity_change)
+          existingVariant.quantity += qty
         } else {
-          customer.variants_purchased.push({
-            size: record.size,
-            color: record.color,
-            quantity: Math.abs(record.quantity_change)
-          })
+          customer.variants_purchased.push({ size: v?.size || '', color: v?.color || '', quantity: qty })
         }
       }
 
-      return Array.from(customerMap.values()).sort(
-        (a, b) => b.total_purchased - a.total_purchased
-      )
+      return Array.from(customerMap.values()).sort((a, b) => b.total_purchased - a.total_purchased)
     } catch (error) {
       console.error('Error fetching customer purchase history:', error)
       return this.getBasicCustomerPurchaseHistory(productId)
