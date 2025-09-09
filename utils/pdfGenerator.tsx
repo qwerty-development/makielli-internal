@@ -767,16 +767,39 @@ await Promise.all(
         companyData = await fetchCompanyDetails(entityData.company_id)
       }
       
-      // Process shipped products
+      // Process shipped products with pricing information
       const shippedProducts = await Promise.all(
         (shippingInvoice.products || []).map(async (product: any) => {
           try {
             const details = await fetchProductDetails(product.product_variant_id)
+            
+            // Find pricing information from original invoice
+            let unitPrice = 0
+            let unitCost = 0
+            let discount = 0
+            
+            // Look for the product in the original invoice
+            const originalProduct = originalInvoice.products?.find(
+              (p: any) => p.product_variant_id === product.product_variant_id
+            )
+            
+            if (originalProduct && details) {
+              // Get unit price/cost from product details
+              unitPrice = details.unitPrice || 0
+              unitCost = details.unitCost || 0
+              
+              // Get discount from original invoice discounts
+              discount = originalInvoice.discounts?.[details.product_id] || 0
+            }
+            
             return {
               ...details,
               quantity: product.quantity,
               note: product.note || '',
-              shipped_quantity: product.quantity
+              shipped_quantity: product.quantity,
+              unit_price: unitPrice,
+              unit_cost: unitCost,
+              discount: discount
             }
           } catch (error) {
             console.error(`Error fetching product details for variant ${product.product_variant_id}:`, error)
@@ -787,7 +810,10 @@ await Promise.all(
               quantity: product.quantity,
               note: product.note || '',
               shipped_quantity: product.quantity,
-              image: null
+              image: null,
+              unit_price: 0,
+              unit_cost: 0,
+              discount: 0
             }
           }
         })

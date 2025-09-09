@@ -229,6 +229,45 @@ const ShippingInvoiceModal: React.FC<ShippingInvoiceModalProps> = ({
   const totalSelectedQuantity = Object.values(selectedProducts).reduce((sum, qty) => sum + qty, 0)
   const totalRemainingQuantity = Object.values(shippedQuantities).reduce((sum, q) => sum + q.remaining, 0)
 
+  // Calculate total shipping value
+  const currency = invoice.currency || 'usd'
+  const currencySymbol = currency === 'euro' ? '€' : '$'
+  
+  const calculateTotalShippingValue = () => {
+    let subtotal = 0
+    let totalDiscount = 0
+    
+    invoice.products?.forEach((invoiceProduct: any) => {
+      const product = getProductDetails(invoiceProduct.product_id)
+      const selectedQty = selectedProducts[invoiceProduct.product_variant_id] || 0
+      
+      if (product && selectedQty > 0) {
+        const unitPrice = isClientInvoice ? (product.price || 0) : (product.cost || 0)
+        const discount = invoice.discounts?.[invoiceProduct.product_id] || 0
+        
+        subtotal += unitPrice * selectedQty
+        totalDiscount += discount * selectedQty
+      }
+    })
+    
+    const totalAfterDiscount = subtotal - totalDiscount
+    const shippingCost = shippingData.shipping_cost || 0
+    const totalBeforeVAT = totalAfterDiscount + shippingCost
+    const vatAmount = invoice.include_vat ? totalBeforeVAT * 0.11 : 0
+    const finalTotal = totalBeforeVAT + vatAmount
+    
+    return {
+      subtotal,
+      totalDiscount,
+      totalAfterDiscount,
+      shippingCost,
+      vatAmount,
+      finalTotal
+    }
+  }
+  
+  const shippingTotals = calculateTotalShippingValue()
+
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
@@ -253,10 +292,17 @@ const ShippingInvoiceModal: React.FC<ShippingInvoiceModalProps> = ({
               <p className="text-sm">
                 Invoice #{invoice.id} - Order #{invoice.order_number}
               </p>
-              <p className="text-xs mt-1">
-                Total Remaining: {totalRemainingQuantity} items | 
-                Selected for Shipping: {totalSelectedQuantity} items
-              </p>
+              <div className="text-xs mt-1 space-y-1">
+                <div>
+                  Total Remaining: {totalRemainingQuantity} items | 
+                  Selected for Shipping: {totalSelectedQuantity} items
+                </div>
+                {totalSelectedQuantity > 0 && (
+                  <div className="font-medium">
+                    Shipping Value: {currencySymbol}{shippingTotals.finalTotal.toFixed(2)}
+                  </div>
+                )}
+              </div>
             </div>
 
             {errors.length > 0 && (
@@ -301,6 +347,15 @@ const ShippingInvoiceModal: React.FC<ShippingInvoiceModalProps> = ({
 
                     if (!product || !variant) return null
 
+                    // Calculate pricing information  
+                    const unitPrice = isClientInvoice ? (product.price || 0) : (product.cost || 0)
+                    const discount = invoice.discounts?.[invoiceProduct.product_id] || 0
+                    const priceAfterDiscount = unitPrice - discount
+                    const selectedQuantity = selectedProducts[invoiceProduct.product_variant_id] || 0
+                    const lineTotal = priceAfterDiscount * selectedQuantity
+                    const currency = invoice.currency || 'usd'
+                    const currencySymbol = currency === 'euro' ? '€' : '$'
+
                     return (
                       <div
                         key={invoiceProduct.product_variant_id}
@@ -308,7 +363,7 @@ const ShippingInvoiceModal: React.FC<ShippingInvoiceModalProps> = ({
                           quantities.remaining === 0 ? 'bg-gray-50 opacity-60' : ''
                         }`}
                       >
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center">
                               <FaBox className="text-gray-400 mr-2" />
@@ -317,10 +372,24 @@ const ShippingInvoiceModal: React.FC<ShippingInvoiceModalProps> = ({
                                 ({variant.size} - {variant.color})
                               </span>
                             </div>
-                            <div className="mt-1 text-xs text-gray-500">
-                              Ordered: {quantities.ordered} | 
-                              Shipped: {quantities.shipped} | 
-                              Remaining: {quantities.remaining}
+                            <div className="mt-1 text-xs text-gray-500 space-y-1">
+                              <div>
+                                Ordered: {quantities.ordered} | 
+                                Shipped: {quantities.shipped} | 
+                                Remaining: {quantities.remaining}
+                              </div>
+                              <div className="flex items-center space-x-4">
+                                <span>Unit: {currencySymbol}{unitPrice.toFixed(2)}</span>
+                                {discount > 0 && (
+                                  <span>Discount: -{currencySymbol}{discount.toFixed(2)}</span>
+                                )}
+                                <span className="font-medium">Net: {currencySymbol}{priceAfterDiscount.toFixed(2)}</span>
+                              </div>
+                              {selectedQuantity > 0 && (
+                                <div className="text-blue-600 font-medium">
+                                  Shipping Value: {currencySymbol}{lineTotal.toFixed(2)}
+                                </div>
+                              )}
                             </div>
                           </div>
 
@@ -352,6 +421,47 @@ const ShippingInvoiceModal: React.FC<ShippingInvoiceModalProps> = ({
                   })}
                 </div>
               </div>
+
+              {/* Pricing Summary */}
+              {totalSelectedQuantity > 0 && (
+                <div className="border-t pt-4 mb-4">
+                  <h4 className="font-semibold text-gray-700 mb-3">Shipping Value Summary</h4>
+                  <div className="bg-blue-50 p-3 rounded-md space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Subtotal:</span>
+                      <span>{currencySymbol}{shippingTotals.subtotal.toFixed(2)}</span>
+                    </div>
+                    {shippingTotals.totalDiscount > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span>Discount:</span>
+                        <span>-{currencySymbol}{shippingTotals.totalDiscount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {shippingTotals.totalDiscount > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span>After Discount:</span>
+                        <span>{currencySymbol}{shippingTotals.totalAfterDiscount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {shippingTotals.shippingCost > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span>Shipping Cost:</span>
+                        <span>{currencySymbol}{shippingTotals.shippingCost.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {invoice.include_vat && (
+                      <div className="flex justify-between text-sm">
+                        <span>VAT (11%):</span>
+                        <span>{currencySymbol}{shippingTotals.vatAmount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="border-t pt-2 flex justify-between font-semibold">
+                      <span>Total Shipping Value:</span>
+                      <span>{currencySymbol}{shippingTotals.finalTotal.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Shipping Details Section */}
               <div className="border-t pt-4">

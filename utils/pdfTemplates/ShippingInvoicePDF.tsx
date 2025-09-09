@@ -294,9 +294,30 @@ const ShippingInvoicePDF: React.FC<{
         return status.charAt(0).toUpperCase() + status.slice(1)
     }
 
+    // Get currency information
+    const currency = originalInvoice.currency || 'usd'
+    const currencySymbol = currency === 'euro' ? '€' : '$'
+    
     // Calculate totals
     const totalQuantity = products.reduce((sum, product) => sum + (product.quantity || 0), 0)
     const totalStyles = products.length
+    
+    // Calculate pricing totals
+    const subtotal = products.reduce((sum, product) => {
+        const unitPrice = isClient ? (product.unit_price || 0) : (product.unit_cost || 0)
+        return sum + (unitPrice * (product.quantity || 0))
+    }, 0)
+    
+    const totalDiscount = products.reduce((sum, product) => {
+        const discount = product.discount || 0
+        return sum + (discount * (product.quantity || 0))
+    }, 0)
+    
+    const totalAfterDiscount = subtotal - totalDiscount
+    const shippingCost = shippingInvoice.shipping_cost || 0
+    const totalBeforeVAT = totalAfterDiscount + shippingCost
+    const vatAmount = originalInvoice.include_vat ? totalBeforeVAT * 0.11 : 0
+    const finalTotal = totalBeforeVAT + vatAmount
 
     return (
         <Document>
@@ -411,55 +432,118 @@ const ShippingInvoicePDF: React.FC<{
                 <Text style={styles.sectionTitle}>Shipped Products</Text>
                 <View style={styles.table}>
                     <View style={[styles.tableRow, { backgroundColor: '#F9FAFB' }]}>
-                        <View style={[styles.tableColHeader, { width: '10%' }]}>
+                        <View style={[styles.tableColHeader, { width: '8%' }]}>
                             <Text style={styles.tableCellHeader}>IMAGE</Text>
                         </View>
-                        <View style={[styles.tableColHeader, { width: '25%' }]}>
+                        <View style={[styles.tableColHeader, { width: '20%' }]}>
                             <Text style={styles.tableCellHeader}>PRODUCT</Text>
                         </View>
-                        <View style={[styles.tableColHeader, { width: '15%' }]}>
+                        <View style={[styles.tableColHeader, { width: '10%' }]}>
                             <Text style={styles.tableCellHeader}>SIZE</Text>
                         </View>
-                        <View style={[styles.tableColHeader, { width: '15%' }]}>
+                        <View style={[styles.tableColHeader, { width: '10%' }]}>
                             <Text style={styles.tableCellHeader}>COLOR</Text>
                         </View>
-                        <View style={[styles.tableColHeader, { width: '10%' }]}>
+                        <View style={[styles.tableColHeader, { width: '8%' }]}>
                             <Text style={styles.tableCellHeader}>QTY</Text>
                         </View>
-                        <View style={[styles.tableColHeader, { width: '25%', borderRightWidth: 0 }]}>
+                        <View style={[styles.tableColHeader, { width: '12%' }]}>
+                            <Text style={styles.tableCellHeader}>UNIT PRICE</Text>
+                        </View>
+                        <View style={[styles.tableColHeader, { width: '12%' }]}>
+                            <Text style={styles.tableCellHeader}>DISCOUNT</Text>
+                        </View>
+                        <View style={[styles.tableColHeader, { width: '12%' }]}>
+                            <Text style={styles.tableCellHeader}>TOTAL</Text>
+                        </View>
+                        <View style={[styles.tableColHeader, { width: '8%', borderRightWidth: 0 }]}>
                             <Text style={styles.tableCellHeader}>NOTES</Text>
                         </View>
                     </View>
 
-                    {products.map((product: any, index: number) => (
-                        <View key={index} style={styles.tableRow} wrap={false}>
-                            <View style={[styles.tableCol, { width: '10%', alignItems: 'center' }]}>
-                                <ProductImageRenderer image={product.image} />
+                    {products.map((product: any, index: number) => {
+                        const unitPrice = isClient ? (product.unit_price || 0) : (product.unit_cost || 0)
+                        const discount = product.discount || 0
+                        const quantity = product.quantity || 0
+                        const lineTotal = (unitPrice - discount) * quantity
+                        
+                        return (
+                            <View key={index} style={styles.tableRow} wrap={false}>
+                                <View style={[styles.tableCol, { width: '8%', alignItems: 'center' }]}>
+                                    <ProductImageRenderer image={product.image} />
+                                </View>
+                                <View style={[styles.tableCol, { width: '20%' }]}>
+                                    <Text style={styles.tableCell}>{product.name || 'N/A'}</Text>
+                                </View>
+                                <View style={[styles.tableCol, { width: '10%' }]}>
+                                    <Text style={styles.tableCell}>{product.size || 'N/A'}</Text>
+                                </View>
+                                <View style={[styles.tableCol, { width: '10%' }]}>
+                                    <Text style={styles.tableCell}>{product.color || 'N/A'}</Text>
+                                </View>
+                                <View style={[styles.tableCol, { width: '8%' }]}>
+                                    <Text style={[styles.tableCell, { textAlign: 'center' }]}>
+                                        {quantity}
+                                    </Text>
+                                </View>
+                                <View style={[styles.tableCol, { width: '12%' }]}>
+                                    <Text style={[styles.tableCell, { textAlign: 'right' }]}>
+                                        {currencySymbol}{unitPrice.toFixed(2)}
+                                    </Text>
+                                </View>
+                                <View style={[styles.tableCol, { width: '12%' }]}>
+                                    <Text style={[styles.tableCell, { textAlign: 'right' }]}>
+                                        {discount > 0 ? `${currencySymbol}${discount.toFixed(2)}` : '-'}
+                                    </Text>
+                                </View>
+                                <View style={[styles.tableCol, { width: '12%' }]}>
+                                    <Text style={[styles.tableCell, { textAlign: 'right', fontWeight: 700 }]}>
+                                        {currencySymbol}{lineTotal.toFixed(2)}
+                                    </Text>
+                                </View>
+                                <View style={[styles.tableCol, { width: '8%', borderRightWidth: 0 }]}>
+                                    <Text style={[styles.tableCell, { fontSize: 7, fontStyle: 'italic' }]}>
+                                        {(product.note && product.note.length > 10) 
+                                            ? product.note.substring(0, 10) + '...' 
+                                            : (product.note || '-')}
+                                    </Text>
+                                </View>
                             </View>
-                            <View style={[styles.tableCol, { width: '25%' }]}>
-                                <Text style={styles.tableCell}>{product.name || 'N/A'}</Text>
-                            </View>
-                            <View style={[styles.tableCol, { width: '15%' }]}>
-                                <Text style={styles.tableCell}>{product.size || 'N/A'}</Text>
-                            </View>
-                            <View style={[styles.tableCol, { width: '15%' }]}>
-                                <Text style={styles.tableCell}>{product.color || 'N/A'}</Text>
-                            </View>
-                            <View style={[styles.tableCol, { width: '10%' }]}>
-                                <Text style={[styles.tableCell, { textAlign: 'center' }]}>
-                                    {product.quantity || 0}
-                                </Text>
-                            </View>
-                            <View style={[styles.tableCol, { width: '25%', borderRightWidth: 0 }]}>
-                                <Text style={[styles.tableCell, { fontSize: 8, fontStyle: 'italic' }]}>
-                                    {product.note || '-'}
-                                </Text>
-                            </View>
-                        </View>
-                    ))}
+                        )
+                    })}
                 </View>
 
-                {/* Summary */}
+                {/* Pricing Summary */}
+                <View style={[styles.summary, { marginTop: 15 }]}>
+                    <Text style={styles.summaryText}>
+                        <Text style={{ fontWeight: 700 }}>Subtotal:</Text> {currencySymbol}{subtotal.toFixed(2)}
+                    </Text>
+                    {totalDiscount > 0 && (
+                        <Text style={styles.summaryText}>
+                            <Text style={{ fontWeight: 700 }}>Total Discount:</Text> -{currencySymbol}{totalDiscount.toFixed(2)}
+                        </Text>
+                    )}
+                    {totalDiscount > 0 && (
+                        <Text style={styles.summaryText}>
+                            <Text style={{ fontWeight: 700 }}>After Discount:</Text> {currencySymbol}{totalAfterDiscount.toFixed(2)}
+                        </Text>
+                    )}
+                    {shippingCost > 0 && (
+                        <Text style={styles.summaryText}>
+                            <Text style={{ fontWeight: 700 }}>Shipping Cost:</Text> {currencySymbol}{shippingCost.toFixed(2)}
+                        </Text>
+                    )}
+                    {originalInvoice.include_vat && (
+                        <Text style={styles.summaryText}>
+                            <Text style={{ fontWeight: 700 }}>VAT (11%):</Text> {currencySymbol}{vatAmount.toFixed(2)}
+                        </Text>
+                    )}
+                    <Text style={[styles.summaryText, { fontSize: 12, fontWeight: 700, borderTopWidth: 1, borderTopColor: '#0C4A6E', paddingTop: 5, marginTop: 5 }]}>
+                        <Text>Total Amount:</Text> {currencySymbol}{finalTotal.toFixed(2)}
+                    </Text>
+                </View>
+
+                {/* Quantity Summary */}
                 <View style={styles.summary}>
                     <Text style={styles.summaryText}>
                         <Text style={{ fontWeight: 700 }}>Total Styles Shipped:</Text> {totalStyles}
