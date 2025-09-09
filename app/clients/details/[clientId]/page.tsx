@@ -11,7 +11,7 @@ import {
 import { supabase } from '../../../../utils/supabase'
 import { productFunctions } from '../../../../utils/functions/products'
 import { format } from 'date-fns'
-import { FaSort, FaFile, FaDownload, FaInfoCircle, FaSync, FaHistory, FaBox } from 'react-icons/fa'
+import { FaSort, FaFile, FaDownload, FaInfoCircle, FaSync, FaHistory, FaBox, FaLink, FaFileInvoice, FaTruck, FaShippingFast, FaCheckCircle, FaExclamationCircle } from 'react-icons/fa'
 import { generatePDF } from '@/utils/pdfGenerator'
 import { toast } from 'react-hot-toast'
 
@@ -46,6 +46,8 @@ interface Invoice {
   currency?: string
   type?: string
   quotation_id?: number | null
+  order_number?: string
+  shipping_status?: 'unshipped' | 'partially_shipped' | 'fully_shipped'
 }
 
 interface Receipt {
@@ -520,6 +522,41 @@ export default function ClientDetailsPage({
     return `Product ID: ${product.product_variant_id}`
   }
 
+  // Shipping Status Badge Component
+  const ShippingStatusBadge: React.FC<{ status: string }> = ({ status }) => {
+    const getStatusConfig = () => {
+      switch (status) {
+        case 'fully_shipped':
+          return { 
+            color: 'bg-green-100 text-green-800', 
+            icon: <FaCheckCircle className="inline mr-1" />,
+            text: 'Fully Shipped'
+          }
+        case 'partially_shipped':
+          return { 
+            color: 'bg-yellow-100 text-yellow-800', 
+            icon: <FaExclamationCircle className="inline mr-1" />,
+            text: 'Partially Shipped'
+          }
+        default:
+          return { 
+            color: 'bg-gray-100 text-gray-800', 
+            icon: <FaTruck className="inline mr-1" />,
+            text: 'Unshipped'
+          }
+      }
+    }
+    
+    const config = getStatusConfig()
+    
+    return (
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${config.color}`}>
+        {config.icon}
+        {config.text}
+      </span>
+    )
+  }
+
   if (isLoading) {
     return <div className='text-center py-10'>Loading...</div>
   }
@@ -752,18 +789,20 @@ export default function ClientDetailsPage({
           )}
 
           {activeTab === 'invoices' && (
-            <div className='bg-gray text-white shadow rounded-lg p-6'>
-              <h2 className='text-2xl font-semibold mb-4'>Invoices</h2>
-              <table className='min-w-full'>
+            <div className='overflow-x-auto bg-white rounded-lg shadow'>
+              <div className='bg-gray text-white p-4 rounded-t-lg'>
+                <h2 className='text-2xl font-semibold'>Invoices</h2>
+              </div>
+              <table className='w-full table-auto'>
                 <thead>
-                  <tr>
+                  <tr className='bg-gray text-white uppercase text-sm leading-normal'>
                     <th
-                      className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider cursor-pointer'
+                      className='py-3 px-6 text-left cursor-pointer'
                       onClick={() => handleSort('id')}>
                       ID {sortField === 'id' && <FaSort className='inline' />}
                     </th>
                     <th
-                      className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider cursor-pointer'
+                      className='py-3 px-6 text-left cursor-pointer'
                       onClick={() => handleSort('created_at')}>
                       Date{' '}
                       {sortField === 'created_at' && (
@@ -771,7 +810,7 @@ export default function ClientDetailsPage({
                       )}
                     </th>
                     <th
-                      className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider cursor-pointer'
+                      className='py-3 px-6 text-left cursor-pointer'
                       onClick={() => handleSort('total_price')}>
                       Total{' '}
                       {sortField === 'total_price' && (
@@ -779,98 +818,98 @@ export default function ClientDetailsPage({
                       )}
                     </th>
                     <th
-                      className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider cursor-pointer'
+                      className='py-3 px-6 text-left cursor-pointer'
                       onClick={() => handleSort('remaining_amount')}>
                       Remaining{' '}
                       {sortField === 'remaining_amount' && (
                         <FaSort className='inline' />
                       )}
                     </th>
-                    <th className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider'>
-                      Currency
-                    </th>
-                    <th className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider'>
-                      Type
-                    </th>
-                    <th className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider'>
-                      Source
-                    </th>
-                    <th className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider'>
-                      Products
-                    </th>
-                    <th className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider'>
-                      Notes
-                    </th>
-                    <th className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider'>
-                      Files
-                    </th>
+                    <th className='py-3 px-6 text-center'>Order Number</th>
+                    <th className='py-3 px-6 text-center'>Source</th>
+                    <th className='py-3 px-6 text-center'>Products</th>
+                    <th className='py-3 px-6 text-center'>Type</th>
+                    <th className='py-3 px-6 text-center'>Shipping Status</th>
+                    <th className='py-3 px-6 text-center'>Files</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className='text-gray text-sm font-light'>
                   {invoices.map(invoice => {
                     const currencySymbol = getCurrencySymbol(invoice.currency)
                     const isReturn = invoice.type === 'return'
+                    const totalPrice = Number(invoice.total_price) || 0
+                    const remainingAmount = Number(invoice.remaining_amount) || 0
                     
                     return (
                       <tr
                         key={invoice.id}
                         onClick={() => handleInvoiceClick(invoice)}
-                        className={`cursor-pointer hover:bg-blue ${isReturn ? 'bg-red-900' : ''}`}>
-                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+                        className={`border-b border-gray cursor-pointer hover:bg-gray-50 ${
+                          isReturn ? 'bg-red-50' : ''
+                        }`}>
+                        <td className='py-3 px-6 text-left whitespace-nowrap'>
                           {invoice.id}
                         </td>
-                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-                          {format(new Date(invoice.created_at), 'PPP')}
+                        <td className='py-3 px-6 text-left'>
+                          {invoice.created_at ? new Date(invoice.created_at).toLocaleDateString() : 'N/A'}
                         </td>
-                        <td className={`px-6 py-4 whitespace-no-wrap border-b border-white ${isReturn ? 'text-red-300' : ''}`}>
-                          {currencySymbol}{Math.abs(invoice.total_price).toFixed(2)}
+                        <td className={`py-3 px-6 text-left ${
+                          isReturn ? 'text-red-600' : 'text-green-600'
+                        }`}>
+                          {currencySymbol}{Math.abs(totalPrice).toFixed(2)}
                           {isReturn && ' (Return)'}
                         </td>
-                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-                          {currencySymbol}{Math.abs(invoice.remaining_amount).toFixed(2)}
+                        <td className={`py-3 px-6 text-left ${
+                          remainingAmount > 0 ? 'text-orange-600' : 'text-green-600'
+                        }`}>
+                          {currencySymbol}{Math.abs(remainingAmount).toFixed(2)}
                         </td>
-                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-                          {(invoice.currency || 'usd').toUpperCase()}
+                        <td className='py-3 px-6 text-center'>
+                          {invoice.order_number || '-'}
                         </td>
-                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-                          <span className={`px-2 py-1 rounded-full text-xs ${
-                            isReturn ? 'bg-red-200 text-red-800' : 'bg-green-200 text-green-800'
-                          }`}>
-                            {isReturn ? 'Return' : 'Regular'}
-                          </span>
-                        </td>
-                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
+                        <td className='py-3 px-6 text-center'>
                           {invoice.quotation_id ? (
-                            <span className="text-blue-300 text-xs" title={`Created from Order #${invoice.quotation_id}`}>
-                              Order #{invoice.quotation_id}
-                            </span>
+                            <div className="flex items-center justify-center">
+                              <FaLink className="text-blue mr-1" />
+                              <span className="text-blue text-xs" title={`Created from Order #${invoice.quotation_id}`}>
+                                Q#{invoice.quotation_id}
+                              </span>
+                            </div>
                           ) : (
-                            <span className="text-neutral-400 text-xs">Direct</span>
+                            <div className="flex items-center justify-center">
+                              <FaFileInvoice className="text-neutral-500 mr-1" />
+                              <span className="text-neutral-500 text-xs" title="Direct Invoice">
+                                Direct
+                              </span>
+                            </div>
                           )}
                         </td>
-                        <td className='px-6 py-4 border-b border-white'>
-                          <div className='flex items-center space-x-2'>
+                        <td className='py-3 px-6 text-center'>
+                          <div className='flex items-center justify-center space-x-1'>
                             <FaBox className='text-blue text-sm' />
-                            <span className='text-sm text-gray-300' title={getInvoiceProductsPreview(invoice.id)}>
+                            <span className='text-xs text-gray-600' title={getInvoiceProductsPreview(invoice.id)}>
                               {getInvoiceProductsPreview(invoice.id)}
                             </span>
                           </div>
                         </td>
-                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-                          {invoice.products.some(product => product.note) ? (
-                            <FaInfoCircle
-                              className='text-blue'
-                              title='Has notes'
-                            />
-                          ) : (
-                            '-'
-                          )}
+                        <td className='py-3 px-6 text-center'>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            isReturn ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                          }`}>
+                            {isReturn ? 'Return' : 'Regular'}
+                          </span>
                         </td>
-                        <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
-                          {invoice.files.length > 0 ? (
-                            <FaFile className='inline text-blue' />
+                        <td className='py-3 px-6 text-center'>
+                          <ShippingStatusBadge status={invoice.shipping_status || 'unshipped'} />
+                        </td>
+                        <td className='py-3 px-6 text-center'>
+                          {invoice.files && invoice.files.length > 0 ? (
+                            <div className="flex items-center justify-center">
+                              <FaFile className='text-blue mr-1' />
+                              <span className="text-xs text-gray-600">{invoice.files.length}</span>
+                            </div>
                           ) : (
-                            '-'
+                            <span className="text-neutral-400">-</span>
                           )}
                         </td>
                       </tr>
@@ -1064,106 +1103,215 @@ export default function ClientDetailsPage({
 
           {selectedInvoice && (
             <div
-              className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'
+              className='fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50'
               onClick={() => setSelectedInvoice(null)}>
               <div
-                className='relative top-10 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white'
+                className='relative top-10 mx-auto p-6 border w-full max-w-4xl shadow-2xl rounded-lg bg-white'
                 onClick={e => e.stopPropagation()}>
-                <div className='mt-3 text-center'>
-                  <h3 className='text-lg leading-6 font-medium text-neutral-900'>
-                    Invoice Details
-                  </h3>
-                  <div className='mt-2 px-7 py-3'>
-                    <p className='text-sm text-neutral-500'>
-                      ID: {selectedInvoice.id}
-                    </p>
-                    <p className='text-sm text-neutral-500'>
-                      Date:{' '}
-                      {format(new Date(selectedInvoice.created_at), 'PPP')}
-                    </p>
-                    <p className='text-sm text-neutral-500'>
-                      Total Price: {getCurrencySymbol(selectedInvoice.currency)}{Math.abs(selectedInvoice.total_price).toFixed(2)}
-                      {selectedInvoice.type === 'return' && ' (Return)'}
-                    </p>
-                    <p className='text-sm text-neutral-500'>
-                      Remaining Amount: {getCurrencySymbol(selectedInvoice.currency)}
-                      {Math.abs(selectedInvoice.remaining_amount).toFixed(2)}
-                    </p>
-                    <p className='text-sm text-neutral-500'>
-                      Currency: {(selectedInvoice.currency || 'usd').toUpperCase()}
-                    </p>
-                    {selectedInvoice.quotation_id && (
-                      <p className='text-sm text-neutral-500'>
-                        Source: Order #{selectedInvoice.quotation_id}
-                      </p>
-                    )}
-                    <h4 className='text-sm font-medium text-neutral-900 mt-4'>
-                      Products:
-                    </h4>
-                    <div className='space-y-3 max-h-48 overflow-y-auto'>
-                      {(invoiceProductDetails[selectedInvoice.id] || selectedInvoice.products).map((product, index) => {
-                        const productWithDetails = product as InvoiceProductWithDetails
-                        return (
-                          <div key={index} className='bg-gray-50 p-3 rounded border'>
-                            <div className='flex items-center justify-between'>
-                              <div className='flex-1'>
-                                <div className='font-medium text-neutral-800'>
-                                  {getProductDisplayName(productWithDetails)}
-                                </div>
-                                <div className='text-sm text-neutral-600'>
-                                  Quantity: {productWithDetails.quantity}
-                                  {productWithDetails.variantDetails && (
-                                    <span className='ml-3 text-blue-600'>
-                                      ${productWithDetails.variantDetails.product.price.toFixed(2)} each
-                                    </span>
-                                  )}
-                                </div>
-                                {productWithDetails.variantDetails?.product.photo && (
-                                  <Image 
-                                    src={productWithDetails.variantDetails.product.photo} 
-                                    alt={productWithDetails.variantDetails.product.name}
-                                    width={64}
-                                    height={64}
-                                    className='mt-2 w-16 h-16 object-cover rounded border'
-                                  />
-                                )}
-                              </div>
-                            </div>
-                            {productWithDetails.note && (
-                              <div className='mt-2 text-xs italic text-neutral-600 bg-yellow-50 p-2 rounded'>
-                                Note: {productWithDetails.note}
-                              </div>
+                <div className='flex justify-between items-start mb-6'>
+                  <div>
+                    <h3 className='text-2xl font-bold text-gray-900 flex items-center'>
+                      <FaFileInvoice className="mr-3 text-blue" />
+                      Invoice #{selectedInvoice.id}
+                    </h3>
+                    <div className="flex items-center mt-2 space-x-4">
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        selectedInvoice.type === 'return' 
+                          ? 'bg-red-100 text-red-800' 
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {selectedInvoice.type === 'return' ? 'Return Invoice' : 'Regular Invoice'}
+                      </span>
+                      <ShippingStatusBadge status={selectedInvoice.shipping_status || 'unshipped'} />
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedInvoice(null)}
+                    className='text-gray-400 hover:text-gray-600 transition-colors'>
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Invoice Summary */}
+                  <div className="lg:col-span-1">
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h4 className="text-lg font-semibold text-gray-900 mb-4">Invoice Summary</h4>
+                      <div className="space-y-3">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Date:</span>
+                          <span className="font-medium">{format(new Date(selectedInvoice.created_at), 'PPP')}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Order Number:</span>
+                          <span className="font-medium">{selectedInvoice.order_number || 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Currency:</span>
+                          <span className="font-medium">{(selectedInvoice.currency || 'usd').toUpperCase()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Source:</span>
+                          <div className="flex items-center">
+                            {selectedInvoice.quotation_id ? (
+                              <>
+                                <FaLink className="text-blue mr-1 text-xs" />
+                                <span className="text-blue text-sm">Order #{selectedInvoice.quotation_id}</span>
+                              </>
+                            ) : (
+                              <>
+                                <FaFileInvoice className="text-neutral-500 mr-1 text-xs" />
+                                <span className="text-neutral-500 text-sm">Direct Invoice</span>
+                              </>
                             )}
                           </div>
-                        )
-                      })}
+                        </div>
+                        <hr className="border-gray-200" />
+                        <div className="flex justify-between text-lg">
+                          <span className="text-gray-600">Total:</span>
+                          <span className={`font-bold ${
+                            selectedInvoice.type === 'return' ? 'text-red-600' : 'text-green-600'
+                          }`}>
+                            {getCurrencySymbol(selectedInvoice.currency)}{Math.abs(selectedInvoice.total_price).toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-lg">
+                          <span className="text-gray-600">Remaining:</span>
+                          <span className={`font-bold ${
+                            selectedInvoice.remaining_amount > 0 ? 'text-orange-600' : 'text-green-600'
+                          }`}>
+                            {getCurrencySymbol(selectedInvoice.currency)}{Math.abs(selectedInvoice.remaining_amount).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <h4 className='text-sm font-medium text-neutral-900 mt-4'>
-                      Files:
-                    </h4>
-                    <ul className='list-disc list-inside'>
-                      {selectedInvoice.files.map((file, index) => (
-                        <li key={index} className='text-sm text-neutral-500'>
-                          <a
-                            href={file}
-                            target='_blank'
-                            rel='noopener noreferrer'
-                            className='text-blue hover:underline'>
-                            {file.split('/').pop()}{' '}
-                            <FaDownload className='inline' />
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
                   </div>
-                  <div className='items-center px-4 py-3'>
-                    <button
-                      id='ok-btn'
-                      className='px-4 py-2 bg-blue text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-black focus:outline-none focus:ring-2 focus:ring-indigo-300'
-                      onClick={() => setSelectedInvoice(null)}>
-                      Close
-                    </button>
+
+                  {/* Products */}
+                  <div className="lg:col-span-2">
+                    <div className="bg-white border border-gray-200 rounded-lg">
+                      <div className="px-4 py-3 border-b border-gray-200">
+                        <h4 className="text-lg font-semibold text-gray-900 flex items-center">
+                          <FaBox className="mr-2 text-blue" />
+                          Products ({(invoiceProductDetails[selectedInvoice.id] || selectedInvoice.products).length})
+                        </h4>
+                      </div>
+                      <div className="p-4">
+                        <div className='space-y-4 max-h-96 overflow-y-auto'>
+                          {(invoiceProductDetails[selectedInvoice.id] || selectedInvoice.products).map((product, index) => {
+                            const productWithDetails = product as InvoiceProductWithDetails
+                            return (
+                              <div key={index} className='bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow'>
+                                <div className='flex items-start space-x-4'>
+                                  {productWithDetails.variantDetails?.product.photo && (
+                                    <div className="flex-shrink-0">
+                                      <Image 
+                                        src={productWithDetails.variantDetails.product.photo} 
+                                        alt={productWithDetails.variantDetails.product.name}
+                                        width={80}
+                                        height={80}
+                                        className='w-20 h-20 object-cover rounded-lg border'
+                                      />
+                                    </div>
+                                  )}
+                                  <div className='flex-1 min-w-0'>
+                                    <h5 className='text-lg font-semibold text-gray-900 truncate'>
+                                      {productWithDetails.variantDetails ? 
+                                        productWithDetails.variantDetails.product.name : 
+                                        'Product Not Found'
+                                      }
+                                    </h5>
+                                    {productWithDetails.variantDetails && (
+                                      <div className="mt-1 flex items-center space-x-4 text-sm text-gray-600">
+                                        <span className="bg-gray-100 px-2 py-1 rounded">
+                                          Size: {productWithDetails.variantDetails.size}
+                                        </span>
+                                        <span className="bg-gray-100 px-2 py-1 rounded">
+                                          Color: {productWithDetails.variantDetails.color}
+                                        </span>
+                                      </div>
+                                    )}
+                                    <div className='mt-2 flex items-center justify-between'>
+                                      <div className="flex items-center space-x-4">
+                                        <span className='text-sm font-medium text-gray-900'>
+                                          Quantity: <span className="text-blue font-bold">{productWithDetails.quantity}</span>
+                                        </span>
+                                        {productWithDetails.variantDetails && (
+                                          <span className='text-sm text-gray-600'>
+                                            ${productWithDetails.variantDetails.product.price.toFixed(2)} each
+                                          </span>
+                                        )}
+                                      </div>
+                                      {productWithDetails.variantDetails && (
+                                        <div className="text-right">
+                                          <span className="text-lg font-bold text-green-600">
+                                            ${(productWithDetails.variantDetails.product.price * productWithDetails.quantity).toFixed(2)}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    {productWithDetails.note && (
+                                      <div className='mt-3 p-2 bg-yellow-50 border-l-4 border-yellow-400 rounded'>
+                                        <div className="flex items-start">
+                                          <FaInfoCircle className="text-yellow-600 mr-2 mt-0.5 flex-shrink-0" />
+                                          <span className="text-sm text-yellow-800">{productWithDetails.note}</span>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
                   </div>
+                </div>
+
+                {/* Files Section */}
+                {selectedInvoice.files && selectedInvoice.files.length > 0 && (
+                  <div className="mt-6">
+                    <div className="bg-white border border-gray-200 rounded-lg">
+                      <div className="px-4 py-3 border-b border-gray-200">
+                        <h4 className="text-lg font-semibold text-gray-900 flex items-center">
+                          <FaFile className="mr-2 text-blue" />
+                          Attachments ({selectedInvoice.files.length})
+                        </h4>
+                      </div>
+                      <div className="p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {selectedInvoice.files.map((file, index) => (
+                            <a
+                              key={index}
+                              href={file}
+                              target='_blank'
+                              rel='noopener noreferrer'
+                              className='flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group'>
+                              <FaFile className="text-blue mr-3" />
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm font-medium text-gray-900 truncate block">
+                                  {file.split('/').pop()}
+                                </span>
+                                <span className="text-xs text-gray-500">Click to open</span>
+                              </div>
+                              <FaDownload className="text-gray-400 group-hover:text-blue ml-2" />
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className='flex justify-end mt-6 pt-4 border-t border-gray-200'>
+                  <button
+                    className='px-6 py-2 bg-blue text-white font-medium rounded-lg hover:bg-blue-700 transition-colors'
+                    onClick={() => setSelectedInvoice(null)}>
+                    Close
+                  </button>
                 </div>
               </div>
             </div>
