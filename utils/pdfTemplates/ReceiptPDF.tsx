@@ -84,14 +84,25 @@ const styles = StyleSheet.create({
 	column: {
 		flexDirection: 'column',
 		flexGrow: 1,
-		fontSize: 10
+		fontSize: 10,
+		maxWidth: '25%',
+		overflow: 'hidden'
 	},
 	label: {
 		fontWeight: 'bold',
 		color: '#4B5563'
 	},
 	value: {
-		color: '#1F2937'
+		color: '#1F2937',
+		wordWrap: 'break-word',
+		lineHeight: 1.3
+	},
+	clientName: {
+		color: '#1F2937',
+		wordWrap: 'break-word',
+		lineHeight: 1.3,
+		maxWidth: '100%',
+		overflow: 'hidden'
 	},
 	table: {
 		width: 'auto',
@@ -195,7 +206,7 @@ const ReceiptPDF: React.FC<{
 					<View style={styles.row}>
 						<View style={styles.column}>
 							<Text style={styles.label}>Name:</Text>
-							<Text style={styles.value}>{entity.name}</Text>
+							<Text style={styles.clientName}>{entity.name}</Text>
 						</View>
 						<View style={styles.column}>
 							<Text style={styles.label}>Address:</Text>
@@ -222,7 +233,7 @@ const ReceiptPDF: React.FC<{
 					<View style={styles.row}>
 						<View style={styles.column}>
 							<Text style={styles.label}>Name:</Text>
-							<Text style={styles.value}>{company.name}</Text>
+							<Text style={styles.clientName}>{company.name}</Text>
 						</View>
 						<View style={styles.column}>
 							<Text style={styles.label}>Address:</Text>
