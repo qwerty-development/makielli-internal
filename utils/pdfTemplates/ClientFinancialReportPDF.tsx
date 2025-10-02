@@ -458,30 +458,33 @@ const ClientFinancialReportPDF: React.FC<ClientFinancialReportProps> = ({
 
 		transactions.forEach((transaction) => {
 			const currency = transaction.currency || 'usd'
-			
+
 			if (!currencyTotals.has(currency)) {
-				currencyTotals.set(currency, { invoices: 0, returns: 0, receipts: 0 })
+				currencyTotals.set(currency, { invoices: 0, returns: 0, receipts: 0, balance: 0 })
 			}
-			
+
 			const currencyData = currencyTotals.get(currency)
-			
+
 			switch (transaction.type) {
 				case 'invoice':
 					const invoiceAmount = Math.abs(transaction.amount)
 					totalInvoices += invoiceAmount
 					currencyData.invoices += invoiceAmount
+					currencyData.balance += invoiceAmount
 					invoiceCount++
 					break
 				case 'return':
 					const returnAmount = Math.abs(transaction.amount)
 					totalReturns += returnAmount
 					currencyData.returns += returnAmount
+					currencyData.balance -= returnAmount
 					returnCount++
 					break
 				case 'receipt':
 					const receiptAmount = Math.abs(transaction.amount)
 					totalReceipts += receiptAmount
 					currencyData.receipts += receiptAmount
+					currencyData.balance -= receiptAmount
 					receiptCount++
 					break
 			}
@@ -489,6 +492,17 @@ const ClientFinancialReportPDF: React.FC<ClientFinancialReportProps> = ({
 
 		const netInvoiceAmount = totalInvoices - totalReturns
 		const currentBalance = reconciliation.calculatedBalance
+
+		// Determine primary currency (the one with most transactions or highest balance)
+		let primaryCurrency = 'usd'
+		let maxTransactionCount = 0
+		currencyTotals.forEach((data, currency) => {
+			const transactionCount = data.invoices + data.returns + data.receipts
+			if (transactionCount > maxTransactionCount) {
+				maxTransactionCount = transactionCount
+				primaryCurrency = currency
+			}
+		})
 
 		return {
 			totalInvoices,
@@ -500,7 +514,9 @@ const ClientFinancialReportPDF: React.FC<ClientFinancialReportProps> = ({
 			returnCount,
 			receiptCount,
 			totalTransactions: transactions.length,
-			currencyBreakdown: Array.from(currencyTotals.entries())
+			currencyBreakdown: Array.from(currencyTotals.entries()),
+			primaryCurrency,
+			hasMixedCurrencies: currencyTotals.size > 1
 		}
 	}
 
@@ -598,75 +614,141 @@ const ClientFinancialReportPDF: React.FC<ClientFinancialReportProps> = ({
 						</View>
 						
 						{/* Refined Balance Display */}
-						<View style={[styles.balanceContainer, getBalanceStyle(summaryData.currentBalance)]}>
-							<View style={styles.balanceLeft}>
-								<Text style={styles.balanceLabel}>Current Balance</Text>
-								<Text style={styles.balanceAmount}>
-									${Math.abs(summaryData.currentBalance).toFixed(2)}
-								</Text>
-							</View>
-							<View style={styles.balanceRight}>
-								<Text style={styles.balanceStatus}>
-									{getBalanceStatus(summaryData.currentBalance)}
-								</Text>
+						{summaryData.hasMixedCurrencies ? (
+							// Multi-currency balance display
+							<>
+								{summaryData.currencyBreakdown.map(([currency, data]) => (
+									<View key={currency} style={[styles.balanceContainer, getBalanceStyle(data.balance)]}>
+										<View style={styles.balanceLeft}>
+											<Text style={styles.balanceLabel}>Balance ({currency.toUpperCase()})</Text>
+											<Text style={styles.balanceAmount}>
+												{getCurrencySymbol(currency)}{Math.abs(data.balance).toFixed(2)}
+											</Text>
+										</View>
+										<View style={styles.balanceRight}>
+											<Text style={styles.balanceStatus}>
+												{getBalanceStatus(data.balance)}
+											</Text>
+										</View>
+									</View>
+								))}
 								{reconciliation.wasUpdated && (
-									<Text style={styles.reconcileNote}>
+									<Text style={[styles.reconcileNote, { marginTop: 8 }]}>
 										✓ Reconciled
 									</Text>
 								)}
+							</>
+						) : (
+							// Single currency balance display
+							<View style={[styles.balanceContainer, getBalanceStyle(summaryData.currentBalance)]}>
+								<View style={styles.balanceLeft}>
+									<Text style={styles.balanceLabel}>Current Balance</Text>
+									<Text style={styles.balanceAmount}>
+										{getCurrencySymbol(summaryData.primaryCurrency)}{Math.abs(summaryData.currentBalance).toFixed(2)}
+									</Text>
+								</View>
+								<View style={styles.balanceRight}>
+									<Text style={styles.balanceStatus}>
+										{getBalanceStatus(summaryData.currentBalance)}
+									</Text>
+									{reconciliation.wasUpdated && (
+										<Text style={styles.reconcileNote}>
+											✓ Reconciled
+										</Text>
+									)}
+								</View>
 							</View>
-						</View>
+						)}
 					</View>
 				</View>
 
 				{/* Minimal Financial Summary */}
 				<View style={styles.section}>
 					<Text style={styles.sectionTitle}>Financial Overview</Text>
-					
-					<View style={styles.summaryContainer}>
-						<View style={styles.summaryCard}>
-							<Text style={styles.summaryAmount}>
-								${summaryData.totalInvoices.toFixed(2)}
-							</Text>
-							<Text style={styles.summaryLabel}>Total Invoiced</Text>
-							<Text style={styles.summaryCount}>
-								{summaryData.invoiceCount} transaction{summaryData.invoiceCount !== 1 ? 's' : ''}
-							</Text>
+
+					{summaryData.hasMixedCurrencies ? (
+						// Multi-currency summary - show "Mixed" label
+						<View style={styles.summaryContainer}>
+							<View style={styles.summaryCard}>
+								<Text style={styles.summaryAmount}>
+									Mixed
+								</Text>
+								<Text style={styles.summaryLabel}>Total Invoiced</Text>
+								<Text style={styles.summaryCount}>
+									{summaryData.invoiceCount} transaction{summaryData.invoiceCount !== 1 ? 's' : ''}
+								</Text>
+							</View>
+
+							<View style={styles.summaryCard}>
+								<Text style={styles.summaryAmount}>
+									Mixed
+								</Text>
+								<Text style={styles.summaryLabel}>Total Received</Text>
+								<Text style={styles.summaryCount}>
+									{summaryData.receiptCount} payment{summaryData.receiptCount !== 1 ? 's' : ''}
+								</Text>
+							</View>
+
+							<View style={styles.summaryCard}>
+								<Text style={styles.summaryAmount}>
+									Mixed
+								</Text>
+								<Text style={styles.summaryLabel}>Net Balance</Text>
+								<Text style={styles.summaryCount}>
+									See breakdown below
+								</Text>
+							</View>
 						</View>
-						
-						<View style={styles.summaryCard}>
-							<Text style={styles.summaryAmount}>
-								${summaryData.totalReceipts.toFixed(2)}
-							</Text>
-							<Text style={styles.summaryLabel}>Total Received</Text>
-							<Text style={styles.summaryCount}>
-								{summaryData.receiptCount} payment{summaryData.receiptCount !== 1 ? 's' : ''}
-							</Text>
+					) : (
+						// Single currency summary
+						<View style={styles.summaryContainer}>
+							<View style={styles.summaryCard}>
+								<Text style={styles.summaryAmount}>
+									{getCurrencySymbol(summaryData.primaryCurrency)}{summaryData.totalInvoices.toFixed(2)}
+								</Text>
+								<Text style={styles.summaryLabel}>Total Invoiced</Text>
+								<Text style={styles.summaryCount}>
+									{summaryData.invoiceCount} transaction{summaryData.invoiceCount !== 1 ? 's' : ''}
+								</Text>
+							</View>
+
+							<View style={styles.summaryCard}>
+								<Text style={styles.summaryAmount}>
+									{getCurrencySymbol(summaryData.primaryCurrency)}{summaryData.totalReceipts.toFixed(2)}
+								</Text>
+								<Text style={styles.summaryLabel}>Total Received</Text>
+								<Text style={styles.summaryCount}>
+									{summaryData.receiptCount} payment{summaryData.receiptCount !== 1 ? 's' : ''}
+								</Text>
+							</View>
+
+							<View style={styles.summaryCard}>
+								<Text style={styles.summaryAmount}>
+									{getCurrencySymbol(summaryData.primaryCurrency)}{Math.abs(summaryData.currentBalance).toFixed(2)}
+								</Text>
+								<Text style={styles.summaryLabel}>Net Balance</Text>
+								<Text style={styles.summaryCount}>
+									{summaryData.currentBalance === 0 ? 'Settled' : summaryData.currentBalance > 0 ? 'Outstanding' : 'Credit'}
+								</Text>
+							</View>
 						</View>
-						
-						<View style={styles.summaryCard}>
-							<Text style={styles.summaryAmount}>
-								${Math.abs(summaryData.currentBalance).toFixed(2)}
-							</Text>
-							<Text style={styles.summaryLabel}>Net Balance</Text>
-							<Text style={styles.summaryCount}>
-								{summaryData.currentBalance === 0 ? 'Settled' : summaryData.currentBalance > 0 ? 'Outstanding' : 'Credit'}
-							</Text>
-						</View>
-					</View>
+					)}
 
 					{/* Multi-Currency Information */}
 					{summaryData.currencyBreakdown.length > 1 && (
 						<View style={styles.currencySection}>
 							<Text style={styles.currencyTitle}>Currency Breakdown</Text>
-							{summaryData.currencyBreakdown.map(([currency, data]) => (
-								<View key={currency} style={styles.currencyRow}>
-									<Text style={styles.currencyLabel}>{currency.toUpperCase()}</Text>
-									<Text style={styles.currencyAmount}>
-										Invoiced ${data.invoices.toFixed(2)} • Received ${data.receipts.toFixed(2)}
-									</Text>
-								</View>
-							))}
+							{summaryData.currencyBreakdown.map(([currency, data]) => {
+								const symbol = getCurrencySymbol(currency)
+								return (
+									<View key={currency} style={styles.currencyRow}>
+										<Text style={styles.currencyLabel}>{currency.toUpperCase()}</Text>
+										<Text style={styles.currencyAmount}>
+											Invoiced {symbol}{data.invoices.toFixed(2)} • Received {symbol}{data.receipts.toFixed(2)} • Balance {symbol}{Math.abs(data.balance).toFixed(2)}
+										</Text>
+									</View>
+								)
+							})}
 						</View>
 					)}
 				</View>
@@ -780,7 +862,11 @@ const ClientFinancialReportPDF: React.FC<ClientFinancialReportProps> = ({
 												styles.tableCellRight,
 												styles.amountBalance
 											]}>
-												${Math.abs(runningBalance).toFixed(2)}
+												{summaryData.hasMixedCurrencies ? (
+													'Mixed'
+												) : (
+													`${getCurrencySymbol(summaryData.primaryCurrency)}${Math.abs(runningBalance).toFixed(2)}`
+												)}
 											</Text>
 											<Text style={[styles.tableCellRight, { fontSize: 7, color: '#A0AEC0' }]}>
 												{runningBalance > 0 ? 'Outstanding' : runningBalance < 0 ? 'Credit' : 'Settled'}
