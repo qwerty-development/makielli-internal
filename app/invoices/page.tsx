@@ -252,6 +252,11 @@ const ValidationUtils = {
 		}
 
 		products.forEach((product, index) => {
+			if (!product || product === null || product === undefined) {
+				errors.push(`Product ${index + 1}: Invalid product data`)
+				return
+			}
+
 			if (!product.product_id) {
 				errors.push(`Product ${index + 1}: Missing product selection`)
 				return
@@ -852,6 +857,10 @@ const InvoicesPage: React.FC = () => {
 	) => {
 		const subtotal = invoiceProducts.reduce((total, invoiceProduct) => {
 			try {
+				if (!invoiceProduct || invoiceProduct === null || invoiceProduct === undefined) {
+					return total
+				}
+
 				const product = SafeDataAccess.getProduct(products, invoiceProduct.product_id)
 				if (!product) {
 					console.warn(`Product not found: ${invoiceProduct.product_id}`)
@@ -927,7 +936,7 @@ const InvoicesPage: React.FC = () => {
 
 		// Process original products (subtract their effect)
 		for (const product of originalProducts || []) {
-			if (!product.product_variant_id) continue
+			if (!product || product === null || product === undefined || !product.product_variant_id) continue
 			
 			let effectiveChange = isClientInvoice ? -product.quantity : product.quantity
 			if (originalIsReturn) {
@@ -948,7 +957,7 @@ const InvoicesPage: React.FC = () => {
 
 		// Process new products (add their effect)
 		for (const product of newProducts || []) {
-			if (!product.product_variant_id) continue
+			if (!product || product === null || product === undefined || !product.product_variant_id) continue
 			
 			let effectiveChange = isClientInvoice ? -product.quantity : product.quantity
 			if (newIsReturn) {
@@ -1162,6 +1171,8 @@ const InvoicesPage: React.FC = () => {
 		const isReturnInvoice = isClientInvoice ? isReturn : false
 
 		for (const product of products) {
+			if (!product || product === null || product === undefined || !product.product_variant_id) continue
+
 			try {
 				let quantityChange = isClientInvoice ? -product.quantity : product.quantity
 
@@ -1291,19 +1302,21 @@ const InvoicesPage: React.FC = () => {
 
 			const isReturn = invoiceData.type === 'return'
 			const quantityMultiplier = isReturn ? -1 : 1
-			
+
 			// Enhanced deletion tracking with new product history system
 			await Promise.all(
-				(invoiceData.products || []).map(
-					(product: { product_variant_id: any; quantity: number }) =>
-						productFunctions.updateProductVariantQuantity(
-							product.product_variant_id,
-							quantityMultiplier * product.quantity,
-							'adjustment',
-							id.toString(),
-							'Invoice deletion - inventory adjustment'
-						)
-				)
+				(invoiceData.products || [])
+					.filter((product: any) => product !== null && product !== undefined && product.product_variant_id)
+					.map(
+						(product: { product_variant_id: any; quantity: number }) =>
+							productFunctions.updateProductVariantQuantity(
+								product.product_variant_id,
+								quantityMultiplier * product.quantity,
+								'adjustment',
+								id.toString(),
+								'Invoice deletion - inventory adjustment'
+							)
+					)
 			)
 
 			const { error: deleteError } = await supabase
@@ -1355,7 +1368,7 @@ const InvoicesPage: React.FC = () => {
 
 			setOriginalInvoiceData({
 				...currentInvoice,
-				products: [...(currentInvoice.products || [])],
+				products: [...(currentInvoice.products || []).filter((p: any) => p !== null && p !== undefined)],
 				discounts: { ...(currentInvoice.discounts || {}) },
 				type: currentInvoice.type,
 				payment_info: currentInvoice.payment_info || 'frisson_llc',
@@ -1365,7 +1378,7 @@ const InvoicesPage: React.FC = () => {
 
 			const updatedInvoice = {
 				...currentInvoice,
-				products: [...(currentInvoice.products || [])],
+				products: [...(currentInvoice.products || []).filter((p: any) => p !== null && p !== undefined)],
 				discounts: { ...(currentInvoice.discounts || {}) },
 				type: currentInvoice.type || 'regular',
 				created_at: currentInvoice.created_at,
@@ -1598,7 +1611,9 @@ const InvoicesPage: React.FC = () => {
 				throw new Error('Recipient information not found')
 			}
 
-			const productsWithDetails = invoice.products?.map(product => {
+			const productsWithDetails = invoice.products?.filter((p: any) => p !== null && p !== undefined).map(product => {
+				if (!product) return null
+
 				const parentProduct = SafeDataAccess.getProduct(products, product.product_id)
 				const variant = SafeDataAccess.getVariant(parentProduct, product.product_variant_id)
 				
@@ -1720,6 +1735,11 @@ const InvoicesPage: React.FC = () => {
 			if (!newInvoice.products) return
 
 			const productToEdit = newInvoice.products[index]
+			if (!productToEdit) {
+				toast.error('Product not found')
+				return
+			}
+
 			const parentProduct = SafeDataAccess.getProduct(products, productToEdit.product_id)
 
 			if (parentProduct) {
@@ -2389,7 +2409,9 @@ const InvoicesPage: React.FC = () => {
 									</div>
 								)}
 
-								{newInvoice.products?.map((product, index) => {
+								{newInvoice.products?.filter(product => product !== null && product !== undefined).map((product, index) => {
+									if (!product) return null
+
 									const parentProduct = SafeDataAccess.getProduct(products, product.product_id)
 									const variant = SafeDataAccess.getVariant(parentProduct, product.product_variant_id)
 
@@ -2397,7 +2419,7 @@ const InvoicesPage: React.FC = () => {
 										<div key={index} className={`mb-2 p-2 border rounded ${!parentProduct || !variant ? 'bg-red-50 border-red-200' : ''}`}>
 											<div className='flex justify-between items-center mb-2'>
 												<span className='font-bold'>
-													{parentProduct?.name || `Product Not Found (${product.product_id})`}
+													{parentProduct?.name || `Product Not Found (${product?.product_id || 'N/A'})`}
 													{!parentProduct && <span className="text-red-500 text-xs ml-2">[DELETED]</span>}
 												</span>
 												<div className='space-x-2'>
@@ -2422,7 +2444,7 @@ const InvoicesPage: React.FC = () => {
 											<p>Quantity: {product.quantity || 0}</p>
 											<p>
 												Discount per item: $
-												{newInvoice.discounts?.[product.product_id]?.toFixed(2) || '0.00'}
+												{product?.product_id && newInvoice.discounts?.[product.product_id] ? newInvoice.discounts[product.product_id].toFixed(2) : '0.00'}
 											</p>
 											<p>Note: {product.note || '-'}</p>
 											{(!parentProduct || !variant) && (
@@ -2706,8 +2728,10 @@ const renderInvoiceDetails = () => {
 		const currency = selectedInvoice.currency || 'usd'
 		const currencySymbol = currency === 'euro' ? '€' : '$'
 
-		const subtotal = selectedInvoice.products?.reduce((total, product) => {
+		const subtotal = selectedInvoice.products?.filter((p: any) => p !== null && p !== undefined).reduce((total, product) => {
 			try {
+				if (!product) return total
+
 				const parentProduct = SafeDataAccess.getProduct(products, product.product_id)
 				if (!parentProduct) return total
 
@@ -2720,8 +2744,10 @@ const renderInvoiceDetails = () => {
 			}
 		}, 0) || 0
 
-		const totalDiscount = selectedInvoice.products?.reduce((total, product) => {
+		const totalDiscount = selectedInvoice.products?.filter((p: any) => p !== null && p !== undefined).reduce((total, product) => {
 			try {
+				if (!product || !product.product_id) return total
+
 				const discount = selectedInvoice.discounts?.[product.product_id] || 0
 				const lineDiscount = discount * product.quantity
 				return total + (isReturn ? -lineDiscount : lineDiscount)
@@ -2742,19 +2768,21 @@ const renderInvoiceDetails = () => {
 
 		// Enhanced product grouping with error handling
 		const productsByNameColor: any = {}
-		selectedInvoice.products?.forEach(product => {
+		selectedInvoice.products?.filter((p: any) => p !== null && p !== undefined).forEach(product => {
 			try {
+				if (!product) return
+
 				const parentProduct = SafeDataAccess.getProduct(products, product.product_id)
 				const variant = SafeDataAccess.getVariant(parentProduct, product.product_variant_id)
 
-				const productName = parentProduct?.name || `Product Not Found (${product.product_id})`
+				const productName = parentProduct?.name || `Product Not Found (${product?.product_id || 'N/A'})`
 				const variantColor = variant?.color || `Variant Not Found (${product.product_variant_id})`
 				const variantSize = variant?.size || 'Unknown Size'
 
 				const key = `${productName}-${variantColor}`
 				if (!productsByNameColor[key]) {
 					productsByNameColor[key] = {
-						product_id: parentProduct?.id || product.product_id,
+						product_id: parentProduct?.id || product?.product_id || 'unknown',
 						name: productName,
 						color: variantColor,
 						image: parentProduct?.photo || '',
@@ -2762,7 +2790,7 @@ const renderInvoiceDetails = () => {
 						sizes: {},
 						notes: new Set(),
 						totalQuantity: 0,
-						discount: selectedInvoice.discounts?.[parentProduct?.id || product.product_id] || 0,
+						discount: selectedInvoice.discounts?.[parentProduct?.id || product?.product_id] || 0,
 						hasErrors: !parentProduct || !variant
 					}
 				}

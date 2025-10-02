@@ -304,15 +304,17 @@ export default function ClientDetailsPage({
 
       // Fetch product details for each invoice
       const productDetailsMap: {[invoiceId: number]: InvoiceProductWithDetails[]} = {}
-      
+
       for (const invoice of data || []) {
         if (invoice.products && Array.isArray(invoice.products)) {
-          const variantIds = invoice.products.map((p: InvoiceProduct) => p.product_variant_id)
-          
+          // Filter out null/undefined products before processing
+          const validProducts = invoice.products.filter((p: any) => p !== null && p !== undefined && p.product_variant_id)
+          const variantIds = validProducts.map((p: InvoiceProduct) => p.product_variant_id)
+
           try {
             const variantDetails = await productFunctions.getVariantsWithProductDetails(variantIds)
-            
-            productDetailsMap[invoice.id] = invoice.products.map((product: InvoiceProduct) => {
+
+            productDetailsMap[invoice.id] = validProducts.map((product: InvoiceProduct) => {
               const details = variantDetails.find(v => v.id === product.product_variant_id)
               return {
                 ...product,
@@ -321,7 +323,7 @@ export default function ClientDetailsPage({
             })
           } catch (productError) {
             console.error(`Error fetching product details for invoice ${invoice.id}:`, productError)
-            productDetailsMap[invoice.id] = invoice.products
+            productDetailsMap[invoice.id] = validProducts
           }
         }
       }
@@ -1195,12 +1197,12 @@ export default function ClientDetailsPage({
                       <div className="px-4 py-3 border-b border-gray-200">
                         <h4 className="text-lg font-semibold text-gray-900 flex items-center">
                           <FaBox className="mr-2 text-blue" />
-                          Products ({(invoiceProductDetails[selectedInvoice.id] || selectedInvoice.products).length})
+                          Products ({(invoiceProductDetails[selectedInvoice.id] || selectedInvoice.products).filter((p: any) => p !== null && p !== undefined).length})
                         </h4>
                       </div>
                       <div className="p-4">
                         <div className='space-y-4 max-h-96 overflow-y-auto'>
-                          {(invoiceProductDetails[selectedInvoice.id] || selectedInvoice.products).map((product, index) => {
+                          {(invoiceProductDetails[selectedInvoice.id] || selectedInvoice.products).filter((p: any) => p !== null && p !== undefined).map((product, index) => {
                             const productWithDetails = product as InvoiceProductWithDetails
                             return (
                               <div key={index} className='bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow'>
@@ -1368,7 +1370,7 @@ export default function ClientDetailsPage({
                       Products:
                     </h4>
                     <ul className='list-disc list-inside'>
-                      {selectedQuotation.products.map((product, index) => (
+                      {selectedQuotation.products.filter((p: any) => p !== null && p !== undefined).map((product, index) => (
                         <li key={index} className='text-sm text-neutral-500'>
                           <div>
                             ID: {product.product_variant_id}, Quantity:{' '}

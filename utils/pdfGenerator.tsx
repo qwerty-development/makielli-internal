@@ -630,8 +630,8 @@ export const generatePDF = async (
     const productMap = new Map();
 
     const validProducts = data.products.filter(
-      (product: { product_variant_id: string }) =>
-        product.product_variant_id && product.product_variant_id.trim() !== ""
+      (product: any) =>
+        product !== null && product !== undefined && product.product_variant_id && product.product_variant_id.trim() !== ""
     );
 
 await Promise.all(
@@ -769,9 +769,11 @@ await Promise.all(
       
       // Process shipped products with pricing information
       const shippedProducts = await Promise.all(
-        (shippingInvoice.products || []).map(async (product: any) => {
-          try {
-            const details = await fetchProductDetails(product.product_variant_id)
+        (shippingInvoice.products || [])
+          .filter((product: any) => product !== null && product !== undefined && product.product_variant_id)
+          .map(async (product: any) => {
+            try {
+              const details = await fetchProductDetails(product.product_variant_id)
             
             // Find pricing information from original invoice
             let unitPrice = 0
