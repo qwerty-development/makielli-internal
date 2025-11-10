@@ -333,20 +333,18 @@ export const shippingInvoiceFunctions = {
 
       if (error) throw error
 
-      // If cancelled, update the invoice shipping status
-      if (status === 'cancelled') {
-        const { data: shippingInvoice, error: fetchError } = await supabase
-          .from(table)
-          .select('invoice_id')
-          .eq('id', shippingInvoiceId)
-          .single()
+      // Always update the invoice shipping status when shipping invoice status changes
+      const { data: shippingInvoice, error: fetchError } = await supabase
+        .from(table)
+        .select('invoice_id')
+        .eq('id', shippingInvoiceId)
+        .single()
 
-        if (!fetchError && shippingInvoice) {
-          await shippingInvoiceFunctions.updateInvoiceShippingStatus(
-            shippingInvoice.invoice_id,
-            isClient
-          )
-        }
+      if (!fetchError && shippingInvoice) {
+        await shippingInvoiceFunctions.updateInvoiceShippingStatus(
+          shippingInvoice.invoice_id,
+          isClient
+        )
       }
     } catch (error) {
       console.error('Error updating shipping invoice status:', error)

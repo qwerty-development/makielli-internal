@@ -539,17 +539,23 @@ const QuotationsPage: React.FC = () => {
       const subtotal = quotationProducts.reduce((total, quotationProduct) => {
         try {
           if (!quotationProduct || !quotationProduct.product_id) return total
-          
+
+          // Skip products with empty variant_id (invalid/incomplete products)
+          if (!quotationProduct.product_variant_id || quotationProduct.product_variant_id.trim() === '') {
+            console.log(`Skipping product with empty variant_id: ${quotationProduct.product_id}`)
+            return total
+          }
+
           const parentProduct = findProductSafely(quotationProduct.product_id)
           if (!parentProduct || typeof parentProduct.price !== 'number') {
             return total
           }
-          
+
           const unitPrice = parentProduct.price
           const discount = discounts[quotationProduct.product_id] || 0
           const discountedPrice = Math.max(0, unitPrice - discount)
           const quantity = quotationProduct.quantity || 0
-          
+
           return total + discountedPrice * quantity
         } catch (error) {
           console.error('Error calculating product total:', error)
@@ -596,27 +602,27 @@ const QuotationsPage: React.FC = () => {
     try {
       const product = findProductSafely(productId)
       const maxDiscount = product?.price || 0
-      
+
       if (discount < 0) discount = 0
       if (maxDiscount && discount > maxDiscount) discount = maxDiscount
-      
-      setNewQuotation(prev => ({
-        ...prev,
-        discounts: { ...prev.discounts, [productId]: discount }
-      }))
-      
-      const { totalPrice, vatAmount } = calculateTotalPrice(
-        newQuotation.products || [],
-        { ...newQuotation.discounts, [productId]: discount },
-        newQuotation.include_vat || false,
-        newQuotation.shipping_fee || 0
-      )
-      
-      setNewQuotation(prev => ({
-        ...prev,
-        total_price: totalPrice,
-        vat_amount: vatAmount
-      }))
+
+      // Use functional update to avoid race conditions - update discount and recalculate total in one operation
+      setNewQuotation(prev => {
+        const updatedDiscounts = { ...prev.discounts, [productId]: discount }
+        const { totalPrice, vatAmount } = calculateTotalPrice(
+          prev.products || [],
+          updatedDiscounts,
+          prev.include_vat || false,
+          prev.shipping_fee || 0
+        )
+
+        return {
+          ...prev,
+          discounts: updatedDiscounts,
+          total_price: totalPrice,
+          vat_amount: vatAmount
+        }
+      })
     } catch (error) {
       console.error('Error handling discount change:', error)
       toast.error('Failed to update discount')
@@ -916,9 +922,17 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
         throw new Error('Please add at least one product')
       }
 
+      // Validate that all products have a valid variant selected
+      const invalidProducts = newQuotation.products.filter(
+        (product: QuotationProduct) => !product.product_variant_id || product.product_variant_id.trim() === ''
+      )
+      if (invalidProducts.length > 0) {
+        throw new Error('Please select a variant for all products before saving')
+      }
+
       const shippingFee = Number(newQuotation.shipping_fee) || 0;
 
-      const { subtotal, vatAmount, totalPrice } = calculateTotalPrice(
+      const { vatAmount, totalPrice } = calculateTotalPrice(
         newQuotation.products || [],
         newQuotation.discounts || {},
         newQuotation.include_vat || false,
@@ -1076,12 +1090,22 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
         return
       }
 
+      // Recalculate total based on current product prices to ensure accuracy
+      const { totalPrice, vatAmount } = calculateTotalPrice(
+        quotation.products || [],
+        quotation.discounts || {},
+        quotation.include_vat || false,
+        quotation.shipping_fee || 0
+      )
+
       setNewQuotation({
         ...quotation,
         shipping_fee: quotation.shipping_fee || 0,
         products: quotation.products || [],
         discounts: quotation.discounts || {},
-        payment_info: quotation.payment_info || 'frisson_llc'
+        payment_info: quotation.payment_info || 'frisson_llc',
+        total_price: totalPrice,
+        vat_amount: vatAmount
       })
       setShowModal(true)
     } catch (error) {
@@ -1163,18 +1187,21 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
           updatedProducts = [...updatedProducts, ...selectedVariants]
         }
         
-        const { totalPrice, vatAmount } = calculateTotalPrice(
-          updatedProducts,
-          newQuotation.discounts || {},
-          newQuotation.include_vat || false,
-          newQuotation.shipping_fee || 0
-        )
-        
-        setNewQuotation({
-          ...newQuotation,
-          products: updatedProducts,
-          total_price: totalPrice,
-          vat_amount: vatAmount
+        // Use functional update to avoid race conditions
+        setNewQuotation(prev => {
+          const { totalPrice, vatAmount } = calculateTotalPrice(
+            updatedProducts,
+            prev.discounts || {},
+            prev.include_vat || false,
+            prev.shipping_fee || 0
+          )
+
+          return {
+            ...prev,
+            products: updatedProducts,
+            total_price: totalPrice,
+            vat_amount: vatAmount
+          }
         })
         
         setSelectedProduct(null)
@@ -1688,18 +1715,22 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                                 className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
                                 onClick={() => {
                                   try {
-                                    const updatedProducts = newQuotation.products?.filter((_, i) => i !== index)
-                                    const { totalPrice, vatAmount } = calculateTotalPrice(
-                                      updatedProducts || [],
-                                      newQuotation.discounts || {},
-                                      newQuotation.include_vat || false,
-                                      newQuotation.shipping_fee || 0
-                                    )
-                                    setNewQuotation({
-                                      ...newQuotation,
-                                      products: updatedProducts,
-                                      total_price: totalPrice,
-                                      vat_amount: vatAmount
+                                    // Use functional update to avoid race conditions
+                                    setNewQuotation(prev => {
+                                      const updatedProducts = prev.products?.filter((_, i) => i !== index)
+                                      const { totalPrice, vatAmount } = calculateTotalPrice(
+                                        updatedProducts || [],
+                                        prev.discounts || {},
+                                        prev.include_vat || false,
+                                        prev.shipping_fee || 0
+                                      )
+
+                                      return {
+                                        ...prev,
+                                        products: updatedProducts,
+                                        total_price: totalPrice,
+                                        vat_amount: vatAmount
+                                      }
                                     })
                                   } catch (error) {
                                     console.error('Error removing product:', error)
@@ -1859,17 +1890,22 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                           try {
                             const includeVAT = e.target.checked
-                            const { totalPrice, vatAmount } = calculateTotalPrice(
-                              newQuotation.products || [],
-                              newQuotation.discounts || {},
-                              includeVAT,
-                              newQuotation.shipping_fee || 0
-                            )
-                            setNewQuotation({
-                              ...newQuotation,
-                              include_vat: includeVAT,
-                              vat_amount: vatAmount,
-                              total_price: totalPrice
+
+                            // Use functional update to avoid race conditions
+                            setNewQuotation(prev => {
+                              const { totalPrice, vatAmount } = calculateTotalPrice(
+                                prev.products || [],
+                                prev.discounts || {},
+                                includeVAT,
+                                prev.shipping_fee || 0
+                              )
+
+                              return {
+                                ...prev,
+                                include_vat: includeVAT,
+                                vat_amount: vatAmount,
+                                total_price: totalPrice
+                              }
                             })
                           } catch (error) {
                             console.error('Error handling VAT change:', error)

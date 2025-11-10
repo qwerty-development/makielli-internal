@@ -552,21 +552,37 @@ const QuotationPDF: React.FC<{
 
   const amountInWords = convertAmountToWords(safeQuotation.total_price || 0, currency)
 
+  // Calculate subtotal: (unitPrice * totalQuantity) for each product
   const subtotal = products.reduce((total: number, product: any) => {
     const unitPrice = product.unitPrice || 0
     const totalQuantity = product.totalQuantity || 0
     return total + unitPrice * totalQuantity
   }, 0)
 
+  // Calculate total discount: (discount per unit * totalQuantity) for each product
   const totalDiscount = products.reduce((total: number, product: any) => {
     const discount = (safeQuotation.discounts && safeQuotation.discounts[product.product_id]) || 0
     const totalQuantity = product.totalQuantity || 0
     return total + discount * totalQuantity
   }, 0)
 
+  // Calculate components for display
   const totalBeforeVAT = subtotal - totalDiscount
-  const vatAmount = safeQuotation.include_vat ? totalBeforeVAT * 0.11 : 0
+  const vatAmount = safeQuotation.include_vat ? (safeQuotation.vat_amount || totalBeforeVAT * 0.11) : 0
   const shippingFee = safeQuotation.shipping_fee || 0
+
+  // Use stored total_price as the source of truth, but calculate subtotal for display
+  // If total_price exists in database, back-calculate the subtotal from it
+  const storedTotal = safeQuotation.total_price || 0
+  const calculatedTotal = totalBeforeVAT + vatAmount + shippingFee
+
+  // If there's a significant difference between calculated and stored totals,
+  // use the stored total and back-calculate subtotal
+  const displaySubtotal = Math.abs(storedTotal - calculatedTotal) > 0.01
+    ? storedTotal - vatAmount - shippingFee + totalDiscount
+    : subtotal
+
+  const displayTotalBeforeVAT = displaySubtotal - totalDiscount
 
   return (
     <Document>
@@ -738,7 +754,7 @@ const QuotationPDF: React.FC<{
           <Text style={styles.subtotalLabel}>Subtotal:</Text>
           <Text style={styles.subtotalValue}>
             {currencySymbol}
-            {subtotal.toFixed(2)}
+            {displaySubtotal.toFixed(2)}
           </Text>
         </View>
 
@@ -759,7 +775,7 @@ const QuotationPDF: React.FC<{
             <Text style={styles.subtotalLabel}>Total After Discount:</Text>
             <Text style={styles.subtotalValue}>
               {currencySymbol}
-              {totalBeforeVAT.toFixed(2)}
+              {displayTotalBeforeVAT.toFixed(2)}
             </Text>
           </View>
         )}
@@ -781,7 +797,7 @@ const QuotationPDF: React.FC<{
             <Text style={styles.subtotalLabel}>Total After Discount + Shipping:</Text>
             <Text style={styles.subtotalValue}>
               {currencySymbol}
-              {(totalBeforeVAT + shippingFee).toFixed(2)}
+              {(displayTotalBeforeVAT + shippingFee).toFixed(2)}
             </Text>
           </View>
         )}

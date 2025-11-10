@@ -15,9 +15,18 @@
       "Bash(npm run build:*)",
       "Bash(npx tsc:*)",
       "Bash(npm run lint:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "mcp__supabase__execute_sql",
+      "Bash(npx ts-node:*)",
+      "Bash(npx tsx:*)",
+      "Bash(NEXT_PUBLIC_SUPABASE_URL=https://mzahpiboezkzqatgfnmo.supabase.co npx tsx:*)",
+      "mcp__supabase__list_tables"
     ],
     "deny": [],
     "ask": []
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
 }

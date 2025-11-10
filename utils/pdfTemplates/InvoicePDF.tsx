@@ -583,6 +583,7 @@ const InvoicePDF: React.FC<{
         currency
     )
 
+    // Calculate subtotal: (price * quantity) for each product
     const subtotal = products.reduce((total: number, product: any) => {
         const price = isClientInvoice
             ? product.unitPrice || 0
@@ -592,6 +593,7 @@ const InvoicePDF: React.FC<{
         return total + (isReturn ? -lineTotal : lineTotal)
     }, 0)
 
+    // Calculate total discount: (discount per unit * quantity) for each product
     const totalDiscount = products.reduce((total: number, product: any) => {
         const discount = safeInvoice.discounts?.[product.product_id] || 0
         const quantity = product.totalQuantity || 0
@@ -599,9 +601,23 @@ const InvoicePDF: React.FC<{
         return total + (isReturn ? -lineDiscount : lineDiscount)
     }, 0)
 
+    // Calculate components for display
     const totalBeforeVAT = subtotal - totalDiscount
-    const vatAmount = safeInvoice.include_vat ? totalBeforeVAT * 0.11 : 0
+    const vatAmount = safeInvoice.include_vat ? (safeInvoice.vat_amount || totalBeforeVAT * 0.11) : 0
     const shippingFee = safeInvoice.shipping_fee || 0
+
+    // Use stored total_price as the source of truth, but calculate subtotal for display
+    // If total_price exists in database, back-calculate the subtotal from it
+    const storedTotal = Math.abs(safeInvoice.total_price || 0)
+    const calculatedTotal = Math.abs(totalBeforeVAT + vatAmount + shippingFee)
+
+    // If there's a significant difference between calculated and stored totals,
+    // use the stored total and back-calculate subtotal
+    const displaySubtotal = Math.abs(storedTotal - calculatedTotal) > 0.01
+        ? storedTotal - vatAmount - shippingFee + totalDiscount
+        : subtotal
+
+    const displayTotalBeforeVAT = displaySubtotal - totalDiscount
 
     return (
         <Document>
@@ -797,7 +813,7 @@ const InvoicePDF: React.FC<{
                     <Text style={styles.subtotalLabel}>Subtotal:</Text>
                     <Text style={styles.subtotalValue}>
                         {currencySymbol}
-                        {Math.abs(subtotal).toFixed(2)}
+                        {Math.abs(displaySubtotal).toFixed(2)}
                         {isReturn && ' (Return)'}
                     </Text>
                 </View>
@@ -820,7 +836,7 @@ const InvoicePDF: React.FC<{
                         <Text style={styles.subtotalLabel}>Total After Discount:</Text>
                         <Text style={styles.subtotalValue}>
                             {currencySymbol}
-                            {Math.abs(totalBeforeVAT).toFixed(2)}
+                            {Math.abs(displayTotalBeforeVAT).toFixed(2)}
                             {isReturn && ' (Return)'}
                         </Text>
                     </View>
@@ -844,7 +860,7 @@ const InvoicePDF: React.FC<{
                         <Text style={styles.subtotalLabel}>Total After Discount + Shipping:</Text>
                         <Text style={styles.subtotalValue}>
                             {currencySymbol}
-                            {Math.abs(totalBeforeVAT + shippingFee).toFixed(2)}
+                            {Math.abs(displayTotalBeforeVAT + shippingFee).toFixed(2)}
                             {isReturn && ' (Return)'}
                         </Text>
                     </View>

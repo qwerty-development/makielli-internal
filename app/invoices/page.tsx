@@ -861,6 +861,12 @@ const InvoicesPage: React.FC = () => {
 					return total
 				}
 
+				// Skip products with empty variant_id (invalid/incomplete products)
+				if (!invoiceProduct.product_variant_id || invoiceProduct.product_variant_id.trim() === '') {
+					console.log(`Skipping product with empty variant_id: ${invoiceProduct.product_id}`)
+					return total
+				}
+
 				const product = SafeDataAccess.getProduct(products, invoiceProduct.product_id)
 				if (!product) {
 					console.warn(`Product not found: ${invoiceProduct.product_id}`)
@@ -1511,24 +1517,26 @@ const InvoicesPage: React.FC = () => {
 			if (discount < 0) discount = 0
 			if (maxDiscount && discount > maxDiscount) discount = maxDiscount
 
-			setNewInvoice(prev => ({
-				...prev,
-				discounts: { ...prev.discounts, [productId]: discount }
-			}))
-
 			const isClientInvoice = activeTab === 'client'
-			const { totalPrice, vatAmount } = calculateTotalPrice(
-				newInvoice.products || [],
-				{ ...newInvoice.discounts, [productId]: discount },
-				isClientInvoice,
-				newInvoice.include_vat || false,
-				newInvoice.shipping_fee || 0
-			)
-			setNewInvoice(prev => ({
-				...prev,
-				total_price: totalPrice,
-				vat_amount: vatAmount
-			}))
+
+			// Use functional update to avoid race conditions
+			setNewInvoice(prev => {
+				const updatedDiscounts = { ...prev.discounts, [productId]: discount }
+				const { totalPrice, vatAmount } = calculateTotalPrice(
+					prev.products || [],
+					updatedDiscounts,
+					isClientInvoice,
+					prev.include_vat || false,
+					prev.shipping_fee || 0
+				)
+
+				return {
+					...prev,
+					discounts: updatedDiscounts,
+					total_price: totalPrice,
+					vat_amount: vatAmount
+				}
+			})
 		} catch (error) {
 			console.error('Error updating discount:', error)
 			toast.error('Failed to update discount. Please try again.')
@@ -1572,20 +1580,25 @@ const InvoicesPage: React.FC = () => {
 
 	const handleRemoveProduct = (index: number) => {
 		try {
-			const updatedProducts = newInvoice.products?.filter((_, i) => i !== index)
 			const isClientInvoice = activeTab === 'client'
-			const { totalPrice, vatAmount } = calculateTotalPrice(
-				updatedProducts || [],
-				newInvoice.discounts || {},
-				isClientInvoice,
-				newInvoice.include_vat || false,
-				newInvoice.shipping_fee || 0
-			)
-			setNewInvoice({
-				...newInvoice,
-				products: updatedProducts,
-				total_price: totalPrice,
-				vat_amount: vatAmount
+
+			// Use functional update to avoid race conditions
+			setNewInvoice(prev => {
+				const updatedProducts = prev.products?.filter((_, i) => i !== index)
+				const { totalPrice, vatAmount } = calculateTotalPrice(
+					updatedProducts || [],
+					prev.discounts || {},
+					isClientInvoice,
+					prev.include_vat || false,
+					prev.shipping_fee || 0
+				)
+
+				return {
+					...prev,
+					products: updatedProducts,
+					total_price: totalPrice,
+					vat_amount: vatAmount
+				}
 			})
 		} catch (error) {
 			console.error('Error removing product:', error)
@@ -1768,28 +1781,32 @@ const InvoicesPage: React.FC = () => {
 					return
 				}
 
-				let updatedProducts = [...(newInvoice.products || [])]
-
-				if (editingProductIndex !== null) {
-					updatedProducts[editingProductIndex] = selectedVariants[0]
-				} else {
-					updatedProducts = [...updatedProducts, ...selectedVariants]
-				}
-
 				const isClientInvoice = activeTab === 'client'
-				const { totalPrice, vatAmount } = calculateTotalPrice(
-					updatedProducts,
-					newInvoice.discounts || {},
-					isClientInvoice,
-					newInvoice.include_vat || false,
-					newInvoice.shipping_fee || 0
-				)
 
-				setNewInvoice({
-					...newInvoice,
-					products: updatedProducts,
-					total_price: totalPrice,
-					vat_amount: vatAmount
+				// Use functional update to avoid race conditions
+				setNewInvoice(prev => {
+					let updatedProducts = [...(prev.products || [])]
+
+					if (editingProductIndex !== null) {
+						updatedProducts[editingProductIndex] = selectedVariants[0]
+					} else {
+						updatedProducts = [...updatedProducts, ...selectedVariants]
+					}
+
+					const { totalPrice, vatAmount } = calculateTotalPrice(
+						updatedProducts,
+						prev.discounts || {},
+						isClientInvoice,
+						prev.include_vat || false,
+						prev.shipping_fee || 0
+					)
+
+					return {
+						...prev,
+						products: updatedProducts,
+						total_price: totalPrice,
+						vat_amount: vatAmount
+					}
 				})
 
 				setSelectedProduct(null)
@@ -2582,18 +2599,23 @@ const InvoicesPage: React.FC = () => {
 										checked={newInvoice.include_vat}
 										onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
 											const includeVAT = e.target.checked
-											const { totalPrice, vatAmount } = calculateTotalPrice(
-												newInvoice.products || [],
-												newInvoice.discounts || {},
-												activeTab === 'client',
-												includeVAT,
-												newInvoice.shipping_fee || 0
-											)
-											setNewInvoice({
-												...newInvoice,
-												include_vat: includeVAT,
-												vat_amount: vatAmount,
-												total_price: totalPrice
+
+											// Use functional update to avoid race conditions
+											setNewInvoice(prev => {
+												const { totalPrice, vatAmount } = calculateTotalPrice(
+													prev.products || [],
+													prev.discounts || {},
+													activeTab === 'client',
+													includeVAT,
+													prev.shipping_fee || 0
+												)
+
+												return {
+													...prev,
+													include_vat: includeVAT,
+													vat_amount: vatAmount,
+													total_price: totalPrice
+												}
 											})
 										}}
 										className='form-checkbox h-5 w-5 text-blue'

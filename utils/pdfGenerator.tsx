@@ -629,13 +629,20 @@ export const generatePDF = async (
  if (type === 'invoice' || type === 'quotation') {
     const productMap = new Map();
 
-    const validProducts = data.products.filter(
+    // Split products into those with valid variant IDs and those without
+    const productsWithVariants = data.products.filter(
       (product: any) =>
         product !== null && product !== undefined && product.product_variant_id && product.product_variant_id.trim() !== ""
     );
 
-await Promise.all(
-      validProducts.map(async (product: any) => {
+    const productsWithoutVariants = data.products.filter(
+      (product: any) =>
+        product !== null && product !== undefined && (!product.product_variant_id || product.product_variant_id.trim() === "")
+    );
+
+    // Process products with valid variant IDs
+    await Promise.all(
+      productsWithVariants.map(async (product: any) => {
         const details = await fetchProductDetails(product.product_variant_id);
         const key = `${details.name}-${details.color}`;
 
@@ -664,6 +671,55 @@ await Promise.all(
           existingProduct.notes.add(product.note);
         }
         productMap.set(key, existingProduct);
+      })
+    );
+
+    // Handle products without variant IDs by fetching product-level data
+    await Promise.all(
+      productsWithoutVariants.map(async (product: any) => {
+        try {
+          const { data: productData, error } = await supabase
+            .from('Products')
+            .select('id, name, photo, price, cost')
+            .eq('id', product.product_id)
+            .single()
+
+          if (error || !productData) {
+            console.error(`Error fetching product ${product.product_id}:`, error)
+            return
+          }
+
+          // Create a key for products without variants using product name and "N/A" for color
+          const key = `${productData.name}-NO_VARIANT`
+
+          if (!productMap.has(key)) {
+            productMap.set(key, {
+              id: null,
+              product_id: productData.id,
+              name: productData.name,
+              image: productData.photo,
+              unitPrice: productData.price,
+              unitCost: productData.cost,
+              color: 'N/A',
+              size: 'N/A',
+              quantity: 0,
+              sizes: {},
+              totalQuantity: 0,
+              notes: new Set(),
+              discount: data.discounts?.[productData.id] || 0
+            })
+          }
+
+          const existingProduct = productMap.get(key)
+          existingProduct.sizes['N/A'] = (existingProduct.sizes['N/A'] || 0) + product.quantity
+          existingProduct.totalQuantity += product.quantity
+          if (product.note) {
+            existingProduct.notes.add(product.note)
+          }
+          productMap.set(key, existingProduct)
+        } catch (error) {
+          console.error(`Error processing product without variant ${product.product_id}:`, error)
+        }
       })
     );
 
