@@ -76,76 +76,118 @@ export default function GroupDetailsPage({ params }: { params: { groupId: string
   };
 
   if (isLoading) {
-    return <div className="text-center py-10">Loading...</div>;
+    return (
+      <div className='flex items-center justify-center min-h-screen'>
+        <div className='text-center'>
+          <div className='inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mb-4'></div>
+          <p className='text-neutral-600 font-medium'>Loading group...</p>
+        </div>
+      </div>
+    )
   }
 
 
 
   return (
-    <div className="p-8">
-      <div className="flex justify-between items-center mb-6">
-        {isEditing ? (
-          <div className="flex items-center">
-            <input
-              type="text"
-              value={editedGroupName}
-              onChange={(e) => setEditedGroupName(e.target.value)}
-              className="border rounded px-2 py-1 mr-2"
-            />
-            <button
-              onClick={handleSaveEdit}
-              className="bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded mr-2"
-            >
-              Save
-            </button>
-            <button
-              onClick={handleCancelEdit}
-              className="bg-neutral-500 hover:bg-neutral-700 text-white font-bold py-1 px-2 rounded"
-            >
-              Cancel
-            </button>
+    <div className="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 p-6 sm:p-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-8 animate-fade-in">
+          <div className="flex items-center justify-between mb-4">
+            <Link href='/clients' className='btn-ghost mb-4'>
+              ← Back to Client Groups
+            </Link>
+          </div>
+
+          {isEditing ? (
+            <div className="card p-6">
+              <h2 className="text-xl font-bold text-neutral-800 mb-4">Edit Group Name</h2>
+              <div className="flex gap-3 items-end">
+                <div className="flex-1">
+                  <label className='block text-sm font-medium text-neutral-700 mb-2'>
+                    Group Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={editedGroupName}
+                    onChange={(e) => setEditedGroupName(e.target.value)}
+                    className="input"
+                    placeholder="Enter group name"
+                  />
+                </div>
+                <button
+                  onClick={handleSaveEdit}
+                  className="btn-success"
+                >
+                  Save Changes
+                </button>
+                <button
+                  onClick={handleCancelEdit}
+                  className="btn-ghost"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-4xl font-bold text-neutral-800 mb-2">{group?.name}</h1>
+                <p className="text-neutral-600">{clients.length} clients in this group</p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleEdit}
+                  className="btn-outline"
+                >
+                  Edit Group
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="btn-danger"
+                >
+                  Delete Group
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {clients.length === 0 ? (
+          <div className='empty-state'>
+            <div className='inline-flex items-center justify-center w-20 h-20 rounded-full bg-neutral-100 text-neutral-400 mb-4'>
+              <svg className='w-10 h-10' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' />
+              </svg>
+            </div>
+            <h3 className='text-xl font-semibold text-neutral-800 mb-2'>No clients in this group</h3>
+            <p className='text-neutral-600'>Add clients to this group from the main clients page</p>
           </div>
         ) : (
-          <h1 className="text-3xl font-bold">{group?.name} Clients</h1>
-        )}
-        <div>
-          {!isEditing && (
-            <button
-              onClick={handleEdit}
-              className="bg-blue hover:bg-indigo-700 text-white font-bold  px-4 rounded mr-2"
-            >
-              Edit Group
-            </button>
-          )}
-          <button
-            onClick={handleDelete}
-            className="bg-red-600 hover:bg-red-700 text-white font-bold  px-4 rounded"
-          >
-            Delete Group
-          </button>
-        </div>
-      </div>
-      <div className="bg-gray  rounded-lg overflow-hidden">
-        <ul className="divide-y divide-white">
-          {clients.map((client) => (
-            <li key={client.client_id}>
-              <Link href={`/clients/details/${client.client_id}`}>
-                <div className="block hover:bg-neutral-50 p-4">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-l font-medium text-white truncate">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {clients.map((client) => (
+              <Link key={client.client_id} href={`/clients/details/${client.client_id}`}>
+                <div className="card-hover p-6 group cursor-pointer">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-neutral-800 group-hover:text-primary-600 transition-colors duration-300 mb-1">
                         {client.name}
-                      </p>
-                      <p className="text-sm text-white truncate">
-                        {client.email}
-                      </p>
+                      </h3>
                     </div>
+                    <svg className='w-5 h-5 text-neutral-400 group-hover:text-primary-500 group-hover:translate-x-1 transition-all duration-300' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                      <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M9 5l7 7-7 7' />
+                    </svg>
+                  </div>
+                  <div className="flex items-center text-sm text-neutral-600">
+                    <svg className='w-4 h-4 mr-2 text-neutral-400' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                      <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' />
+                    </svg>
+                    <span className="truncate">{client.email}</span>
                   </div>
                 </div>
               </Link>
-            </li>
-          ))}
-        </ul>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
