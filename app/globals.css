@@ -24,16 +24,241 @@ body {
 			rgb(var(--background-end-rgb))
 		)
 		rgb(var(--background-start-rgb));
+	font-feature-settings: 'kern' 1, 'liga' 1;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 }
 
+/* Typography improvements */
+@layer base {
+	h1, h2, h3, h4, h5, h6 {
+		@apply font-bold tracking-tight;
+	}
+
+	h1 {
+		@apply text-4xl lg:text-5xl;
+	}
+
+	h2 {
+		@apply text-3xl lg:text-4xl;
+	}
+
+	h3 {
+		@apply text-2xl lg:text-3xl;
+	}
+
+	h4 {
+		@apply text-xl lg:text-2xl;
+	}
+
+	h5 {
+		@apply text-lg lg:text-xl;
+	}
+
+	h6 {
+		@apply text-base lg:text-lg;
+	}
+
+	p {
+		@apply leading-relaxed;
+	}
+
+	/* Link improvements */
+	a {
+		@apply transition-colors duration-200;
+	}
+
+	/* Form elements */
+	input, textarea, select {
+		@apply transition-all duration-200;
+	}
+
+	/* Remove default focus outline and add custom one */
+	*:focus {
+		@apply outline-none;
+	}
+
+	/* Better scrollbar */
+	::-webkit-scrollbar {
+		@apply w-2 h-2;
+	}
+
+	::-webkit-scrollbar-track {
+		@apply bg-neutral-100;
+	}
+
+	::-webkit-scrollbar-thumb {
+		@apply bg-neutral-400 rounded-full;
+	}
+
+	::-webkit-scrollbar-thumb:hover {
+		@apply bg-neutral-500;
+	}
+}
+
+/* Component utilities */
+@layer components {
+	/* Button base styles */
+	.btn {
+		@apply px-4 py-2 rounded-lg font-medium transition-all duration-200
+		       focus:outline-none focus:ring-2 focus:ring-offset-2
+		       disabled:opacity-50 disabled:cursor-not-allowed;
+	}
+
+	.btn-primary {
+		@apply btn bg-primary-500 text-white hover:bg-primary-600
+		       focus:ring-primary-500 active:scale-95;
+	}
+
+	.btn-secondary {
+		@apply btn bg-secondary-500 text-white hover:bg-secondary-600
+		       focus:ring-secondary-500 active:scale-95;
+	}
+
+	.btn-success {
+		@apply btn bg-success-500 text-white hover:bg-success-600
+		       focus:ring-success-500 active:scale-95;
+	}
+
+	.btn-danger {
+		@apply btn bg-error-500 text-white hover:bg-error-600
+		       focus:ring-error-500 active:scale-95;
+	}
+
+	.btn-outline {
+		@apply btn border-2 border-primary-500 text-primary-500
+		       hover:bg-primary-500 hover:text-white focus:ring-primary-500 active:scale-95;
+	}
+
+	.btn-ghost {
+		@apply btn hover:bg-neutral-100 text-neutral-700 active:scale-95;
+	}
+
+	/* Input styles */
+	.input {
+		@apply w-full px-4 py-2.5 border border-neutral-300 rounded-lg
+		       focus:border-primary-500 focus:ring-2 focus:ring-primary-200
+		       transition-all duration-200 bg-white;
+	}
+
+	.input-error {
+		@apply input border-error-500 focus:border-error-500 focus:ring-error-200;
+	}
+
+	/* Card styles */
+	.card {
+		@apply bg-white rounded-xl shadow-soft border border-neutral-200
+		       transition-all duration-300;
+	}
+
+	.card-hover {
+		@apply card hover:shadow-medium hover:-translate-y-1;
+	}
+
+	/* Badge styles */
+	.badge {
+		@apply inline-flex items-center px-3 py-1 rounded-full text-sm font-medium;
+	}
+
+	.badge-success {
+		@apply badge bg-success-100 text-success-700;
+	}
+
+	.badge-warning {
+		@apply badge bg-warning-100 text-warning-700;
+	}
+
+	.badge-error {
+		@apply badge bg-error-100 text-error-700;
+	}
+
+	.badge-info {
+		@apply badge bg-info-100 text-info-700;
+	}
+
+	.badge-neutral {
+		@apply badge bg-neutral-100 text-neutral-700;
+	}
+
+	/* Table styles */
+	.table {
+		@apply w-full border-collapse;
+	}
+
+	.table-header {
+		@apply bg-neutral-50 text-neutral-700 font-semibold text-sm uppercase tracking-wide;
+	}
+
+	.table-row {
+		@apply border-b border-neutral-200 hover:bg-neutral-50 transition-colors duration-150;
+	}
+
+	.table-cell {
+		@apply px-4 py-3 text-sm;
+	}
+
+	/* Modal styles */
+	.modal-overlay {
+		@apply fixed inset-0 bg-black bg-opacity-50 z-50
+		       flex items-center justify-center p-4
+		       animate-fade-in;
+	}
+
+	.modal-content {
+		@apply bg-white rounded-2xl shadow-strong max-w-2xl w-full
+		       max-h-[90vh] overflow-y-auto
+		       animate-scale-in;
+	}
+
+	/* Loading skeleton */
+	.skeleton {
+		@apply animate-pulse bg-neutral-200 rounded;
+	}
+
+	/* Empty state */
+	.empty-state {
+		@apply text-center py-12 px-4;
+	}
+}
+
+/* Utility classes */
 @layer utilities {
 	.text-balance {
 		text-wrap: balance;
 	}
+
+	/* Gradient text */
+	.gradient-text {
+		@apply bg-gradient-to-r from-primary-500 to-primary-700
+		       bg-clip-text text-transparent;
+	}
+
+	/* Smooth scrolling */
+	.smooth-scroll {
+		scroll-behavior: smooth;
+	}
+
+	/* Truncate text with ellipsis */
+	.truncate-2 {
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+
+	.truncate-3 {
+		display: -webkit-box;
+		-webkit-line-clamp: 3;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
 }
+
+/* Clerk authentication styling */
 .cl-footer {
 	display: none;
 }
+
 .cl-internal-4x6jej {
 	display: none;
 }
