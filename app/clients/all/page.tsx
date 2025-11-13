@@ -119,10 +119,10 @@ export default function AllClientsPage() {
 							onChange={e =>
 								setSelectedCompany(e.target.value ? Number(e.target.value) : '')
 							}
-							className='input sm:w-64'>
-							<option value=''>All Companies</option>
+							className='input sm:w-64 text-neutral-900'>
+							<option value='' className='text-neutral-900 bg-white'>All Companies</option>
 							{companies.map(company => (
-								<option key={company.id} value={company.id}>
+								<option key={company.id} value={company.id} className='text-neutral-900 bg-white'>
 									{company.name}
 								</option>
 							))}

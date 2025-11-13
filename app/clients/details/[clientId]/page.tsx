@@ -36,6 +36,27 @@ interface InvoiceProductWithDetails extends InvoiceProduct {
   }
 }
 
+interface QuotationProduct {
+  product_variant_id: string
+  quantity: number
+  note: string
+}
+
+interface QuotationProductWithDetails extends QuotationProduct {
+  variantDetails?: {
+    id: string
+    size: string
+    color: string
+    quantity: number
+    product: {
+      id: string
+      name: string
+      price: number
+      photo: string | null
+    }
+  }
+}
+
 interface Invoice {
   id: number
   created_at: string
@@ -105,6 +126,7 @@ export default function ClientDetailsPage({
   const [invoiceProductDetails, setInvoiceProductDetails] = useState<{[invoiceId: number]: InvoiceProductWithDetails[]}>({})
   const [receipts, setReceipts] = useState<Receipt[]>([])
   const [quotations, setQuotations] = useState<Quotation[]>([])
+  const [quotationProductDetails, setQuotationProductDetails] = useState<{[quotationId: number]: QuotationProductWithDetails[]}>({})
   const [activeTab, setActiveTab] = useState('details')
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
   const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null)
@@ -399,6 +421,34 @@ export default function ClientDetailsPage({
 
       if (error) throw error
       setQuotations(data || [])
+
+      // Fetch product details for each quotation
+      const productDetailsMap: {[quotationId: number]: QuotationProductWithDetails[]} = {}
+
+      for (const quotation of data || []) {
+        if (quotation.products && Array.isArray(quotation.products)) {
+          // Filter out null/undefined products before processing
+          const validProducts = quotation.products.filter((p: any) => p !== null && p !== undefined && p.product_variant_id)
+          const variantIds = validProducts.map((p: QuotationProduct) => p.product_variant_id)
+
+          try {
+            const variantDetails = await productFunctions.getVariantsWithProductDetails(variantIds)
+
+            productDetailsMap[quotation.id] = validProducts.map((product: QuotationProduct) => {
+              const details = variantDetails.find(v => v.id === product.product_variant_id)
+              return {
+                ...product,
+                variantDetails: details || undefined
+              }
+            })
+          } catch (productError) {
+            console.error(`Error fetching product details for quotation ${quotation.id}:`, productError)
+            productDetailsMap[quotation.id] = validProducts
+          }
+        }
+      }
+
+      setQuotationProductDetails(productDetailsMap)
     } catch (error:any) {
       console.error('Error fetching quotations:', error)
       toast.error('Failed to fetch orders. Please try again later.'+ error.message)
@@ -1125,7 +1175,7 @@ export default function ClientDetailsPage({
           {selectedInvoice && (
             <div className='modal-overlay' onClick={() => setSelectedInvoice(null)}>
               <div className='modal-content max-w-5xl' onClick={e => e.stopPropagation()}>
-                <div className='flex justify-between items-start mb-6'>
+                <div className='flex justify-between items-start mb-6 px-2'>
                   <div>
                     <h3 className='text-2xl font-bold text-neutral-900 flex items-center'>
                       <FaFileInvoice className="mr-3 text-primary-500" />
@@ -1133,8 +1183,8 @@ export default function ClientDetailsPage({
                     </h3>
                     <div className="flex items-center mt-2 space-x-4">
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        selectedInvoice.type === 'return' 
-                          ? 'bg-error-100 text-error-800' 
+                        selectedInvoice.type === 'return'
+                          ? 'bg-error-100 text-error-800'
                           : 'bg-success-100 text-success-800'
                       }`}>
                         {selectedInvoice.type === 'return' ? 'Return Invoice' : 'Regular Invoice'}
@@ -1144,7 +1194,7 @@ export default function ClientDetailsPage({
                   </div>
                   <button
                     onClick={() => setSelectedInvoice(null)}
-                    className='text-neutral-400 hover:text-neutral-600 transition-colors'>
+                    className='p-2 rounded-lg hover:bg-neutral-100 transition-colors text-neutral-500 hover:text-neutral-700'>
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
                     </svg>
@@ -1335,86 +1385,171 @@ export default function ClientDetailsPage({
           {/* Quotation details modal */}
           {selectedQuotation && (
             <div className='modal-overlay' onClick={() => setSelectedQuotation(null)}>
-              <div className='modal-content max-w-2xl' onClick={e => e.stopPropagation()}>
-                <div className='mt-3 text-center'>
-                  <h3 className='text-lg leading-6 font-medium text-neutral-900'>
-                    Order Details
-                  </h3>
-                  <div className='mt-2 px-7 py-3'>
-                    <p className='text-sm text-neutral-500'>
-                      ID: {selectedQuotation.id}
-                    </p>
-                    <p className='text-sm text-neutral-500'>
-                      Date:{' '}
-                      {format(new Date(selectedQuotation.created_at), 'PPP')}
-                    </p>
-                    <p className='text-sm text-neutral-500'>
-                      Total Price: {getCurrencySymbol(selectedQuotation.currency)}{selectedQuotation.total_price.toFixed(2)}
-                    </p>
-                    <p className='text-sm text-neutral-500'>
-                      Currency: {(selectedQuotation.currency || 'usd').toUpperCase()}
-                    </p>
-                    <p className='text-sm text-neutral-500'>
-                      Status:{' '}
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs ${
-                          selectedQuotation.status === 'pending'
-                            ? 'bg-warning-200 text-warning-800'
-                            : selectedQuotation.status === 'accepted'
-                            ? 'bg-success-200 text-success-800'
-                            : 'bg-error-200 text-error-800'
-                        }`}>
-                        {selectedQuotation.status}
+              <div className='modal-content max-w-5xl' onClick={e => e.stopPropagation()}>
+                <div className='flex justify-between items-start mb-6 px-2'>
+                  <div>
+                    <h3 className='text-2xl font-bold text-neutral-900 flex items-center'>
+                      <FaShippingFast className="mr-3 text-primary-500" />
+                      Order #{selectedQuotation.id}
+                    </h3>
+                    <div className="flex items-center mt-2 space-x-4">
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        selectedQuotation.status === 'pending'
+                          ? 'bg-warning-200 text-warning-800'
+                          : selectedQuotation.status === 'accepted'
+                          ? 'bg-success-200 text-success-800'
+                          : 'bg-error-200 text-error-800'
+                      }`}>
+                        {selectedQuotation.status.charAt(0).toUpperCase() + selectedQuotation.status.slice(1)}
                       </span>
-                    </p>
-                    <p className='text-sm text-neutral-500'>
-                      Order Number: {selectedQuotation.order_number}
-                    </p>
-                    {selectedQuotation.note && (
-                      <p className='text-sm text-neutral-500'>
-                        Note: {selectedQuotation.note}
-                      </p>
-                    )}
-                    <h4 className='text-sm font-medium text-neutral-900 mt-4'>
-                      Products:
-                    </h4>
-                    <ul className='list-disc list-inside'>
-                      {selectedQuotation.products.filter((p: any) => p !== null && p !== undefined).map((product, index) => (
-                        <li key={index} className='text-sm text-neutral-500'>
-                          <div>
-                            ID: {product.product_variant_id}, Quantity:{' '}
-                            {product.quantity}
-                          </div>
-                          {product.note && (
-                            <div className='ml-4 text-xs italic'>
-                              Note: {product.note}
-                            </div>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                    {selectedQuotation.payment_term && (
-                      <p className='text-sm text-neutral-500 mt-4'>
-                        Payment Terms: {selectedQuotation.payment_term}
-                      </p>
-                    )}
-                    {selectedQuotation.delivery_date && (
-                      <p className='text-sm text-neutral-500'>
-                        Delivery Date: {format(new Date(selectedQuotation.delivery_date), 'PPP')}
-                      </p>
-                    )}
-                    <button
-                      className='btn-primary mt-4'
-                      onClick={() => {
-                        generatePDF('quotation', selectedQuotation);
-                      }}>
-                      <FaDownload className='mr-2' /> Download PDF
-                    </button>
+                      {selectedQuotation.include_vat && (
+                        <span className="px-3 py-1 rounded-full text-sm font-medium bg-info-100 text-info-800">
+                          VAT Included
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className='items-center px-4 py-3'>
-                    <button className='btn-ghost w-full' onClick={() => setSelectedQuotation(null)}>
-                      Close
-                    </button>
+                  <button
+                    onClick={() => setSelectedQuotation(null)}
+                    className='p-2 rounded-lg hover:bg-neutral-100 transition-colors text-neutral-500 hover:text-neutral-700'>
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Order Summary */}
+                  <div className="lg:col-span-1">
+                    <div className="bg-neutral-50 rounded-lg p-4">
+                      <h4 className="text-lg font-semibold text-neutral-900 mb-4">Order Summary</h4>
+                      <div className="space-y-3">
+                        <div className="flex justify-between">
+                          <span className="text-neutral-600">Date:</span>
+                          <span className="font-medium">{format(new Date(selectedQuotation.created_at), 'PPP')}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-neutral-600">Order Number:</span>
+                          <span className="font-medium">{selectedQuotation.order_number || 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-neutral-600">Currency:</span>
+                          <span className="font-medium">{(selectedQuotation.currency || 'usd').toUpperCase()}</span>
+                        </div>
+                        {selectedQuotation.payment_term && (
+                          <div className="flex justify-between">
+                            <span className="text-neutral-600">Payment Terms:</span>
+                            <span className="font-medium text-sm">{selectedQuotation.payment_term}</span>
+                          </div>
+                        )}
+                        {selectedQuotation.delivery_date && (
+                          <div className="flex justify-between">
+                            <span className="text-neutral-600">Delivery Date:</span>
+                            <span className="font-medium">{format(new Date(selectedQuotation.delivery_date), 'PPP')}</span>
+                          </div>
+                        )}
+                        <hr className="border-neutral-200" />
+                        <div className="flex justify-between text-lg">
+                          <span className="text-neutral-600">Total:</span>
+                          <span className="font-bold text-success-600">
+                            {getCurrencySymbol(selectedQuotation.currency)}{selectedQuotation.total_price.toFixed(2)}
+                          </span>
+                        </div>
+                        {selectedQuotation.include_vat && selectedQuotation.vat_amount && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-neutral-600">VAT Amount:</span>
+                            <span className="font-medium text-neutral-700">
+                              {getCurrencySymbol(selectedQuotation.currency)}{selectedQuotation.vat_amount.toFixed(2)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        className='btn-primary w-full mt-4 flex items-center justify-center gap-2'
+                        onClick={() => {
+                          generatePDF('quotation', selectedQuotation);
+                        }}>
+                        <FaDownload /> Download PDF
+                      </button>
+                    </div>
+                    {selectedQuotation.note && (
+                      <div className="bg-info-50 border border-info-200 rounded-lg p-4 mt-4">
+                        <h4 className="text-sm font-semibold text-info-800 mb-2">Note</h4>
+                        <p className="text-sm text-info-700">{selectedQuotation.note}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Products */}
+                  <div className="lg:col-span-2">
+                    <div className="bg-white border border-neutral-200 rounded-lg">
+                      <div className="px-4 py-3 border-b border-neutral-200">
+                        <h4 className="text-lg font-semibold text-neutral-900 flex items-center">
+                          <FaBox className="mr-2 text-primary-500" />
+                          Products ({(quotationProductDetails[selectedQuotation.id] || selectedQuotation.products).filter((p: any) => p !== null && p !== undefined).length})
+                        </h4>
+                      </div>
+                      <div className="p-4">
+                        <div className='space-y-4 max-h-96 overflow-y-auto'>
+                          {(quotationProductDetails[selectedQuotation.id] || selectedQuotation.products).filter((p: any) => p !== null && p !== undefined).map((product, index) => {
+                            const productWithDetails = product as QuotationProductWithDetails
+                            return (
+                              <div key={index} className='bg-white border border-neutral-200 rounded-lg p-4 hover:shadow-md transition-shadow'>
+                                <div className='flex items-start space-x-4'>
+                                  {productWithDetails.variantDetails?.product.photo && (
+                                    <div className="flex-shrink-0">
+                                      <Image
+                                        src={productWithDetails.variantDetails.product.photo}
+                                        alt={productWithDetails.variantDetails.product.name}
+                                        width={80}
+                                        height={80}
+                                        className="rounded-lg object-cover border border-neutral-200"
+                                      />
+                                    </div>
+                                  )}
+                                  <div className='flex-grow'>
+                                    <div className='flex justify-between items-start'>
+                                      <div>
+                                        <h5 className='font-semibold text-neutral-900'>
+                                          {productWithDetails.variantDetails?.product.name || 'Product Not Found'}
+                                        </h5>
+                                        <div className='flex items-center gap-2 mt-1'>
+                                          {productWithDetails.variantDetails && (
+                                            <>
+                                              <span className='text-sm bg-neutral-100 px-2 py-1 rounded text-neutral-700'>
+                                                Size: {productWithDetails.variantDetails.size}
+                                              </span>
+                                              <span className='text-sm bg-neutral-100 px-2 py-1 rounded text-neutral-700'>
+                                                Color: {productWithDetails.variantDetails.color}
+                                              </span>
+                                            </>
+                                          )}
+                                        </div>
+                                        {productWithDetails.note && (
+                                          <p className='text-sm text-neutral-600 mt-2 italic'>
+                                            Note: {productWithDetails.note}
+                                          </p>
+                                        )}
+                                      </div>
+                                      <div className='text-right'>
+                                        <p className='text-lg font-bold text-neutral-900'>
+                                          Qty: {productWithDetails.quantity}
+                                        </p>
+                                        {productWithDetails.variantDetails && (
+                                          <p className='text-sm text-neutral-600'>
+                                            {getCurrencySymbol(selectedQuotation.currency)}{productWithDetails.variantDetails.product.price.toFixed(2)} each
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

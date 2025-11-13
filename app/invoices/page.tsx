@@ -2188,11 +2188,11 @@ const InvoicesPage: React.FC = () => {
 					setFilterQuotationLinked(e.target.value || null)
 					setCurrentPage(1)
 				}}
-				className='input min-w-[180px]'
+				className='input min-w-[180px] text-neutral-900'
 			>
-				<option value=''>All Sources</option>
-				<option value='linked'>From Quotation</option>
-				<option value='direct'>Direct Invoice</option>
+				<option value='' className='text-neutral-900 bg-white'>All Sources</option>
+				<option value='linked' className='text-neutral-900 bg-white'>From Quotation</option>
+				<option value='direct' className='text-neutral-900 bg-white'>Direct Invoice</option>
 			</select>
 		</div>
 	)
@@ -3162,7 +3162,7 @@ const renderInvoiceDetails = () => {
 
 	return (
 		<div className='min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 p-6 sm:p-8'>
-			<div className='max-w-7xl mx-auto'>
+			<div className='w-full'>
 				<div className='mb-8 animate-fade-in'>
 					<div className='flex items-center justify-between mb-4'>
 						<div>
