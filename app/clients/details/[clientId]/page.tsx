@@ -560,228 +560,234 @@ export default function ClientDetailsPage({
   }
 
   if (isLoading) {
-    return <div className='text-center py-10'>Loading...</div>
+    return (
+      <div className='flex items-center justify-center min-h-screen'>
+        <div className='text-center'>
+          <div className='inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mb-4'></div>
+          <p className='text-neutral-600 font-medium'>Loading client details...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className='p-8 bg-white text-black'>
-      <h1 className='text-3xl font-bold mb-6'>Client Details</h1>
-      <button
-        onClick={() =>
-          generatePDF('clientFinancialReport', {
-            clientId: client?.client_id,
-            clientName: client?.name
-          })
-        }
-        className='bg-blue hover:bg-black text-white font-bold py-2 px-4 rounded mr-2 mb-5'>
-        Download Financial Report
-      </button>
-      <button
-        onClick={() => router.push(`/clients/history/${client?.client_id}`)}
-        className='bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded mr-2 mb-5'>
-        View Product History
-      </button>
+    <div className='min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 p-6 sm:p-8'>
+      <div className='max-w-7xl mx-auto'>
+        <div className='mb-8 animate-fade-in'>
+          <div className='flex items-center justify-between mb-4'>
+            <div>
+              <h1 className='text-4xl font-bold text-neutral-800 mb-2'>Client Details</h1>
+              <p className='text-neutral-600'>Manage client information and view transaction history</p>
+            </div>
+            <div className='flex gap-3'>
+              <button
+                onClick={() =>
+                  generatePDF('clientFinancialReport', {
+                    clientId: client?.client_id,
+                    clientName: client?.name
+                  })
+                }
+                className='btn-primary flex items-center gap-2'>
+                <FaDownload />
+                Financial Report
+              </button>
+              <button
+                onClick={() => router.push(`/clients/history/${client?.client_id}`)}
+                className='btn-outline flex items-center gap-2'>
+                <FaHistory />
+                Product History
+              </button>
+            </div>
+          </div>
+        </div>
       {client && (
         <div>
-          <div className='mb-4'>
-            <button
-              onClick={() => setActiveTab('details')}
-              className={`mr-2 px-4 py-2 rounded ${
-                activeTab === 'details'
-                  ? 'bg-blue text-white'
-                  : 'bg-gray text-white'
-              }`}>
-              Details
-            </button>
-            <button
-              onClick={() => setActiveTab('invoices')}
-              className={`mr-2 px-4 py-2 rounded ${
-                activeTab === 'invoices'
-                  ? 'bg-blue text-white'
-                  : 'bg-gray text-white'
-              }`}>
-              Invoices
-            </button>
-            <button
-              onClick={() => setActiveTab('quotations')}
-              className={`mr-2 px-4 py-2 rounded ${
-                activeTab === 'quotations'
-                  ? 'bg-blue text-white'
-                  : 'bg-gray text-white'
-              }`}>
-              Orders
-            </button>
-            
+          <div className='card p-6 mb-6'>
+            <div className='flex flex-wrap gap-3'>
+              <button
+                onClick={() => setActiveTab('details')}
+                className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
+                  activeTab === 'details'
+                    ? 'bg-primary-500 text-white shadow-colored'
+                    : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                }`}>
+                Details
+              </button>
+              <button
+                onClick={() => setActiveTab('invoices')}
+                className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
+                  activeTab === 'invoices'
+                    ? 'bg-primary-500 text-white shadow-colored'
+                    : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                }`}>
+                Invoices
+              </button>
+              <button
+                onClick={() => setActiveTab('quotations')}
+                className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
+                  activeTab === 'quotations'
+                    ? 'bg-primary-500 text-white shadow-colored'
+                    : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                }`}>
+                Orders
+              </button>
+            </div>
           </div>
 
           {activeTab === 'details' && (
-            <div className='bg-gray text-white shadow rounded-lg p-6'>
+            <div className='card p-6'>
               {isEditing ? (
                 <form
                   onSubmit={e => {
                     e.preventDefault()
                     handleSaveEdit()
                   }}>
-                  <div className='mb-4'>
-                    <label
-                      className='block text-white text-sm font-bold mb-2'
-                      htmlFor='name'>
-                      Name
-                    </label>
-                    <input
-                      type='text'
-                      id='name'
-                      name='name'
-                      value={editedClient?.name || ''}
-                      onChange={handleInputChange}
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:shadow-outline'
-                    />
+                  <h2 className='text-2xl font-bold text-neutral-800 mb-6'>Edit Client Information</h2>
+                  <div className='grid grid-cols-1 md:grid-cols-2 gap-4 mb-6'>
+                    <div>
+                      <label className='block text-sm font-medium text-neutral-700 mb-2' htmlFor='name'>
+                        Name *
+                      </label>
+                      <input
+                        type='text'
+                        id='name'
+                        name='name'
+                        value={editedClient?.name || ''}
+                        onChange={handleInputChange}
+                        className='input'
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className='block text-sm font-medium text-neutral-700 mb-2' htmlFor='email'>
+                        Email *
+                      </label>
+                      <input
+                        type='email'
+                        id='email'
+                        name='email'
+                        value={editedClient?.email || ''}
+                        onChange={handleInputChange}
+                        className='input'
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className='block text-sm font-medium text-neutral-700 mb-2' htmlFor='phone'>
+                        Phone *
+                      </label>
+                      <input
+                        type='tel'
+                        id='phone'
+                        name='phone'
+                        value={editedClient?.phone || ''}
+                        onChange={handleInputChange}
+                        className='input'
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className='block text-sm font-medium text-neutral-700 mb-2' htmlFor='tax_number'>
+                        Tax Number *
+                      </label>
+                      <input
+                        type='text'
+                        id='tax_number'
+                        name='tax_number'
+                        value={editedClient?.tax_number || ''}
+                        onChange={handleInputChange}
+                        className='input'
+                        required
+                      />
+                    </div>
+                    <div className='md:col-span-2'>
+                      <label className='block text-sm font-medium text-neutral-700 mb-2' htmlFor='address'>
+                        Address *
+                      </label>
+                      <input
+                        type='text'
+                        id='address'
+                        name='address'
+                        value={editedClient?.address || ''}
+                        onChange={handleInputChange}
+                        className='input'
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className='block text-sm font-medium text-neutral-700 mb-2' htmlFor='company_id'>
+                        Company *
+                      </label>
+                      <select
+                        id='company_id'
+                        name='company_id'
+                        value={editedClient?.company_id || ''}
+                        onChange={handleInputChange}
+                        className='input'
+                        required>
+                        <option value=''>Select a company</option>
+                        {companies.map(company => (
+                          <option key={company.id} value={company.id}>
+                            {company.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                  <div className='mb-4'>
-                    <label
-                      className='block text-white text-sm font-bold mb-2'
-                      htmlFor='email'>
-                      Email
-                    </label>
-                    <input
-                      type='email'
-                      id='email'
-                      name='email'
-                      value={editedClient?.email || ''}
-                      onChange={handleInputChange}
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:shadow-outline'
-                    />
-                  </div>
-                  <div className='mb-4'>
-                    <label
-                      className='block text-white text-sm font-bold mb-2'
-                      htmlFor='phone'>
-                      Phone
-                    </label>
-                    <input
-                      type='tel'
-                      id='phone'
-                      name='phone'
-                      value={editedClient?.phone || ''}
-                      onChange={handleInputChange}
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:shadow-outline'
-                    />
-                  </div>
-                  <div className='mb-4'>
-                    <label
-                      className='block text-white text-sm font-bold mb-2'
-                      htmlFor='address'>
-                      Address
-                    </label>
-                    <input
-                      type='text'
-                      id='address'
-                      name='address'
-                      value={editedClient?.address || ''}
-                      onChange={handleInputChange}
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:shadow-outline'
-                    />
-                  </div>
-                  <div className='mb-4'>
-                    <label
-                      className='block text-white text-sm font-bold mb-2'
-                      htmlFor='tax_number'>
-                      Tax Number
-                    </label>
-                    <input
-                      type='text'
-                      id='tax_number'
-                      name='tax_number'
-                      value={editedClient?.tax_number || ''}
-                      onChange={handleInputChange}
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:shadow-outline'
-                    />
-                  </div>
-                  <div className='mb-4'>
-                    <label
-                      className='block text-white text-sm font-bold mb-2'
-                      htmlFor='company_id'>
-                      Company
-                    </label>
-                    <select
-                      id='company_id'
-                      name='company_id'
-                      value={editedClient?.company_id || ''}
-                      onChange={handleInputChange}
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:shadow-outline'>
-                      <option value=''>Select a company</option>
-                      {companies.map(company => (
-                        <option key={company.id} value={company.id}>
-                          {company.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className='flex items-center justify-between'>
-                    <button
-                      type='submit'
-                      className='bg-blue hover:bg-black text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline'>
+                  <div className='flex items-center gap-3'>
+                    <button type='submit' className='btn-success'>
                       Save Changes
                     </button>
-                    <button
-                      type='button'
-                      onClick={handleCancelEdit}
-                      className='bg-gray hover:bg-black text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline'>
+                    <button type='button' onClick={handleCancelEdit} className='btn-ghost'>
                       Cancel
                     </button>
                   </div>
                 </form>
               ) : (
                 <>
-                  <div className='mb-4'>
-                    <h2 className='text-xl font-semibold'>Name</h2>
-                    <p>{client.name}</p>
-                  </div>
-                  <div className='mb-4'>
-                    <h2 className='text-xl font-semibold'>Email</h2>
-                    <p>{client.email}</p>
-                  </div>
-                  <div className='mb-4'>
-                    <h2 className='text-xl font-semibold'>Phone</h2>
-                    <p>{client.phone}</p>
-                  </div>
-                  <div className='mb-4'>
-                    <h2 className='text-xl font-semibold'>Address</h2>
-                    <p>{client.address}</p>
-                  </div>
-                  <div className='mb-4'>
-                    <h2 className='text-xl font-semibold'>Tax Number</h2>
-                    <p>{client.tax_number}</p>
-                  </div>
-                  <div className='mb-4'>
-                    <div className='flex items-center justify-between mb-2'>
-                      <h2 className='text-xl font-semibold'>Balance</h2>
-                  
+                  <h2 className='text-2xl font-bold text-neutral-800 mb-6'>Client Information</h2>
+                  <div className='grid grid-cols-1 md:grid-cols-2 gap-6 mb-6'>
+                    <div className='bg-neutral-50 rounded-lg p-4'>
+                      <h3 className='text-sm font-medium text-neutral-600 mb-1'>Name</h3>
+                      <p className='text-lg font-semibold text-neutral-800'>{client.name}</p>
                     </div>
-                    
-                
-                      <p className={client.balance >= 0 ? 'text-red-300' : 'text-green-300'}>
+                    <div className='bg-neutral-50 rounded-lg p-4'>
+                      <h3 className='text-sm font-medium text-neutral-600 mb-1'>Email</h3>
+                      <p className='text-lg font-semibold text-neutral-800'>{client.email}</p>
+                    </div>
+                    <div className='bg-neutral-50 rounded-lg p-4'>
+                      <h3 className='text-sm font-medium text-neutral-600 mb-1'>Phone</h3>
+                      <p className='text-lg font-semibold text-neutral-800'>{client.phone}</p>
+                    </div>
+                    <div className='bg-neutral-50 rounded-lg p-4'>
+                      <h3 className='text-sm font-medium text-neutral-600 mb-1'>Tax Number</h3>
+                      <p className='text-lg font-semibold text-neutral-800'>{client.tax_number}</p>
+                    </div>
+                    <div className='md:col-span-2 bg-neutral-50 rounded-lg p-4'>
+                      <h3 className='text-sm font-medium text-neutral-600 mb-1'>Address</h3>
+                      <p className='text-lg font-semibold text-neutral-800'>{client.address}</p>
+                    </div>
+                    <div className='bg-neutral-50 rounded-lg p-4'>
+                      <h3 className='text-sm font-medium text-neutral-600 mb-1'>Balance</h3>
+                      <p className={`text-2xl font-bold ${client.balance >= 0 ? 'text-error-600' : 'text-success-600'}`}>
                         ${client.balance.toFixed(2)}
-                        {client.balance > 0 && ' (Outstanding)'}
-                        {client.balance < 0 && ' (Credit)'}
-                        {client.balance === 0 && ' (Settled)'}
+                        <span className='text-sm font-normal ml-2'>
+                          {client.balance > 0 && '(Outstanding)'}
+                          {client.balance < 0 && '(Credit)'}
+                          {client.balance === 0 && '(Settled)'}
+                        </span>
                       </p>
-                    
+                    </div>
+                    <div className='bg-neutral-50 rounded-lg p-4'>
+                      <h3 className='text-sm font-medium text-neutral-600 mb-1'>Company</h3>
+                      <p className='text-lg font-semibold text-neutral-800'>{getCompanyName(client.company_id)}</p>
+                    </div>
                   </div>
-                  
-                  <div className='mb-4'>
-                    <h2 className='text-xl font-semibold'>Company</h2>
-                    <p>{getCompanyName(client.company_id)}</p>
-                  </div>
-                  <div className='flex items-center justify-between mt-6'>
-                    <button
-                      onClick={handleEdit}
-                      className='bg-blue hover:bg-black text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline'>
+                  <div className='flex items-center gap-3 pt-4 border-t border-neutral-200'>
+                    <button onClick={handleEdit} className='btn-primary'>
                       Edit Client
                     </button>
-                    <button
-                      onClick={handleDelete}
-                      className='bg-black hover:bg-blue text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline'>
+                    <button onClick={handleDelete} className='btn-danger'>
                       Delete Client
                     </button>
                   </div>
@@ -791,13 +797,15 @@ export default function ClientDetailsPage({
           )}
 
           {activeTab === 'invoices' && (
-            <div className='overflow-x-auto bg-white rounded-lg shadow'>
-              <div className='bg-gray text-white p-4 rounded-t-lg'>
-                <h2 className='text-2xl font-semibold'>Invoices</h2>
+            <div className='card overflow-hidden'>
+              <div className='bg-primary-500 text-white p-6'>
+                <h2 className='text-2xl font-bold'>Invoices</h2>
+                <p className='text-primary-100 mt-1'>View all invoices for this client</p>
               </div>
-              <table className='w-full table-auto'>
-                <thead>
-                  <tr className='bg-gray text-white uppercase text-sm leading-normal'>
+              <div className='overflow-x-auto'>
+                <table className='w-full table-auto'>
+                  <thead>
+                    <tr className='bg-neutral-100 text-neutral-700 uppercase text-xs font-semibold tracking-wider'>
                     <th
                       className='py-3 px-6 text-left cursor-pointer'
                       onClick={() => handleSort('id')}>
@@ -834,21 +842,21 @@ export default function ClientDetailsPage({
                     <th className='py-3 px-6 text-center'>Shipping Status</th>
                     <th className='py-3 px-6 text-center'>Files</th>
                   </tr>
-                </thead>
-                <tbody className='text-gray text-sm font-light'>
-                  {invoices.map(invoice => {
-                    const currencySymbol = getCurrencySymbol(invoice.currency)
-                    const isReturn = invoice.type === 'return'
-                    const totalPrice = Number(invoice.total_price) || 0
-                    const remainingAmount = Number(invoice.remaining_amount) || 0
-                    
-                    return (
-                      <tr
-                        key={invoice.id}
-                        onClick={() => handleInvoiceClick(invoice)}
-                        className={`border-b border-gray cursor-pointer hover:bg-gray-50 ${
-                          isReturn ? 'bg-red-50' : ''
-                        }`}>
+                  </thead>
+                  <tbody className='text-neutral-600 text-sm divide-y divide-neutral-200'>
+                    {invoices.map(invoice => {
+                      const currencySymbol = getCurrencySymbol(invoice.currency)
+                      const isReturn = invoice.type === 'return'
+                      const totalPrice = Number(invoice.total_price) || 0
+                      const remainingAmount = Number(invoice.remaining_amount) || 0
+
+                      return (
+                        <tr
+                          key={invoice.id}
+                          onClick={() => handleInvoiceClick(invoice)}
+                          className={`cursor-pointer hover:bg-neutral-50 transition-colors duration-150 ${
+                            isReturn ? 'bg-error-50' : ''
+                          }`}>
                         <td className='py-3 px-6 text-left whitespace-nowrap'>
                           {invoice.id}
                         </td>
@@ -915,20 +923,25 @@ export default function ClientDetailsPage({
                           )}
                         </td>
                       </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
           {/* Quotations tab */}
           {activeTab === 'quotations' && (
-            <div className='bg-gray text-white shadow rounded-lg p-6'>
-              <h2 className='text-2xl font-semibold mb-4'>Orders</h2>
-              <table className='min-w-full'>
-                <thead>
-                  <tr>
+            <div className='card overflow-hidden'>
+              <div className='bg-primary-500 text-white p-6'>
+                <h2 className='text-2xl font-bold'>Orders</h2>
+                <p className='text-primary-100 mt-1'>View all orders for this client</p>
+              </div>
+              <div className='overflow-x-auto'>
+                <table className='w-full table-auto'>
+                  <thead>
+                    <tr className='bg-neutral-100 text-neutral-700 uppercase text-xs font-semibold tracking-wider'>
                     <th
                       className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider cursor-pointer'
                       onClick={() => handleSort('id')}>
@@ -967,17 +980,17 @@ export default function ClientDetailsPage({
                     <th className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider'>
                       Notes
                     </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {quotations.map(quotation => {
-                    const currencySymbol = getCurrencySymbol(quotation.currency)
-                    
-                    return (
-                      <tr
-                        key={quotation.id}
-                        onClick={() => handleQuotationClick(quotation)}
-                        className='cursor-pointer hover:bg-blue'>
+                    </tr>
+                  </thead>
+                  <tbody className='text-neutral-600 text-sm divide-y divide-neutral-200'>
+                    {quotations.map(quotation => {
+                      const currencySymbol = getCurrencySymbol(quotation.currency)
+
+                      return (
+                        <tr
+                          key={quotation.id}
+                          onClick={() => handleQuotationClick(quotation)}
+                          className='cursor-pointer hover:bg-neutral-50 transition-colors duration-150'>
                         <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
                           {quotation.id}
                         </td>
@@ -1015,20 +1028,25 @@ export default function ClientDetailsPage({
                             '-'
                           )}
                         </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
           {activeTab === 'receipts' && (
-            <div className='bg-gray text-white shadow rounded-lg p-6'>
-              <h2 className='text-2xl font-semibold mb-4'>Receipts</h2>
-              <table className='min-w-full'>
-                <thead>
-                  <tr>
+            <div className='card overflow-hidden'>
+              <div className='bg-primary-500 text-white p-6'>
+                <h2 className='text-2xl font-bold'>Receipts</h2>
+                <p className='text-primary-100 mt-1'>View all receipts for this client</p>
+              </div>
+              <div className='overflow-x-auto'>
+                <table className='w-full table-auto'>
+                  <thead>
+                    <tr className='bg-neutral-100 text-neutral-700 uppercase text-xs font-semibold tracking-wider'>
                     <th
                       className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider cursor-pointer'
                       onClick={() => handleSort('id')}>
@@ -1060,17 +1078,17 @@ export default function ClientDetailsPage({
                     <th className='px-6 py-3 border-b-2 border-white text-left text-xs leading-4 font-medium uppercase tracking-wider'>
                       Files
                     </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {receipts.map(receipt => {
-                    const currencySymbol = getCurrencySymbol(receipt.currency)
-                    
-                    return (
-                      <tr
-                        key={receipt.id}
-                        onClick={() => handleReceiptClick(receipt)}
-                        className='cursor-pointer hover:bg-blue'>
+                    </tr>
+                  </thead>
+                  <tbody className='text-neutral-600 text-sm divide-y divide-neutral-200'>
+                    {receipts.map(receipt => {
+                      const currencySymbol = getCurrencySymbol(receipt.currency)
+
+                      return (
+                        <tr
+                          key={receipt.id}
+                          onClick={() => handleReceiptClick(receipt)}
+                          className='cursor-pointer hover:bg-neutral-50 transition-colors duration-150'>
                         <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
                           {receipt.id}
                         </td>
@@ -1093,23 +1111,20 @@ export default function ClientDetailsPage({
                             '-'
                           )}
                         </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
-          
+
 
           {selectedInvoice && (
-            <div
-              className='fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50'
-              onClick={() => setSelectedInvoice(null)}>
-              <div
-                className='relative top-10 mx-auto p-6 border w-full max-w-4xl shadow-2xl rounded-lg bg-white'
-                onClick={e => e.stopPropagation()}>
+            <div className='modal-overlay' onClick={() => setSelectedInvoice(null)}>
+              <div className='modal-content max-w-5xl' onClick={e => e.stopPropagation()}>
                 <div className='flex justify-between items-start mb-6'>
                   <div>
                     <h3 className='text-2xl font-bold text-gray-900 flex items-center'>
@@ -1308,10 +1323,8 @@ export default function ClientDetailsPage({
                   </div>
                 )}
 
-                <div className='flex justify-end mt-6 pt-4 border-t border-gray-200'>
-                  <button
-                    className='px-6 py-2 bg-blue text-white font-medium rounded-lg hover:bg-blue-700 transition-colors'
-                    onClick={() => setSelectedInvoice(null)}>
+                <div className='flex justify-end mt-6 pt-4 border-t border-neutral-200'>
+                  <button className='btn-ghost' onClick={() => setSelectedInvoice(null)}>
                     Close
                   </button>
                 </div>
@@ -1321,12 +1334,8 @@ export default function ClientDetailsPage({
 
           {/* Quotation details modal */}
           {selectedQuotation && (
-            <div
-              className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'
-              onClick={() => setSelectedQuotation(null)}>
-              <div
-                className='relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white'
-                onClick={e => e.stopPropagation()}>
+            <div className='modal-overlay' onClick={() => setSelectedQuotation(null)}>
+              <div className='modal-content max-w-2xl' onClick={e => e.stopPropagation()}>
                 <div className='mt-3 text-center'>
                   <h3 className='text-lg leading-6 font-medium text-neutral-900'>
                     Order Details
@@ -1395,18 +1404,15 @@ export default function ClientDetailsPage({
                       </p>
                     )}
                     <button
-                      className='mt-4 px-4 py-2 bg-blue text-white text-sm font-medium rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none'
+                      className='btn-primary mt-4'
                       onClick={() => {
                         generatePDF('quotation', selectedQuotation);
                       }}>
-                      Download PDF
+                      <FaDownload className='mr-2' /> Download PDF
                     </button>
                   </div>
                   <div className='items-center px-4 py-3'>
-                    <button
-                      id='ok-btn'
-                      className='px-4 py-2 bg-blue text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-black focus:outline-none focus:ring-2 focus:ring-indigo-300'
-                      onClick={() => setSelectedQuotation(null)}>
+                    <button className='btn-ghost w-full' onClick={() => setSelectedQuotation(null)}>
                       Close
                     </button>
                   </div>
@@ -1416,12 +1422,8 @@ export default function ClientDetailsPage({
           )}
 
           {selectedReceipt && (
-            <div
-              className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'
-              onClick={() => setSelectedReceipt(null)}>
-              <div
-                className='relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white'
-                onClick={e => e.stopPropagation()}>
+            <div className='modal-overlay' onClick={() => setSelectedReceipt(null)}>
+              <div className='modal-content max-w-2xl' onClick={e => e.stopPropagation()}>
                 <div className='mt-3 text-center'>
                   <h3 className='text-lg leading-6 font-medium text-neutral-900'>
                     Receipt Details
@@ -1461,10 +1463,7 @@ export default function ClientDetailsPage({
                     </ul>
                   </div>
                   <div className='items-center px-4 py-3'>
-                    <button
-                      id='ok-btn'
-                      className='px-4 py-2 bg-blue text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-black focus:outline-none focus:ring-2 focus:ring-indigo-300'
-                      onClick={() => setSelectedReceipt(null)}>
+                    <button className='btn-ghost w-full' onClick={() => setSelectedReceipt(null)}>
                       Close
                     </button>
                   </div>
@@ -1474,6 +1473,7 @@ export default function ClientDetailsPage({
           )}
         </div>
       )}
+      </div>
     </div>
   )
 }

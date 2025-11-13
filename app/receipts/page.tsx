@@ -839,10 +839,10 @@ const handleDeleteReceipt = async (id: number) => {
 	}
 
 	const renderReceiptTable = () => (
-		<div className='overflow-x-auto bg-white rounded-lg shadow'>
+		<div className='overflow-x-auto'>
 			<table className='w-full table-auto'>
 				<thead>
-					<tr className='bg-gray text-white uppercase text-sm leading-normal'>
+					<tr className='bg-neutral-100 text-neutral-700 uppercase text-xs font-semibold tracking-wider'>
 						<th
 							className='py-3 px-6 text-left cursor-pointer'
 							onClick={() => handleSort('id')}>
@@ -872,15 +872,15 @@ const handleDeleteReceipt = async (id: number) => {
 						<th className='py-3 px-6 text-center'>Actions</th>
 					</tr>
 				</thead>
-				<tbody className='text-neutral-600 text-sm font-light'>
+				<tbody className='text-neutral-600 text-sm divide-y divide-neutral-200'>
 					{receipts.map(receipt => {
 						const currency:any = receipt.currency || getInvoiceCurrency(receipt.invoice_id)
 						const currencySymbol = getCurrencySymbol(currency)
-						
+
 						return (
 							<tr
 								key={receipt.id}
-								className='border-b border-gray hover:bg-indigo-200'
+								className='cursor-pointer hover:bg-neutral-50 transition-colors duration-150'
 								onClick={() => setSelectedReceipt(receipt)}>
 								<td className='py-3 px-6 text-left whitespace-nowrap'>
 									{receipt.id}
@@ -913,10 +913,10 @@ const handleDeleteReceipt = async (id: number) => {
 										'-'
 									)}
 								</td>
-								<td className='py-3  text-center'>
-									<div className='flex item-center justify-center'>
+								<td className='py-3 text-center'>
+									<div className='flex items-center justify-center gap-2'>
 										<button
-											className='mr-2 bg-blue text-white p-1 rounded-lg text-nowrap transform  hover:scale-110'
+											className='btn-primary text-xs py-1 px-3'
 											onClick={e => {
 												e.stopPropagation()
 												handleSendEmail(receipt)
@@ -924,20 +924,20 @@ const handleDeleteReceipt = async (id: number) => {
 											Send Email
 										</button>
 										<button
-											className='w-4 mr-2 transform hover:text-blue hover:scale-110'
+											className='text-primary-600 hover:text-primary-700 transition-colors'
 											onClick={(e) => {
 												e.stopPropagation()
 												handleEditReceipt(receipt)
 											}}>
-											<FaEdit />
+											<FaEdit className='w-4 h-4' />
 										</button>
 										<button
-											className='w-4 mr-2 transform hover:text-blue hover:scale-110'
+											className='text-error-600 hover:text-error-700 transition-colors'
 											onClick={(e) => {
 												e.stopPropagation()
 												handleDeleteReceipt(receipt.id)
 											}}>
-											<FaTrash />
+											<FaTrash className='w-4 h-4' />
 										</button>
 									</div>
 								</td>
@@ -952,14 +952,12 @@ const handleDeleteReceipt = async (id: number) => {
 	const renderPagination = () => {
 		const totalPages = Math.ceil(totalReceipts / itemsPerPage)
 		return (
-			<div className='flex justify-center mt-4'>
-				<nav
-					className='relative z-0 inline-flex rounded-md shadow-sm -space-x-px'
-					aria-label='Pagination'>
+			<div className='flex justify-center mt-6'>
+				<nav className='inline-flex rounded-lg shadow-soft overflow-hidden' aria-label='Pagination'>
 					<button
 						onClick={() => setCurrentPage(1)}
 						disabled={currentPage === 1}
-						className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray bg-white text-sm font-medium text-gray hover:bg-indigo-200 ${
+						className={`px-3 py-2 border border-neutral-300 bg-white text-sm font-medium text-neutral-700 hover:bg-neutral-50 ${
 							currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>First</span>⟪
@@ -967,20 +965,18 @@ const handleDeleteReceipt = async (id: number) => {
 					<button
 						onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
 						disabled={currentPage === 1}
-						className={`relative inline-flex items-center px-2 py-2 border border-gray bg-white text-sm font-medium text-gray hover:bg-indigo-200 ${
+						className={`px-3 py-2 border-t border-b border-neutral-300 bg-white text-sm font-medium text-neutral-700 hover:bg-neutral-50 ${
 							currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>Previous</span>⟨
 					</button>
-					<span className='relative inline-flex items-center px-4 py-2 border border-gray bg-white text-sm font-medium text-gray'>
-						{currentPage} of {totalPages}
+					<span className='px-4 py-2 border-t border-b border-neutral-300 bg-neutral-50 text-sm font-medium text-neutral-700'>
+						Page {currentPage} of {totalPages}
 					</span>
 					<button
-						onClick={() =>
-							setCurrentPage(Math.min(totalPages, currentPage + 1))
-						}
+						onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
 						disabled={currentPage === totalPages}
-						className={`relative inline-flex items-center px-2 py-2 border border-gray bg-white text-sm font-medium text-gray hover:bg-indigo-200 ${
+						className={`px-3 py-2 border-t border-b border-neutral-300 bg-white text-sm font-medium text-neutral-700 hover:bg-neutral-50 ${
 							currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>Next</span>⟩
@@ -988,7 +984,7 @@ const handleDeleteReceipt = async (id: number) => {
 					<button
 						onClick={() => setCurrentPage(totalPages)}
 						disabled={currentPage === totalPages}
-						className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray bg-white text-sm font-medium text-gray hover:bg-indigo-200 ${
+						className={`px-3 py-2 border border-neutral-300 bg-white text-sm font-medium text-neutral-700 hover:bg-neutral-50 ${
 							currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>Last</span>⟫
@@ -999,7 +995,7 @@ const handleDeleteReceipt = async (id: number) => {
 	}
 
 	const renderFilters = () => (
-		<div className='mb-6 flex items-center space-x-4'>
+		<div className='mb-6 flex flex-wrap items-center gap-4'>
 			<div className='relative'>
 				<DatePicker
 					selected={filterStartDate}
@@ -1008,10 +1004,10 @@ const handleDeleteReceipt = async (id: number) => {
 					startDate={filterStartDate}
 					endDate={filterEndDate}
 					placeholderText='Start Date'
-					className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
+					className='input pl-10 min-w-[180px]'
 				/>
 				<div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-					<FaFilter className='h-5 w-5 text-gray' />
+					<FaFilter className='h-5 w-5 text-neutral-400' />
 				</div>
 			</div>
 			<div className='relative'>
@@ -1023,14 +1019,13 @@ const handleDeleteReceipt = async (id: number) => {
 					endDate={filterEndDate}
 					minDate={filterStartDate}
 					placeholderText='End Date'
-					className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
+					className='input pl-10 min-w-[180px]'
 				/>
 				<div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-					<FaFilter className='h-5 w-5 text-gray' />
+					<FaFilter className='h-5 w-5 text-neutral-400' />
 				</div>
 			</div>
-			
-			{/* Fixed Filter Component */}
+
 			<SearchableSelect
 				options={entities}
 				value={filterEntity}
@@ -1038,7 +1033,7 @@ const handleDeleteReceipt = async (id: number) => {
 				placeholder={`Filter by ${activeTab === 'client' ? 'Client' : 'Supplier'}`}
 				label={`Filter ${activeTab === 'client' ? 'Client' : 'Supplier'}`}
 				idField={activeTab === 'client' ? 'client_id' : 'id'}
-				className="min-w-[200px]"
+				className="min-w-[220px]"
 			/>
 		</div>
 	)
@@ -1055,24 +1050,11 @@ const handleDeleteReceipt = async (id: number) => {
 		const entityLabel = activeTab === 'client' ? 'Client' : 'Supplier';
 
 		return (
-			<div
-				className={`fixed z-10 inset-0 overflow-y-auto ${
-					showModal ? '' : 'hidden'
-				}`}>
-				<div className='flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0'>
-					<div className='fixed inset-0 transition-opacity' aria-hidden='true'>
-						<div className='absolute inset-0 bg-gray opacity-75'></div>
-					</div>
-					<span
-						className='hidden sm:inline-block sm:align-middle sm:h-screen'
-						aria-hidden='true'>
-						&#8203;
-					</span>
-					<div className='inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full'>
-						<div className='bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4'>
-							<h3 className='text-lg leading-6 font-medium text-neutral-900 mb-4'>
-								{isEditing ? 'Edit Receipt' : 'Create New Receipt'}
-							</h3>
+			<div className={`modal-overlay ${showModal ? '' : 'hidden'}`}>
+				<div className='modal-content max-w-3xl'>
+					<h3 className='text-2xl font-bold text-neutral-800 mb-6'>
+						{isEditing ? 'Edit Receipt' : 'Create New Receipt'}
+					</h3>
 
 							{/* Enhanced validation display */}
 							{(validationErrors.length > 0 || validationWarnings.length > 0) && (
@@ -1128,7 +1110,7 @@ const handleDeleteReceipt = async (id: number) => {
 												paid_at: date ? date.toISOString() : ''
 											})
 										}
-										className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none focus:shadow-outline'
+										className='input'
 									/>
 								</div>
 								
@@ -1278,14 +1260,14 @@ const handleDeleteReceipt = async (id: number) => {
 									<input
 										type='file'
 										onChange={handleFileChange}
-										className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none focus:shadow-outline'
+										className='input'
 									/>
 									{selectedFile && (
 										<button
 											type='button'
 											onClick={handleFileUpload}
 											disabled={uploadingFile}
-											className='mt-2 bg-blue hover:bg-blue text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline'>
+											className='mt-2 btn-primary'>
 											{uploadingFile ? 'Uploading...' : 'Upload File'}
 										</button>
 									)}
@@ -1308,30 +1290,24 @@ const handleDeleteReceipt = async (id: number) => {
 									))}
 								</div>
 							</form>
-						</div>
-						<div className='bg-gray px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse'>
-							<button
-								type='button'
-								className={`w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 text-base font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 sm:ml-3 sm:w-auto sm:text-sm ${
-									validationErrors.length > 0 || !newReceipt.invoice_id
-										? 'bg-neutral-400 cursor-not-allowed'
-										: 'bg-blue hover:bg-blue focus:ring-blue'
-								}`}
-								onClick={handleCreateOrUpdateReceipt}
-								disabled={validationErrors.length > 0 || !newReceipt.invoice_id}>
-								{isEditing ? 'Update Receipt' : 'Create Receipt'}
-							</button>
-							<button
-								type='button'
-								className='mt-3 w-full inline-flex justify-center rounded-md border border-gray shadow-sm px-4 py-2 bg-white text-base font-medium text-gray hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
-								onClick={() => {
-									setShowModal(false)
-									resetReceiptForm()
-								}}>
-								Cancel
-							</button>
-						</div>
-					</div>
+							<div className='flex items-center gap-3 justify-end pt-6 border-t border-neutral-200'>
+								<button
+									type='button'
+									className={validationErrors.length > 0 || !newReceipt.invoice_id ? 'btn-ghost opacity-50 cursor-not-allowed' : 'btn-primary'}
+									onClick={handleCreateOrUpdateReceipt}
+									disabled={validationErrors.length > 0 || !newReceipt.invoice_id}>
+									{isEditing ? 'Update Receipt' : 'Create Receipt'}
+								</button>
+								<button
+									type='button'
+									className='btn-ghost'
+									onClick={() => {
+										setShowModal(false)
+										resetReceiptForm()
+									}}>
+									Cancel
+								</button>
+							</div>
 				</div>
 			</div>
 		)
@@ -1344,8 +1320,8 @@ const handleDeleteReceipt = async (id: number) => {
 		const currencySymbol = getCurrencySymbol(currency)
 
 		return (
-			<div className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'>
-				<div className='relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white'>
+			<div className='modal-overlay' onClick={() => setSelectedReceipt(null)}>
+				<div className='modal-content max-w-2xl' onClick={e => e.stopPropagation()}>
 					<div className='mt-3 text-center'>
 						<h3 className='text-lg leading-6 font-medium text-neutral-900'>
 							Receipt Details
@@ -1376,9 +1352,9 @@ const handleDeleteReceipt = async (id: number) => {
 								))}
 							</ul>
 						</div>
-						<div className='items-center px-4 py-3'>
+						<div className='items-center px-4 py-3 space-y-3'>
 							<button
-								className='px-4 py-2 bg-blue text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 mb-2'
+								className='btn-primary w-full flex items-center justify-center gap-2'
 								onClick={() => {
 									// Pass currency information to PDF generator
 									generatePDF('receipt', {
@@ -1386,11 +1362,9 @@ const handleDeleteReceipt = async (id: number) => {
 										currency: currency
 									})
 								}}>
-								Download PDF
+								<FaDownload /> Download PDF
 							</button>
-							<button
-								className='px-4 py-2 bg-gray text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-300'
-								onClick={() => setSelectedReceipt(null)}>
+							<button className='btn-ghost w-full' onClick={() => setSelectedReceipt(null)}>
 								Close
 							</button>
 						</div>
@@ -1420,49 +1394,56 @@ const handleDeleteReceipt = async (id: number) => {
 	}
 
 	return (
-		<div className='mx-auto px-4 py-8 text-black'>
-			<div className='flex flex-row justify-between items-center align-middle mb-5'>
-				<h1 className='text-3xl font-bold text-gray'>Receipt Management</h1>
-				<button
-					className=' bg-blue hover:bg-indigo-200 text-white font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110'
-					onClick={() => {
-						resetReceiptForm()
-						setShowModal(true)
-					}}>
-					<FaPlus className='inline-block mr-2' /> Create New Receipt
-				</button>
-			</div>
-
-			<div className='bg-white shadow-md rounded-lg'>
-				<div className='flex border-b'>
-					<button
-						className={`flex-1 py-4 px-6 text-center ${
-							activeTab === 'client'
-								? 'bg-blue text-white'
-								: 'bg-gray text-white'
-						}`}
-						onClick={() => setActiveTab('client')}>
-						Client Receipts
-					</button>
-					<button
-						className={`flex-1 py-4 px-6 text-center ${
-							activeTab === 'supplier'
-								? 'bg-blue text-white'
-								: 'bg-gray text-white'
-						}`}
-						onClick={() => setActiveTab('supplier')}>
-						Supplier Receipts
-					</button>
+		<div className='min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 p-6 sm:p-8'>
+			<div className='max-w-7xl mx-auto'>
+				<div className='mb-8 animate-fade-in'>
+					<div className='flex items-center justify-between mb-4'>
+						<div>
+							<h1 className='text-4xl font-bold text-neutral-800 mb-2'>Receipt Management</h1>
+							<p className='text-neutral-600'>Track and manage all payment receipts</p>
+						</div>
+						<button
+							className='btn-primary flex items-center gap-2'
+							onClick={() => {
+								resetReceiptForm()
+								setShowModal(true)
+							}}>
+							<FaPlus /> Create New Receipt
+						</button>
+					</div>
 				</div>
-				<div className='p-6'>
-					{renderFilters()}
-					{renderReceiptTable()}
-					{renderPagination()}
-				</div>
-			</div>
 
-			{renderReceiptModal()}
-			{renderReceiptDetails()}
+				<div className='card overflow-hidden mb-6'>
+					<div className='flex border-b border-neutral-200'>
+						<button
+							className={`flex-1 py-4 px-6 text-center font-medium transition-all duration-300 ${
+								activeTab === 'client'
+									? 'bg-primary-500 text-white'
+									: 'bg-white text-neutral-700 hover:bg-neutral-50'
+							}`}
+							onClick={() => setActiveTab('client')}>
+							Client Receipts
+						</button>
+						<button
+							className={`flex-1 py-4 px-6 text-center font-medium transition-all duration-300 ${
+								activeTab === 'supplier'
+									? 'bg-primary-500 text-white'
+									: 'bg-white text-neutral-700 hover:bg-neutral-50'
+							}`}
+							onClick={() => setActiveTab('supplier')}>
+							Supplier Receipts
+						</button>
+					</div>
+					<div className='p-6'>
+						{renderFilters()}
+						{renderReceiptTable()}
+						{renderPagination()}
+					</div>
+				</div>
+
+				{renderReceiptModal()}
+				{renderReceiptDetails()}
+			</div>
 		</div>
 	)
 }
