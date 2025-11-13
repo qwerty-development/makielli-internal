@@ -432,13 +432,13 @@ const ErrorDisplay: React.FC<{
 	return (
 		<div className="mb-4 space-y-2">
 			{errors.length > 0 && (
-				<div className="bg-red-50 border border-red-200 rounded-md p-4">
+				<div className="bg-error-50 border border-error-200 rounded-md p-4">
 					<div className="flex justify-between items-start">
 						<div className="flex">
-							<FaExclamationTriangle className="text-red-400 mt-1 mr-2" />
+							<FaExclamationTriangle className="text-error-400 mt-1 mr-2" />
 							<div>
-								<h3 className="text-sm font-medium text-red-800">Please fix the following errors:</h3>
-								<ul className="list-disc list-inside text-sm text-red-700 mt-1 space-y-1">
+								<h3 className="text-sm font-medium text-error-800">Please fix the following errors:</h3>
+								<ul className="list-disc list-inside text-sm text-error-700 mt-1 space-y-1">
 									{errors.map((error, index) => (
 										<li key={index}>{error}</li>
 									))}
@@ -446,7 +446,7 @@ const ErrorDisplay: React.FC<{
 							</div>
 						</div>
 						{onDismiss && (
-							<button onClick={onDismiss} className="text-red-400 hover:text-red-600">
+							<button onClick={onDismiss} className="text-error-400 hover:text-error-600">
 								<FaTrash className="h-4 w-4" />
 							</button>
 						)}
@@ -455,12 +455,12 @@ const ErrorDisplay: React.FC<{
 			)}
 			
 			{warnings.length > 0 && (
-				<div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+				<div className="bg-warning-50 border border-warning-200 rounded-md p-4">
 					<div className="flex">
-						<FaInfoCircle className="text-yellow-400 mt-1 mr-2" />
+						<FaInfoCircle className="text-warning-400 mt-1 mr-2" />
 						<div>
-							<h3 className="text-sm font-medium text-yellow-800">Warnings:</h3>
-							<ul className="list-disc list-inside text-sm text-yellow-700 mt-1 space-y-1">
+							<h3 className="text-sm font-medium text-warning-800">Warnings:</h3>
+							<ul className="list-disc list-inside text-sm text-warning-700 mt-1 space-y-1">
 								{warnings.map((warning, index) => (
 									<li key={index}>{warning}</li>
 								))}
@@ -479,19 +479,19 @@ const ShippingStatusBadge: React.FC<{ status: string }> = ({ status }) => {
 		switch (status) {
 			case 'fully_shipped':
 				return { 
-					color: 'bg-green-100 text-green-800', 
+					color: 'bg-success-100 text-success-800', 
 					icon: <FaCheckCircle className="inline mr-1" />,
 					text: 'Fully Shipped'
 				}
 			case 'partially_shipped':
 				return { 
-					color: 'bg-yellow-100 text-yellow-800', 
+					color: 'bg-yellow-100 text-warning-800', 
 					icon: <FaExclamationCircle className="inline mr-1" />,
 					text: 'Partially Shipped'
 				}
 			default:
 				return { 
-					color: 'bg-gray-100 text-gray-800', 
+					color: 'bg-neutral-100 text-neutral-800', 
 					icon: <FaTruck className="inline mr-1" />,
 					text: 'Unshipped'
 				}
@@ -1870,7 +1870,7 @@ const InvoicesPage: React.FC = () => {
 					<div
 						className='flex items-center justify-center min-h-screen'
 						onClick={e => e.stopPropagation()}>
-						<div className='bg-gray bg-opacity-75 p-6 rounded-lg shadow-xl text-white'>
+						<div className='bg-neutral-900 bg-opacity-75 p-6 rounded-lg shadow-xl text-white'>
 							<FaSpinner className='animate-spin mx-auto text-6xl' />
 							<p className='mt-4 text-lg font-semibold'>Loading...</p>
 						</div>
@@ -2057,8 +2057,8 @@ const InvoicesPage: React.FC = () => {
 										<span
 											className={`px-2 py-1 rounded-full text-xs font-medium ${
 												invoice.type === 'return'
-													? 'bg-red-100 text-red-800'
-													: 'bg-green-100 text-green-800'
+													? 'bg-error-100 text-error-800'
+													: 'bg-success-100 text-success-800'
 											}`}>
 											{invoice.type === 'return' ? 'Return' : 'Regular'}
 										</span>
@@ -2340,7 +2340,7 @@ const InvoicesPage: React.FC = () => {
 													disabled={!hasValidVariants}
 													className={`font-bold py-1 px-2 rounded text-xs ${
 														hasValidVariants 
-															? 'bg-green-500 hover:bg-green-700 text-white'
+															? 'bg-success-500 hover:bg-success-700 text-white'
 															: 'bg-neutral-300 text-neutral-500 cursor-not-allowed'
 													}`}>
 													{hasValidVariants ? 'Select' : 'Unavailable'}
@@ -2353,7 +2353,7 @@ const InvoicesPage: React.FC = () => {
 								{selectedProduct && (
 									<div className='mb-4 p-2 border rounded'>
 										<h4 className='font-bold mb-2'>{selectedProduct.name}</h4>
-										<label className='block text-gray text-sm font-semibold mb-2' htmlFor='discount'>
+										<label className='block text-neutral-700 text-sm font-semibold mb-2' htmlFor='discount'>
 											Discount per item
 										</label>
 										<input
@@ -2416,7 +2416,7 @@ const InvoicesPage: React.FC = () => {
 													/>
 													<button
 														type='button'
-														className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
+														className='bg-error-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
 														onClick={() => handleRemoveVariant(index)}>
 														Remove Variant
 													</button>
@@ -2445,11 +2445,11 @@ const InvoicesPage: React.FC = () => {
 									const variant = SafeDataAccess.getVariant(parentProduct, product.product_variant_id)
 
 									return (
-										<div key={index} className={`mb-2 p-2 border rounded ${!parentProduct || !variant ? 'bg-red-50 border-red-200' : ''}`}>
+										<div key={index} className={`mb-2 p-2 border rounded ${!parentProduct || !variant ? 'bg-error-50 border-error-200' : ''}`}>
 											<div className='flex justify-between items-center mb-2'>
 												<span className='font-bold'>
 													{parentProduct?.name || `Product Not Found (${product?.product_id || 'N/A'})`}
-													{!parentProduct && <span className="text-red-500 text-xs ml-2">[DELETED]</span>}
+													{!parentProduct && <span className="text-error-500 text-xs ml-2">[DELETED]</span>}
 												</span>
 												<div className='space-x-2'>
 													<button
@@ -2468,7 +2468,7 @@ const InvoicesPage: React.FC = () => {
 											</div>
 											<p>
 												Variant: {SafeDataAccess.formatVariantDisplay(variant)}
-												{!variant && <span className="text-red-500 text-xs ml-2">[NOT FOUND]</span>}
+												{!variant && <span className="text-error-500 text-xs ml-2">[NOT FOUND]</span>}
 											</p>
 											<p>Quantity: {product.quantity || 0}</p>
 											<p>
@@ -2477,7 +2477,7 @@ const InvoicesPage: React.FC = () => {
 											</p>
 											<p>Note: {product.note || '-'}</p>
 											{(!parentProduct || !variant) && (
-												<div className="mt-2 p-2 bg-red-100 rounded text-red-700 text-xs">
+												<div className="mt-2 p-2 bg-error-100 rounded text-error-700 text-xs">
 													⚠️ This product or variant is no longer available. Please remove or edit this item.
 												</div>
 											)}
@@ -2576,7 +2576,7 @@ const InvoicesPage: React.FC = () => {
 									Shipping Fee
 								</label>
 								<div className='relative'>
-									<span className='absolute left-3 top-2 text-gray'>$</span>
+									<span className='absolute left-3 top-2 text-neutral-700'>$</span>
 									<input
 										id='shipping_fee'
 										type='number'
@@ -2599,7 +2599,7 @@ const InvoicesPage: React.FC = () => {
 										placeholder='0.00'
 									/>
 								</div>
-								<p className='text-xs text-gray-500 mt-1'>
+								<p className='text-xs text-neutral-500 mt-1'>
 									Shipping fee will be included in the total price and remaining amount calculations.
 								</p>
 							</div>
@@ -2630,9 +2630,9 @@ const InvoicesPage: React.FC = () => {
 												}
 											})
 										}}
-										className='form-checkbox h-5 w-5 text-blue'
+										className='form-checkbox h-5 w-5 text-primary-500'
 									/>
-									<span className='ml-2 text-gray text-sm'>Include 11% VAT</span>
+									<span className='ml-2 text-neutral-700 text-sm'>Include 11% VAT</span>
 								</label>
 							</div>
 
@@ -2709,13 +2709,13 @@ const InvoicesPage: React.FC = () => {
 											href={file}
 											target='_blank'
 											rel='noopener noreferrer'
-											className='text-blue hover:underline mr-2'>
+											className='text-primary-500 hover:underline mr-2'>
 											{file.split('/').pop() || 'File'}
 										</a>
 										<button
 											type='button'
 											onClick={() => handleFileDelete(file)}
-											className='text-red-500 hover:text-red-700'>
+											className='text-error-500 hover:text-error-700'>
 											<FaTrash />
 										</button>
 									</div>
@@ -2848,7 +2848,7 @@ const renderInvoiceDetails = () => {
 		})
 
 		return (
-			<div className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'>
+			<div className='fixed inset-0 bg-neutral-900 bg-opacity-50 overflow-y-auto h-full w-full'>
 				<div className='relative top-10 mx-auto p-5 border w-4/5 max-w-5xl shadow-lg rounded-md bg-white'>
 					<div className='mt-3'>
 						<div className='flex justify-between items-start mb-6'>
@@ -2865,20 +2865,20 @@ const renderInvoiceDetails = () => {
 						</div>
 
 						<div className='mb-6 text-center'>
-							<h2 className={`text-2xl font-bold ${isReturn ? 'text-red-600' : 'text-blue'}`}>
+							<h2 className={`text-2xl font-bold ${isReturn ? 'text-error-600' : 'text-primary-500'}`}>
 								{isReturn ? 'RETURN INVOICE' : 'INVOICE'}
 							</h2>
 
 							{isReturn && (
-								<div className='mt-2 bg-red-100 p-2 rounded-md'>
-									<p className='text-red-600 font-semibold'>Return Invoice</p>
+								<div className='mt-2 bg-error-100 p-2 rounded-md'>
+									<p className='text-error-600 font-semibold'>Return Invoice</p>
 								</div>
 							)}
 
 							{/* Show quotation reference if invoice was created from a quotation */}
 							{selectedInvoice.quotation_id && (
 								<div className='mt-2 bg-blue-50 p-2 rounded-md'>
-									<p className='text-blue-600 text-sm font-medium'>
+									<p className='text-primary-600 text-sm font-medium'>
 										📋 Created from Order #{selectedInvoice.quotation_id}
 									</p>
 								</div>
@@ -2901,7 +2901,7 @@ const renderInvoiceDetails = () => {
 								<p className='text-sm'>Date: {selectedInvoice.created_at ? format(new Date(selectedInvoice.created_at), 'PP') : 'N/A'}</p>
 								<p className='text-sm'>Order Number: {selectedInvoice.order_number || 'N/A'}</p>
 								{selectedInvoice.quotation_id && (
-									<p className='text-sm text-blue-600'>Source Order: #{selectedInvoice.quotation_id}</p>
+									<p className='text-sm text-primary-600'>Source Order: #{selectedInvoice.quotation_id}</p>
 								)}
 								{selectedInvoice.delivery_date && (
 									<p className='text-sm'>Delivery Date: {format(new Date(selectedInvoice.delivery_date), 'PP')}</p>
@@ -2943,26 +2943,26 @@ const renderInvoiceDetails = () => {
 										const displayLineTotal = isReturn ? -lineTotal : lineTotal
 
 										return (
-											<tr key={index} className={`border-b border-neutral-300 ${product.hasErrors ? 'bg-red-50' : ''}`}>
+											<tr key={index} className={`border-b border-neutral-300 ${product.hasErrors ? 'bg-error-50' : ''}`}>
 												<td className='p-1 text-center border-r border-neutral-300'>
 													{product.image ? (
 														<img src={product.image} alt={product.name} className='w-10 h-10 object-contain mx-auto' />
 													) : (
 														<div className='w-10 h-10 bg-neutral-200 mx-auto flex items-center justify-center'>
-															{product.hasErrors && <FaExclamationTriangle className="text-red-500 text-xs" />}
+															{product.hasErrors && <FaExclamationTriangle className="text-error-500 text-xs" />}
 														</div>
 													)}
 												</td>
-												<td className={`p-1 text-xs font-semibold border-r border-neutral-300 ${product.hasErrors ? 'text-red-600' : ''}`}>
+												<td className={`p-1 text-xs font-semibold border-r border-neutral-300 ${product.hasErrors ? 'text-error-600' : ''}`}>
 													{product.name}
-													{product.hasErrors && <span className="block text-red-500">[ERROR]</span>}
+													{product.hasErrors && <span className="block text-error-500">[ERROR]</span>}
 												</td>
 												<td className='p-1 text-xs border-r border-neutral-300'>
 													{Array.from(product.notes).map((note: any, i: any) => (
 														<p key={i} className='text-xs italic text-neutral-600'>{note}</p>
 													))}
 												</td>
-												<td className={`p-1 text-xs text-center border-r border-neutral-300 ${product.hasErrors ? 'text-red-600' : ''}`}>
+												<td className={`p-1 text-xs text-center border-r border-neutral-300 ${product.hasErrors ? 'text-error-600' : ''}`}>
 													{product.color}
 												</td>
 
@@ -2994,12 +2994,12 @@ const renderInvoiceDetails = () => {
 							
 							{/* Warning for missing products */}
 							{productsArray.some((p: any) => p.hasErrors) && (
-								<div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+								<div className="mt-4 p-3 bg-warning-50 border border-warning-200 rounded-md">
 									<div className="flex">
-										<FaExclamationTriangle className="text-yellow-400 mt-1 mr-2" />
+										<FaExclamationTriangle className="text-warning-400 mt-1 mr-2" />
 										<div>
-											<h4 className="text-sm font-medium text-yellow-800">Data Integrity Warning</h4>
-											<p className="text-sm text-yellow-700 mt-1">
+											<h4 className="text-sm font-medium text-warning-800">Data Integrity Warning</h4>
+											<p className="text-sm text-warning-700 mt-1">
 												Some products or variants in this invoice are no longer available in the system. 
 												This may affect calculations and inventory tracking.
 											</p>
@@ -3121,7 +3121,7 @@ const renderInvoiceDetails = () => {
 												href={file}
 												target='_blank'
 												rel='noopener noreferrer'
-												className='text-blue hover:underline'>
+												className='text-primary-500 hover:underline'>
 												{file.split('/').pop() || 'File'}
 											</a>
 										</li>
@@ -3132,7 +3132,7 @@ const renderInvoiceDetails = () => {
 
 						{isReturn && (
 							<div className='text-center mb-6'>
-								<p className='text-red-600 italic text-sm'>
+								<p className='text-error-600 italic text-sm'>
 									This is a return invoice. All amounts shown are credits to be applied to your account.
 								</p>
 							</div>
@@ -3282,7 +3282,7 @@ const renderInvoiceDetails = () => {
 				<div className='fixed z-10 inset-0 overflow-y-auto'>
 					<div className='flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0'>
 						<div className='fixed inset-0 transition-opacity' aria-hidden='true'>
-							<div className='absolute inset-0 bg-gray-500 opacity-75'></div>
+							<div className='absolute inset-0 bg-neutral-500 opacity-75'></div>
 						</div>
 						
 						<span className='hidden sm:inline-block sm:align-middle sm:h-screen' aria-hidden='true'>
@@ -3292,13 +3292,13 @@ const renderInvoiceDetails = () => {
 						<div className='inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full'>
 							<div className='bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4'>
 								<div className='flex items-center mb-4'>
-									<FaTruck className='text-blue-500 text-2xl mr-3' />
-									<h3 className='text-lg leading-6 font-medium text-gray-900'>
+									<FaTruck className='text-primary-500 text-2xl mr-3' />
+									<h3 className='text-lg leading-6 font-medium text-neutral-900'>
 										Shipping History - Invoice #{selectedInvoiceForHistory.id}
 									</h3>
 								</div>
 								
-								<div className='mb-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-blue-700'>
+								<div className='mb-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-primary-500-700'>
 									<p className='text-sm'>
 										Order Number: {selectedInvoiceForHistory.order_number}
 									</p>
@@ -3318,14 +3318,14 @@ const renderInvoiceDetails = () => {
 								/>
 							</div>
 							
-							<div className='bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse'>
+							<div className='bg-neutral-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse'>
 								<button
 									type='button'
 									onClick={() => {
 										setShowShippingHistory(false)
 										setSelectedInvoiceForHistory(null)
 									}}
-									className='w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm'
+									className='w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-neutral-700-700 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm'
 								>
 									Close
 								</button>

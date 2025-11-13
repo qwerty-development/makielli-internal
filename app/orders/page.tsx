@@ -241,17 +241,17 @@ class ErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return this.props.fallback || (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4 m-4">
+        <div className="bg-error-50 border border-error-200 rounded-md p-4 m-4">
           <div className="flex">
-            <FaExclamationTriangle className="text-red-400 mt-1 mr-2" />
+            <FaExclamationTriangle className="text-error-400 mt-1 mr-2" />
             <div>
-              <h3 className="text-sm font-medium text-red-800">Something went wrong</h3>
-              <p className="text-sm text-red-700 mt-1">
+              <h3 className="text-sm font-medium text-error-800">Something went wrong</h3>
+              <p className="text-sm text-error-700 mt-1">
                 {this.state.error?.message || 'An unexpected error occurred'}
               </p>
               <button
                 onClick={() => this.setState({ hasError: false, error: null })}
-                className="mt-2 bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1 rounded text-sm"
+                className="mt-2 bg-error-100 hover:bg-error-200 text-error-800 px-3 py-1 rounded text-sm"
               >
                 Try again
               </button>
@@ -278,7 +278,7 @@ const LoadingOverlay = ({ children, isLoading }: { children: React.ReactNode; is
         <div
           className='flex items-center justify-center min-h-screen'
           onClick={e => e.stopPropagation()}>
-          <div className='bg-gray bg-opacity-75 p-6 rounded-lg shadow-xl text-white'>
+          <div className='bg-neutral-900 bg-opacity-75 p-6 rounded-lg shadow-xl text-white'>
             <FaSpinner className='animate-spin mx-auto text-6xl' />
             <p className='mt-4 text-lg font-semibold'>Loading...</p>
           </div>
@@ -1301,7 +1301,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
       <div className='overflow-x-auto bg-white rounded-lg shadow'>
         {loadingStates.isMainLoading ? (
           <div className='flex justify-center items-center p-8'>
-            <FaSpinner className='animate-spin text-4xl text-blue' />
+            <FaSpinner className='animate-spin text-4xl text-primary-500' />
           </div>
         ) : (
           <table className='w-full table-auto'>
@@ -1335,14 +1335,14 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                 <th className='py-3 px-6 text-center'>Actions</th>
               </tr>
             </thead>
-            <tbody className='text-gray text-sm font-light'>
+            <tbody className='text-neutral-700 text-sm font-light'>
               {quotations.map(quotation => {
                 const client = findClientSafely(quotation.client_id)
                 
                 return (
                   <tr
                     key={quotation.id}
-                    className='border-b border-gray hover:bg-neutral-100 cursor-pointer'
+                    className='border-b border-neutral-300 hover:bg-neutral-100 cursor-pointer'
                     onClick={() => handleQuotationClick(quotation)}>
                     <td className='py-3 px-6 text-left whitespace-nowrap'>
                       {client?.name || '-'}
@@ -1357,10 +1357,10 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                       <span
                         className={`px-2 py-1 rounded-full text-xs ${
                           quotation.status === 'pending'
-                            ? 'bg-yellow-200 text-yellow-800'
+                            ? 'bg-warning-200 text-warning-800'
                             : quotation.status === 'accepted'
-                            ? 'bg-green-200 text-green-800'
-                            : 'bg-red-200 text-red-800'
+                            ? 'bg-success-200 text-success-800'
+                            : 'bg-red-200 text-error-800'
                         }`}>
                         {quotation.status}
                       </span>
@@ -1370,7 +1370,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                       <div className='flex items-center justify-center'>
                         {quotation.status === 'pending' && (
                           <button
-                            className='w-4 mr-2 transform hover:text-green-500 hover:scale-110'
+                            className='w-4 mr-2 transform hover:text-success-500 hover:scale-110'
                             onClick={e => {
                               e.stopPropagation()
                               handleAcceptQuotation(quotation)
@@ -1387,7 +1387,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                           <FaEdit />
                         </button>
                         <button
-                          className='w-4 mr-2 transform hover:text-red-500 hover:scale-110'
+                          className='w-4 mr-2 transform hover:text-error-500 hover:scale-110'
                           onClick={e => {
                             e.stopPropagation()
                             handleDeleteQuotation(quotation.id)
@@ -1414,7 +1414,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
           <button
             onClick={() => setCurrentPage(1)}
             disabled={currentPage === 1}
-            className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray bg-white text-sm font-medium text-gray hover:bg-neutral-50 ${
+            className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-neutral-300 bg-white text-sm font-medium text-neutral-700 hover:bg-neutral-50 ${
               currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
             }`}>
             <span className='sr-only'>First</span>⟪
@@ -1422,18 +1422,18 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
           <button
             onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
             disabled={currentPage === 1}
-            className={`relative inline-flex items-center px-2 py-2 border border-gray bg-white text-sm font-medium text-gray hover:bg-neutral-50 ${
+            className={`relative inline-flex items-center px-2 py-2 border border-neutral-300 bg-white text-sm font-medium text-neutral-700 hover:bg-neutral-50 ${
               currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
             }`}>
             <span className='sr-only'>Previous</span>⟨
           </button>
-          <span className='relative inline-flex items-center px-4 py-2 border border-gray bg-white text-sm font-medium text-gray'>
+          <span className='relative inline-flex items-center px-4 py-2 border border-neutral-300 bg-white text-sm font-medium text-neutral-700'>
             {currentPage} of {totalPages === 0 ? 1 : totalPages}
           </span>
           <button
             onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
             disabled={currentPage === totalPages}
-            className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray bg-white text-sm font-medium text-gray hover:bg-neutral-50 ${
+            className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-neutral-300 bg-white text-sm font-medium text-neutral-700 hover:bg-neutral-50 ${
               currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''
             }`}>
             <span className='sr-only'>Next</span>⟩
@@ -1463,10 +1463,10 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
             startDate={filterStartDate}
             endDate={filterEndDate}
             placeholderText='Start Date'
-            className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue sm:text-sm'
+            className='block w-full pl-10 pr-3 py-2 border border-neutral-300 rounded-md bg-white placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-primary-500 sm:text-sm'
           />
           <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-            <FaFilter className='h-5 w-5 text-gray' />
+            <FaFilter className='h-5 w-5 text-neutral-700' />
           </div>
         </div>
 
@@ -1479,10 +1479,10 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
             endDate={filterEndDate}
             minDate={filterStartDate}
             placeholderText='End Date'
-            className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue sm:text-sm'
+            className='block w-full pl-10 pr-3 py-2 border border-neutral-300 rounded-md bg-white placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-primary-500 sm:text-sm'
           />
           <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-            <FaFilter className='h-5 w-5 text-gray' />
+            <FaFilter className='h-5 w-5 text-neutral-700' />
           </div>
         </div>
 
@@ -1492,10 +1492,10 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
             value={orderNumberSearch}
             onChange={handleOrderNumberSearch}
             placeholder='Search by Order Number'
-            className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
+            className='block w-full pl-10 pr-3 py-2 border border-neutral-300 rounded-md leading-5 bg-white placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-blue sm:text-sm'
           />
           <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-            <FaSearch className='h-5 w-5 text-gray' />
+            <FaSearch className='h-5 w-5 text-neutral-700' />
           </div>
         </div>
         <div className='flex-grow min-w-[250px]'>
@@ -1511,7 +1511,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
 
         <select
           onChange={e => setFilterStatus(e.target.value || null)}
-          className='block min-w-[200px] pl-3 pr-10 py-2 text-base border-gray rounded-md focus:outline-none focus:ring-blue sm:text-sm'>
+          className='block min-w-[200px] pl-3 pr-10 py-2 text-base border-neutral-300 rounded-md focus:outline-none focus:ring-primary-500 sm:text-sm'>
           <option value=''>All Statuses</option>
           <option value='pending'>Pending</option>
           <option value='accepted'>Accepted</option>
@@ -1537,17 +1537,17 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
             </span>
             <div className='inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full'>
               <div className='bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4'>
-                <h3 className='text-lg leading-6 font-medium text-gray mb-4'>
+                <h3 className='text-lg leading-6 font-medium text-neutral-700 mb-4'>
                   {isExistingOrder ? 'Edit Order' : 'Create New Order'}
                 </h3>
 
                 {error && (
-                  <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-4">
+                  <div className="mb-4 bg-error-50 border border-error-200 rounded-md p-4">
                     <div className="flex">
-                      <FaExclamationTriangle className="text-red-400 mt-1 mr-2" />
+                      <FaExclamationTriangle className="text-error-400 mt-1 mr-2" />
                       <div>
-                        <h3 className="text-sm font-medium text-red-800">Error</h3>
-                        <p className="text-sm text-red-700 mt-1">{error}</p>
+                        <h3 className="text-sm font-medium text-error-800">Error</h3>
+                        <p className="text-sm text-error-700 mt-1">{error}</p>
                       </div>
                     </div>
                   </div>
@@ -1565,7 +1565,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
 
                 <form>
                   <div className='mb-4'>
-                    <label className='block text-gray text-sm font-bold mb-2' htmlFor='date'>
+                    <label className='block text-neutral-700 text-sm font-bold mb-2' htmlFor='date'>
                       Date
                     </label>
                     <DatePicker
@@ -1576,7 +1576,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                           created_at: date ? date.toISOString() : new Date().toISOString()
                         })
                       }
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'
+                      className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none'
                     />
                   </div>
                   <div className='mb-4'>
@@ -1591,12 +1591,12 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                     />
                   </div>
                   <div className='mb-4'>
-                    <label className='block text-gray text-sm font-bold mb-2'>Products</label>
+                    <label className='block text-neutral-700 text-sm font-bold mb-2'>Products</label>
                     <div className='flex mb-2'>
                       <input
                         type='text'
                         placeholder='Search products...'
-                        className='flex-grow shadow appearance-none border rounded py-2 px-3 text-gray leading-tight focus:outline-none'
+                        className='flex-grow shadow appearance-none border rounded py-2 px-3 text-neutral-700 leading-tight focus:outline-none'
                         onChange={e => handleProductSearch(e.target.value)}
                       />
                       <button
@@ -1615,7 +1615,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                           <span>{product?.name || 'Unknown Product'}</span>
                           <button
                             type='button'
-                            className='bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-xs'>
+                            className='bg-success-500 hover:bg-success-700 text-white font-bold py-1 px-2 rounded text-xs'>
                             Select
                           </button>
                         </div>
@@ -1624,12 +1624,12 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                     {selectedProduct && (
                       <div className='mb-4 p-2 border rounded'>
                         <h4 className='font-bold mb-2'>{selectedProduct.name}</h4>
-                        <label className='block text-gray text-sm font-semibold mb-2' htmlFor='discount'>
+                        <label className='block text-neutral-700 text-sm font-semibold mb-2' htmlFor='discount'>
                           Discount per item
                         </label>
                         <input
                           type='number'
-                          className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none mb-2'
+                          className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none mb-2'
                           value={newQuotation.discounts?.[selectedProduct.id] || 0}
                           min={0}
                           onChange={e =>
@@ -1640,7 +1640,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                         {selectedVariants.map((variant, index) => (
                           <div key={index} className='mb-2 p-2 border rounded'>
                             <select
-                              className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none mb-2'
+                              className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none mb-2'
                               value={variant.product_variant_id}
                               onChange={e =>
                                 handleVariantChange(index, 'product_variant_id', e.target.value)
@@ -1654,7 +1654,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                             </select>
                             <input
                               type='number'
-                              className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none mb-2'
+                              className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none mb-2'
                               value={variant.quantity}
                               onChange={e =>
                                 handleVariantChange(index, 'quantity', Number(e.target.value))
@@ -1662,7 +1662,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                               placeholder='Quantity'
                             />
                             <textarea
-                              className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none mb-2'
+                              className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none mb-2'
                               value={variant.note}
                               onChange={e =>
                                 handleVariantChange(index, 'note', e.target.value)
@@ -1671,7 +1671,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                             />
                             <button
                               type='button'
-                              className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
+                              className='bg-error-500 hover:bg-error-700 text-white font-bold py-1 px-2 rounded text-xs'
                               onClick={() => handleRemoveVariant(index)}>
                               Remove Variant
                             </button>
@@ -1685,7 +1685,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                         </button>
                         <button
                           type='button'
-                          className='bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-xs'
+                          className='bg-success-500 hover:bg-success-700 text-white font-bold py-1 px-2 rounded text-xs'
                           onClick={handleAddSelectedProductToQuotation}>
                           Add to Order
                         </button>
@@ -1706,13 +1706,13 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                             <div className='space-x-2'>
                               <button
                                 type='button'
-                                className='bg-blue hover:bg-indigo-700 text-white font-bold py-1 px-2 rounded text-xs'
+                                className='bg-primary-500 hover:bg-primary-600 text-white font-bold py-1 px-2 rounded text-xs'
                                 onClick={() => handleEditExistingProduct(index)}>
                                 Edit
                               </button>
                               <button
                                 type='button'
-                                className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
+                                className='bg-error-500 hover:bg-error-700 text-white font-bold py-1 px-2 rounded text-xs'
                                 onClick={() => {
                                   try {
                                     // Use functional update to avoid race conditions
@@ -1757,12 +1757,12 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                     })}
                   </div>
                   <div className='mb-4'>
-                    <label className='block text-gray text-sm font-bold mb-2' htmlFor='note'>
+                    <label className='block text-neutral-700 text-sm font-bold mb-2' htmlFor='note'>
                       Note
                     </label>
                     <textarea
                       id='note'
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'
+                      className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none'
                       value={newQuotation.note}
                       onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
                         setNewQuotation({ ...newQuotation, note: e.target.value })
@@ -1770,14 +1770,14 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                     />
                   </div>
                   <div className='mb-4'>
-                    <label className='block text-gray text-sm font-bold mb-2' htmlFor='order_number'>
+                    <label className='block text-neutral-700 text-sm font-bold mb-2' htmlFor='order_number'>
                       Order Number
                     </label>
                     <input
                       type='text'
                       id='order_number'
                       required
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'
+                      className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none'
                       value={newQuotation.order_number}
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                         setNewQuotation({ ...newQuotation, order_number: e.target.value })
@@ -1785,7 +1785,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                     />
                   </div>
                   <div className='mb-4'>
-                    <label className='block text-gray text-sm font-bold mb-2' htmlFor='currency'>
+                    <label className='block text-neutral-700 text-sm font-bold mb-2' htmlFor='currency'>
                       Currency
                     </label>
                     <select
@@ -1797,13 +1797,13 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                           currency: e.target.value || 'usd'
                         })
                       }
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'>
+                      className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none'>
                       <option value='usd'>USD ($)</option>
                       <option value='euro'>EUR (€)</option>
                     </select>
                   </div>
                   <div className='mb-4'>
-                    <label className='block text-gray text-sm font-bold mb-2' htmlFor='payment_term'>
+                    <label className='block text-neutral-700 text-sm font-bold mb-2' htmlFor='payment_term'>
                       Payment Terms
                     </label>
                     <select
@@ -1815,7 +1815,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                           payment_term: e.target.value || '30% deposit 70% before shipping'
                         })
                       }
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'>
+                      className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none'>
                       <option value=''>Select Payment Term</option>
                       <option value='100% after delivery'>100% after delivery</option>
                       <option value='30% deposit 70% before shipping'>30% deposit 70% before shipping</option>
@@ -1825,7 +1825,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                     </select>
                   </div>
                   <div className='mb-4'>
-                    <label className='block text-gray text-sm font-bold mb-2' htmlFor='delivery_date'>
+                    <label className='block text-neutral-700 text-sm font-bold mb-2' htmlFor='delivery_date'>
                       Delivery Date
                     </label>
                     <DatePicker
@@ -1836,21 +1836,21 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                           delivery_date: date ? date.toISOString() : new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString()
                         })
                       }
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'
+                      className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none'
                       minDate={new Date()}
                       placeholderText='Select delivery date'
                       required
                     />
                   </div>
                   <div className='mb-4'>
-                    <label className='block text-gray text-sm font-bold mb-2' htmlFor='shipping_fee'>
+                    <label className='block text-neutral-700 text-sm font-bold mb-2' htmlFor='shipping_fee'>
                       Shipping Fee
                     </label>
                     <input
                       id='shipping_fee'
                       type='number'
                       min='0'
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+                      className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none focus:shadow-outline'
                       value={newQuotation.shipping_fee || 0}
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                         handleShippingFeeChange(Number(e.target.value))
@@ -1859,11 +1859,11 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                     />
                   </div>
                   <div className='mb-4'>
-                    <label className='block text-gray text-sm font-bold mb-2'>
+                    <label className='block text-neutral-700 text-sm font-bold mb-2'>
                       Payment Information
                     </label>
                     <select
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+                      className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none focus:shadow-outline'
                       value={newQuotation.payment_info || 'frisson_llc'}
                       onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                         e.preventDefault()
@@ -1912,30 +1912,30 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                             toast.error('Failed to update VAT')
                           }
                         }}
-                        className='form-checkbox h-5 w-5 text-blue'
+                        className='form-checkbox h-5 w-5 text-primary-500'
                       />
-                      <span className='ml-2 text-gray text-sm'>Include 11% VAT</span>
+                      <span className='ml-2 text-neutral-700 text-sm'>Include 11% VAT</span>
                     </label>
                   </div>
                   <div className='mb-4'>
-                    <label className='block text-gray text-sm font-bold mb-2'>
+                    <label className='block text-neutral-700 text-sm font-bold mb-2'>
                       Total Price (including VAT and shipping if applicable)
                     </label>
                     <input
                       type='number'
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'
+                      className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none'
                       value={newQuotation.total_price || 0}
                       readOnly
                     />
                   </div>
                   {newQuotation.include_vat && (
                     <div className='mb-4'>
-                      <label className='block text-gray text-sm font-bold mb-2'>
+                      <label className='block text-neutral-700 text-sm font-bold mb-2'>
                         VAT Amount (11%)
                       </label>
                       <input
                         type='number'
-                        className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'
+                        className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none'
                         value={newQuotation.vat_amount || 0}
                         readOnly
                       />
@@ -1943,11 +1943,11 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                   )}
                   {newQuotation.id && (
                     <div className='mb-4'>
-                      <label className='block text-gray text-sm font-bold mb-2'>
+                      <label className='block text-neutral-700 text-sm font-bold mb-2'>
                         Status
                       </label>
                       <select
-                        className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none'
+                        className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none'
                         value={newQuotation.status}
                         onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                           setNewQuotation({
@@ -1960,12 +1960,12 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                         <option value='rejected'>Rejected</option>
                       </select>
                       {isAcceptedOrder && newQuotation.status !== 'accepted' && (
-                        <p className="mt-1 text-xs text-red-600">
+                        <p className="mt-1 text-xs text-error-600">
                           Warning: Changing the status from accepted will not remove the related invoice.
                         </p>
                       )}
                       {!isAcceptedOrder && newQuotation.status === 'accepted' && (
-                        <p className="mt-1 text-xs text-green-600">
+                        <p className="mt-1 text-xs text-success-600">
                           This order will be converted to an invoice when saved.
                         </p>
                       )}
@@ -1983,7 +1983,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                 </button>
                 <button
                   type='button'
-                  className='mt-3 w-full inline-flex justify-center rounded-md border border-gray shadow-sm px-4 py-2 bg-white text-base font-medium text-gray hover:bg-neutral-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
+                  className='mt-3 w-full inline-flex justify-center rounded-md border border-neutral-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-neutral-700 hover:bg-neutral-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
                   onClick={() => handleCloseModal()}>
                   Cancel
                 </button>
@@ -2073,7 +2073,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
   
       return (
         <ErrorBoundary>
-          <div className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'>
+          <div className='fixed inset-0 bg-neutral-900 bg-opacity-50 overflow-y-auto h-full w-full'>
             <div className='relative top-10 mx-auto p-5 border w-4/5 max-w-5xl shadow-lg rounded-md bg-white'>
               <div className='mt-3'>
                 <div className='flex justify-between items-start mb-6'>
@@ -2090,7 +2090,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                 </div>
   
                 <div className='mb-6 text-center'>
-                  <h2 className='text-2xl font-bold text-blue'>PURCHASE ORDER</h2>
+                  <h2 className='text-2xl font-bold text-primary-500'>PURCHASE ORDER</h2>
                 </div>
   
                 <div className='flex justify-between mb-6'>
@@ -2116,10 +2116,10 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                     )}
                     <p className='text-sm'>Status: <span className={`px-2 py-1 rounded-full text-xs ${
                       selectedQuotation.status === 'pending'
-                        ? 'bg-yellow-200 text-yellow-800'
+                        ? 'bg-warning-200 text-warning-800'
                         : selectedQuotation.status === 'accepted'
-                        ? 'bg-green-200 text-green-800'
-                        : 'bg-red-200 text-red-800'
+                        ? 'bg-success-200 text-success-800'
+                        : 'bg-red-200 text-error-800'
                     }`}>{selectedQuotation.status}</span></p>
                   </div>
                 </div>
@@ -2300,19 +2300,19 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
     } catch (error) {
       console.error('Error rendering quotation details:', error)
       return (
-        <div className='fixed inset-0 bg-gray bg-opacity-50 overflow-y-auto h-full w-full'>
+        <div className='fixed inset-0 bg-neutral-900 bg-opacity-50 overflow-y-auto h-full w-full'>
           <div className='relative top-10 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white'>
-            <div className="bg-red-50 border border-red-200 rounded-md p-4">
+            <div className="bg-error-50 border border-error-200 rounded-md p-4">
               <div className="flex">
-                <FaExclamationTriangle className="text-red-400 mt-1 mr-2" />
+                <FaExclamationTriangle className="text-error-400 mt-1 mr-2" />
                 <div>
-                  <h3 className="text-sm font-medium text-red-800">Error Loading Order Details</h3>
-                  <p className="text-sm text-red-700 mt-1">
+                  <h3 className="text-sm font-medium text-error-800">Error Loading Order Details</h3>
+                  <p className="text-sm text-error-700 mt-1">
                     Failed to load order details. Please try again.
                   </p>
                   <button
                     onClick={() => setSelectedQuotation(null)}
-                    className="mt-2 bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1 rounded text-sm"
+                    className="mt-2 bg-error-100 hover:bg-error-200 text-error-800 px-3 py-1 rounded text-sm"
                   >
                     Close
                   </button>

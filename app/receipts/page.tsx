@@ -906,7 +906,7 @@ const handleDeleteReceipt = async (id: number) => {
 								<td className='py-3 px-6 text-center'>
 									{receipt.files && receipt.files.length > 0 ? (
 										<FaFile
-											className='inline text-blue cursor-pointer'
+											className='inline text-primary-500 cursor-pointer'
 											onClick={() => setSelectedReceipt(receipt)}
 										/>
 									) : (
@@ -1060,12 +1060,12 @@ const handleDeleteReceipt = async (id: number) => {
 							{(validationErrors.length > 0 || validationWarnings.length > 0) && (
 								<div className="mb-4 space-y-2">
 									{validationErrors.length > 0 && (
-										<div className="bg-red-50 border border-red-200 rounded-md p-4">
+										<div className="bg-error-50 border border-error-200 rounded-md p-4">
 											<div className="flex">
-												<FaExclamationTriangle className="text-red-400 mt-1 mr-2" />
+												<FaExclamationTriangle className="text-error-400 mt-1 mr-2" />
 												<div>
-													<h3 className="text-sm font-medium text-red-800">Please fix the following errors:</h3>
-													<ul className="list-disc list-inside text-sm text-red-700 mt-1 space-y-1">
+													<h3 className="text-sm font-medium text-error-800">Please fix the following errors:</h3>
+													<ul className="list-disc list-inside text-sm text-error-700 mt-1 space-y-1">
 														{validationErrors.map((error, index) => (
 															<li key={index}>{error}</li>
 														))}
@@ -1076,12 +1076,12 @@ const handleDeleteReceipt = async (id: number) => {
 									)}
 									
 									{validationWarnings.length > 0 && (
-										<div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+										<div className="bg-warning-50 border border-warning-200 rounded-md p-4">
 											<div className="flex">
-												<FaExclamationTriangle className="text-yellow-400 mt-1 mr-2" />
+												<FaExclamationTriangle className="text-warning-400 mt-1 mr-2" />
 												<div>
-													<h3 className="text-sm font-medium text-yellow-800">Warnings:</h3>
-													<ul className="list-disc list-inside text-sm text-yellow-700 mt-1 space-y-1">
+													<h3 className="text-sm font-medium text-warning-800">Warnings:</h3>
+													<ul className="list-disc list-inside text-sm text-warning-700 mt-1 space-y-1">
 														{validationWarnings.map((warning, index) => (
 															<li key={index}>{warning}</li>
 														))}
@@ -1164,7 +1164,7 @@ const handleDeleteReceipt = async (id: number) => {
 													return (
 														<div 
 															key={invoice.id}
-															className={`p-2 cursor-pointer hover:bg-indigo-100 ${newReceipt.invoice_id === invoice.id ? 'bg-indigo-200' : ''}`}
+															className={`p-2 cursor-pointer hover:bg-primary-100 ${newReceipt.invoice_id === invoice.id ? 'bg-primary-200' : ''}`}
 															onClick={() => {
 																setNewReceipt({
 																	...newReceipt,
@@ -1277,13 +1277,13 @@ const handleDeleteReceipt = async (id: number) => {
 												href={file}
 												target='_blank'
 												rel='noopener noreferrer'
-												className='text-blue hover:underline mr-2'>
+												className='text-primary-500 hover:underline mr-2'>
 												{file.split('/').pop()}
 											</a>
 											<button
 												type='button'
 												onClick={() => handleFileDelete(file)}
-												className='text-blue hover:text-gray'>
+												className='text-primary-500 hover:text-gray'>
 												<FaTrash />
 											</button>
 										</div>
@@ -1345,7 +1345,7 @@ const handleDeleteReceipt = async (id: number) => {
 											href={file}
 											target='_blank'
 											rel='noopener noreferrer'
-											className='text-blue hover:underline'>
+											className='text-primary-500 hover:underline'>
 											{file.split('/').pop()}
 										</a>
 									</li>

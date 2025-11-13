@@ -530,19 +530,19 @@ export default function ClientDetailsPage({
       switch (status) {
         case 'fully_shipped':
           return { 
-            color: 'bg-green-100 text-green-800', 
+            color: 'bg-success-100 text-success-800', 
             icon: <FaCheckCircle className="inline mr-1" />,
             text: 'Fully Shipped'
           }
         case 'partially_shipped':
           return { 
-            color: 'bg-yellow-100 text-yellow-800', 
+            color: 'bg-warning-100 text-warning-800', 
             icon: <FaExclamationCircle className="inline mr-1" />,
             text: 'Partially Shipped'
           }
         default:
           return { 
-            color: 'bg-gray-100 text-gray-800', 
+            color: 'bg-neutral-100 text-neutral-800', 
             icon: <FaTruck className="inline mr-1" />,
             text: 'Unshipped'
           }
@@ -864,13 +864,13 @@ export default function ClientDetailsPage({
                           {invoice.created_at ? new Date(invoice.created_at).toLocaleDateString() : 'N/A'}
                         </td>
                         <td className={`py-3 px-6 text-left ${
-                          isReturn ? 'text-red-600' : 'text-green-600'
+                          isReturn ? 'text-error-600' : 'text-success-600'
                         }`}>
                           {currencySymbol}{Math.abs(totalPrice).toFixed(2)}
                           {isReturn && ' (Return)'}
                         </td>
                         <td className={`py-3 px-6 text-left ${
-                          remainingAmount > 0 ? 'text-orange-600' : 'text-green-600'
+                          remainingAmount > 0 ? 'text-warning-600' : 'text-success-600'
                         }`}>
                           {currencySymbol}{Math.abs(remainingAmount).toFixed(2)}
                         </td>
@@ -880,8 +880,8 @@ export default function ClientDetailsPage({
                         <td className='py-3 px-6 text-center'>
                           {invoice.quotation_id ? (
                             <div className="flex items-center justify-center">
-                              <FaLink className="text-blue mr-1" />
-                              <span className="text-blue text-xs" title={`Created from Order #${invoice.quotation_id}`}>
+                              <FaLink className="text-primary-500 mr-1" />
+                              <span className="text-primary-500 text-xs" title={`Created from Order #${invoice.quotation_id}`}>
                                 Q#{invoice.quotation_id}
                               </span>
                             </div>
@@ -896,15 +896,15 @@ export default function ClientDetailsPage({
                         </td>
                         <td className='py-3 px-6 text-center'>
                           <div className='flex items-center justify-center space-x-1'>
-                            <FaBox className='text-blue text-sm' />
-                            <span className='text-xs text-gray-600' title={getInvoiceProductsPreview(invoice.id)}>
+                            <FaBox className='text-primary-500 text-sm' />
+                            <span className='text-xs text-neutral-600' title={getInvoiceProductsPreview(invoice.id)}>
                               {getInvoiceProductsPreview(invoice.id)}
                             </span>
                           </div>
                         </td>
                         <td className='py-3 px-6 text-center'>
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            isReturn ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                            isReturn ? 'bg-error-100 text-error-800' : 'bg-success-100 text-success-800'
                           }`}>
                             {isReturn ? 'Return' : 'Regular'}
                           </span>
@@ -915,8 +915,8 @@ export default function ClientDetailsPage({
                         <td className='py-3 px-6 text-center'>
                           {invoice.files && invoice.files.length > 0 ? (
                             <div className="flex items-center justify-center">
-                              <FaFile className='text-blue mr-1' />
-                              <span className="text-xs text-gray-600">{invoice.files.length}</span>
+                              <FaFile className='text-primary-500 mr-1' />
+                              <span className="text-xs text-neutral-600">{invoice.files.length}</span>
                             </div>
                           ) : (
                             <span className="text-neutral-400">-</span>
@@ -1004,10 +1004,10 @@ export default function ClientDetailsPage({
                           <span
                             className={`px-2 py-1 rounded-full text-xs ${
                               quotation.status === 'pending'
-                                ? 'bg-yellow-200 text-yellow-800'
+                                ? 'bg-warning-200 text-warning-800'
                                 : quotation.status === 'accepted'
-                                ? 'bg-green-200 text-green-800'
-                                : 'bg-red-200 text-red-800'
+                                ? 'bg-success-200 text-success-800'
+                                : 'bg-error-200 text-error-800'
                             }`}>
                             {quotation.status}
                           </span>
@@ -1021,7 +1021,7 @@ export default function ClientDetailsPage({
                         <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
                           {quotation.note ? (
                             <FaInfoCircle
-                              className='text-blue'
+                              className='text-primary-500'
                               title={quotation.note}
                             />
                           ) : (
@@ -1106,7 +1106,7 @@ export default function ClientDetailsPage({
                         </td>
                         <td className='px-6 py-4 whitespace-no-wrap border-b border-white'>
                           {receipt.files.length > 0 ? (
-                            <FaFile className='inline text-blue' />
+                            <FaFile className='inline text-primary-500' />
                           ) : (
                             '-'
                           )}
@@ -1127,15 +1127,15 @@ export default function ClientDetailsPage({
               <div className='modal-content max-w-5xl' onClick={e => e.stopPropagation()}>
                 <div className='flex justify-between items-start mb-6'>
                   <div>
-                    <h3 className='text-2xl font-bold text-gray-900 flex items-center'>
-                      <FaFileInvoice className="mr-3 text-blue" />
+                    <h3 className='text-2xl font-bold text-neutral-900 flex items-center'>
+                      <FaFileInvoice className="mr-3 text-primary-500" />
                       Invoice #{selectedInvoice.id}
                     </h3>
                     <div className="flex items-center mt-2 space-x-4">
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                         selectedInvoice.type === 'return' 
-                          ? 'bg-red-100 text-red-800' 
-                          : 'bg-green-100 text-green-800'
+                          ? 'bg-error-100 text-error-800' 
+                          : 'bg-success-100 text-success-800'
                       }`}>
                         {selectedInvoice.type === 'return' ? 'Return Invoice' : 'Regular Invoice'}
                       </span>
@@ -1144,7 +1144,7 @@ export default function ClientDetailsPage({
                   </div>
                   <button
                     onClick={() => setSelectedInvoice(null)}
-                    className='text-gray-400 hover:text-gray-600 transition-colors'>
+                    className='text-neutral-400 hover:text-neutral-600 transition-colors'>
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
                     </svg>
@@ -1154,28 +1154,28 @@ export default function ClientDetailsPage({
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   {/* Invoice Summary */}
                   <div className="lg:col-span-1">
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <h4 className="text-lg font-semibold text-gray-900 mb-4">Invoice Summary</h4>
+                    <div className="bg-neutral-50 rounded-lg p-4">
+                      <h4 className="text-lg font-semibold text-neutral-900 mb-4">Invoice Summary</h4>
                       <div className="space-y-3">
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Date:</span>
+                          <span className="text-neutral-600">Date:</span>
                           <span className="font-medium">{format(new Date(selectedInvoice.created_at), 'PPP')}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Order Number:</span>
+                          <span className="text-neutral-600">Order Number:</span>
                           <span className="font-medium">{selectedInvoice.order_number || 'N/A'}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Currency:</span>
+                          <span className="text-neutral-600">Currency:</span>
                           <span className="font-medium">{(selectedInvoice.currency || 'usd').toUpperCase()}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Source:</span>
+                          <span className="text-neutral-600">Source:</span>
                           <div className="flex items-center">
                             {selectedInvoice.quotation_id ? (
                               <>
-                                <FaLink className="text-blue mr-1 text-xs" />
-                                <span className="text-blue text-sm">Order #{selectedInvoice.quotation_id}</span>
+                                <FaLink className="text-primary-500 mr-1 text-xs" />
+                                <span className="text-primary-500 text-sm">Order #{selectedInvoice.quotation_id}</span>
                               </>
                             ) : (
                               <>
@@ -1185,19 +1185,19 @@ export default function ClientDetailsPage({
                             )}
                           </div>
                         </div>
-                        <hr className="border-gray-200" />
+                        <hr className="border-neutral-200" />
                         <div className="flex justify-between text-lg">
-                          <span className="text-gray-600">Total:</span>
+                          <span className="text-neutral-600">Total:</span>
                           <span className={`font-bold ${
-                            selectedInvoice.type === 'return' ? 'text-red-600' : 'text-green-600'
+                            selectedInvoice.type === 'return' ? 'text-error-600' : 'text-success-600'
                           }`}>
                             {getCurrencySymbol(selectedInvoice.currency)}{Math.abs(selectedInvoice.total_price).toFixed(2)}
                           </span>
                         </div>
                         <div className="flex justify-between text-lg">
-                          <span className="text-gray-600">Remaining:</span>
+                          <span className="text-neutral-600">Remaining:</span>
                           <span className={`font-bold ${
-                            selectedInvoice.remaining_amount > 0 ? 'text-orange-600' : 'text-green-600'
+                            selectedInvoice.remaining_amount > 0 ? 'text-warning-600' : 'text-success-600'
                           }`}>
                             {getCurrencySymbol(selectedInvoice.currency)}{Math.abs(selectedInvoice.remaining_amount).toFixed(2)}
                           </span>
@@ -1208,10 +1208,10 @@ export default function ClientDetailsPage({
 
                   {/* Products */}
                   <div className="lg:col-span-2">
-                    <div className="bg-white border border-gray-200 rounded-lg">
-                      <div className="px-4 py-3 border-b border-gray-200">
-                        <h4 className="text-lg font-semibold text-gray-900 flex items-center">
-                          <FaBox className="mr-2 text-blue" />
+                    <div className="bg-white border border-neutral-200 rounded-lg">
+                      <div className="px-4 py-3 border-b border-neutral-200">
+                        <h4 className="text-lg font-semibold text-neutral-900 flex items-center">
+                          <FaBox className="mr-2 text-primary-500" />
                           Products ({(invoiceProductDetails[selectedInvoice.id] || selectedInvoice.products).filter((p: any) => p !== null && p !== undefined).length})
                         </h4>
                       </div>
@@ -1220,7 +1220,7 @@ export default function ClientDetailsPage({
                           {(invoiceProductDetails[selectedInvoice.id] || selectedInvoice.products).filter((p: any) => p !== null && p !== undefined).map((product, index) => {
                             const productWithDetails = product as InvoiceProductWithDetails
                             return (
-                              <div key={index} className='bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow'>
+                              <div key={index} className='bg-white border border-neutral-200 rounded-lg p-4 hover:shadow-md transition-shadow'>
                                 <div className='flex items-start space-x-4'>
                                   {productWithDetails.variantDetails?.product.photo && (
                                     <div className="flex-shrink-0">
@@ -1234,46 +1234,46 @@ export default function ClientDetailsPage({
                                     </div>
                                   )}
                                   <div className='flex-1 min-w-0'>
-                                    <h5 className='text-lg font-semibold text-gray-900 truncate'>
+                                    <h5 className='text-lg font-semibold text-neutral-900 truncate'>
                                       {productWithDetails.variantDetails ? 
                                         productWithDetails.variantDetails.product.name : 
                                         'Product Not Found'
                                       }
                                     </h5>
                                     {productWithDetails.variantDetails && (
-                                      <div className="mt-1 flex items-center space-x-4 text-sm text-gray-600">
-                                        <span className="bg-gray-100 px-2 py-1 rounded">
+                                      <div className="mt-1 flex items-center space-x-4 text-sm text-neutral-600">
+                                        <span className="bg-neutral-100 px-2 py-1 rounded">
                                           Size: {productWithDetails.variantDetails.size}
                                         </span>
-                                        <span className="bg-gray-100 px-2 py-1 rounded">
+                                        <span className="bg-neutral-100 px-2 py-1 rounded">
                                           Color: {productWithDetails.variantDetails.color}
                                         </span>
                                       </div>
                                     )}
                                     <div className='mt-2 flex items-center justify-between'>
                                       <div className="flex items-center space-x-4">
-                                        <span className='text-sm font-medium text-gray-900'>
-                                          Quantity: <span className="text-blue font-bold">{productWithDetails.quantity}</span>
+                                        <span className='text-sm font-medium text-neutral-900'>
+                                          Quantity: <span className="text-primary-500 font-bold">{productWithDetails.quantity}</span>
                                         </span>
                                         {productWithDetails.variantDetails && (
-                                          <span className='text-sm text-gray-600'>
+                                          <span className='text-sm text-neutral-600'>
                                             ${productWithDetails.variantDetails.product.price.toFixed(2)} each
                                           </span>
                                         )}
                                       </div>
                                       {productWithDetails.variantDetails && (
                                         <div className="text-right">
-                                          <span className="text-lg font-bold text-green-600">
+                                          <span className="text-lg font-bold text-success-600">
                                             ${(productWithDetails.variantDetails.product.price * productWithDetails.quantity).toFixed(2)}
                                           </span>
                                         </div>
                                       )}
                                     </div>
                                     {productWithDetails.note && (
-                                      <div className='mt-3 p-2 bg-yellow-50 border-l-4 border-yellow-400 rounded'>
+                                      <div className='mt-3 p-2 bg-warning-50 border-l-4 border-warning-400 rounded'>
                                         <div className="flex items-start">
-                                          <FaInfoCircle className="text-yellow-600 mr-2 mt-0.5 flex-shrink-0" />
-                                          <span className="text-sm text-yellow-800">{productWithDetails.note}</span>
+                                          <FaInfoCircle className="text-warning-600 mr-2 mt-0.5 flex-shrink-0" />
+                                          <span className="text-sm text-warning-800">{productWithDetails.note}</span>
                                         </div>
                                       </div>
                                     )}
@@ -1291,10 +1291,10 @@ export default function ClientDetailsPage({
                 {/* Files Section */}
                 {selectedInvoice.files && selectedInvoice.files.length > 0 && (
                   <div className="mt-6">
-                    <div className="bg-white border border-gray-200 rounded-lg">
-                      <div className="px-4 py-3 border-b border-gray-200">
-                        <h4 className="text-lg font-semibold text-gray-900 flex items-center">
-                          <FaFile className="mr-2 text-blue" />
+                    <div className="bg-white border border-neutral-200 rounded-lg">
+                      <div className="px-4 py-3 border-b border-neutral-200">
+                        <h4 className="text-lg font-semibold text-neutral-900 flex items-center">
+                          <FaFile className="mr-2 text-primary-500" />
                           Attachments ({selectedInvoice.files.length})
                         </h4>
                       </div>
@@ -1306,15 +1306,15 @@ export default function ClientDetailsPage({
                               href={file}
                               target='_blank'
                               rel='noopener noreferrer'
-                              className='flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group'>
-                              <FaFile className="text-blue mr-3" />
+                              className='flex items-center p-3 bg-neutral-50 rounded-lg hover:bg-neutral-100 transition-colors group'>
+                              <FaFile className="text-primary-500 mr-3" />
                               <div className="flex-1 min-w-0">
-                                <span className="text-sm font-medium text-gray-900 truncate block">
+                                <span className="text-sm font-medium text-neutral-900 truncate block">
                                   {file.split('/').pop()}
                                 </span>
                                 <span className="text-xs text-gray-500">Click to open</span>
                               </div>
-                              <FaDownload className="text-gray-400 group-hover:text-blue ml-2" />
+                              <FaDownload className="text-neutral-400 group-hover:text-primary-500 ml-2" />
                             </a>
                           ))}
                         </div>
@@ -1359,10 +1359,10 @@ export default function ClientDetailsPage({
                       <span
                         className={`px-2 py-1 rounded-full text-xs ${
                           selectedQuotation.status === 'pending'
-                            ? 'bg-yellow-200 text-yellow-800'
+                            ? 'bg-warning-200 text-warning-800'
                             : selectedQuotation.status === 'accepted'
-                            ? 'bg-green-200 text-green-800'
-                            : 'bg-red-200 text-red-800'
+                            ? 'bg-success-200 text-success-800'
+                            : 'bg-error-200 text-error-800'
                         }`}>
                         {selectedQuotation.status}
                       </span>
@@ -1454,7 +1454,7 @@ export default function ClientDetailsPage({
                             href={file}
                             target='_blank'
                             rel='noopener noreferrer'
-                            className='text-blue hover:underline'>
+                            className='text-primary-500 hover:underline'>
                             {file.split('/').pop()}{' '}
                             <FaDownload className='inline' />
                           </a>
