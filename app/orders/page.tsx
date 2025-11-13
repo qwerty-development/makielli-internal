@@ -1511,11 +1511,11 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
 
         <select
           onChange={e => setFilterStatus(e.target.value || null)}
-          className='block min-w-[200px] pl-3 pr-10 py-2 text-base border-neutral-300 rounded-md focus:outline-none focus:ring-primary-500 sm:text-sm'>
-          <option value=''>All Statuses</option>
-          <option value='pending'>Pending</option>
-          <option value='accepted'>Accepted</option>
-          <option value='rejected'>Rejected</option>
+          className='block min-w-[200px] pl-3 pr-10 py-2 text-base border-neutral-300 rounded-md focus:outline-none focus:ring-primary-500 sm:text-sm text-neutral-900'>
+          <option value='' className='text-neutral-900 bg-white'>All Statuses</option>
+          <option value='pending' className='text-neutral-900 bg-white'>Pending</option>
+          <option value='accepted' className='text-neutral-900 bg-white'>Accepted</option>
+          <option value='rejected' className='text-neutral-900 bg-white'>Rejected</option>
         </select>
       </div>
     </ErrorBoundary>
@@ -1612,7 +1612,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                           key={product.id}
                           className='flex justify-between items-center p-2 hover:bg-neutral-100 cursor-pointer'
                           onClick={() => handleAddProduct(product)}>
-                          <span>{product?.name || 'Unknown Product'}</span>
+                          <span className='text-neutral-900'>{product?.name || 'Unknown Product'}</span>
                           <button
                             type='button'
                             className='bg-success-500 hover:bg-success-700 text-white font-bold py-1 px-2 rounded text-xs'>
@@ -1623,7 +1623,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                     </div>
                     {selectedProduct && (
                       <div className='mb-4 p-2 border rounded'>
-                        <h4 className='font-bold mb-2'>{selectedProduct.name}</h4>
+                        <h4 className='font-bold mb-2 text-neutral-900'>{selectedProduct.name}</h4>
                         <label className='block text-neutral-700 text-sm font-semibold mb-2' htmlFor='discount'>
                           Discount per item
                         </label>
