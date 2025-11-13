@@ -2273,7 +2273,7 @@ const InvoicesPage: React.FC = () => {
 										Invoice Type
 									</label>
 									<select
-										className='input'
+										className='input text-neutral-900'
 										value={newInvoice.type || 'regular'}
 										onChange={e =>
 											setNewInvoice({
@@ -2281,8 +2281,8 @@ const InvoicesPage: React.FC = () => {
 												type: e.target.value as 'regular' | 'return'
 											})
 										}>
-										<option value='regular'>Regular Invoice</option>
-										<option value='return'>Return Invoice</option>
+										<option value='regular' className='text-neutral-900 bg-white'>Regular Invoice</option>
+										<option value='return' className='text-neutral-900 bg-white'>Return Invoice</option>
 									</select>
 								</div>
 							)}
@@ -2331,7 +2331,7 @@ const InvoicesPage: React.FC = () => {
 													hasValidVariants ? 'hover:bg-neutral-100' : 'bg-neutral-100 cursor-not-allowed'
 												}`}
 												onClick={() => hasValidVariants && handleAddProduct(product)}>
-												<span className={hasValidVariants ? '' : 'text-neutral-400'}>
+												<span className={hasValidVariants ? 'text-neutral-900' : 'text-neutral-400'}>
 													{product.name}
 													{!hasValidVariants && ' (No Valid Variants)'}
 												</span>
@@ -2352,7 +2352,7 @@ const InvoicesPage: React.FC = () => {
 
 								{selectedProduct && (
 									<div className='mb-4 p-2 border rounded'>
-										<h4 className='font-bold mb-2'>{selectedProduct.name}</h4>
+										<h4 className='font-bold mb-2 text-neutral-900'>{selectedProduct.name}</h4>
 										<label className='block text-neutral-700 text-sm font-semibold mb-2' htmlFor='discount'>
 											Discount per item
 										</label>
