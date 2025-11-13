@@ -2327,71 +2327,76 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
 
   return (
     <ErrorBoundary>
-      <div className='mx-auto px-4 py-8 text-gray'>
-        <h1 className='text-3xl font-bold text-gray mb-6'>Order Management</h1>
+      <div className='min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 p-6 sm:p-8'>
+        <div className='max-w-7xl mx-auto'>
+          <div className='mb-8 animate-fade-in'>
+            <h1 className='text-4xl font-bold text-neutral-800 mb-2'>Order Management</h1>
+            <p className='text-neutral-600'>Create and manage client orders and quotations</p>
+          </div>
         
-        {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
-            <div className="flex">
-              <FaExclamationTriangle className="text-red-400 mt-1 mr-2" />
-              <div>
-                <h3 className="text-sm font-medium text-red-800">Error</h3>
-                <p className="text-sm text-red-700 mt-1">{error}</p>
-                <button
-                  onClick={() => setError(null)}
-                  className="mt-2 bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1 rounded text-sm"
-                >
-                  Dismiss
-                </button>
+          {error && (
+            <div className="mb-6 bg-error-50 border border-error-200 rounded-md p-4">
+              <div className="flex">
+                <FaExclamationTriangle className="text-error-400 mt-1 mr-2" />
+                <div>
+                  <h3 className="text-sm font-medium text-error-800">Error</h3>
+                  <p className="text-sm text-error-700 mt-1">{error}</p>
+                  <button
+                    onClick={() => setError(null)}
+                    className="mt-2 bg-error-100 hover:bg-error-200 text-error-800 px-3 py-1 rounded text-sm"
+                  >
+                    Dismiss
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
         
-        <div className='bg-white shadow-md rounded-lg'>
-          <div className='p-6'>
-            {renderFilters()}
-            {renderQuotationTable()}
-            {renderPagination()}
+          <div className='card'>
+            <div className='p-6'>
+              {renderFilters()}
+              {renderQuotationTable()}
+              {renderPagination()}
+            </div>
           </div>
+          <button
+            className='mt-6 btn-primary flex items-center gap-2'
+            onClick={() => {
+              try {
+                setNewQuotation({
+                  created_at: new Date().toISOString(),
+                  total_price: 0,
+                  note: '',
+                  products: [],
+                  status: 'pending',
+                  include_vat: false,
+                  vat_amount: 0,
+                  order_number: '0',
+                  discounts: {},
+                  currency: 'usd',
+                  payment_term: '30% deposit 70% before shipping',
+                  delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(),
+                  client_id: undefined,
+                  shipping_fee: 0
+                })
+                setError(null)
+                setShowModal(true)
+              } catch (error) {
+                console.error('Error creating new order:', error)
+                toast.error('Failed to create new order')
+              }
+            }}>
+            <FaPlus /> Create New Order
+          </button>
+          {showModal && (
+            <div className='fixed z-10 inset-0 overflow-y-auto'>
+              <LoadingOverlay isLoading={loadingStates.isOrderCreating || loadingStates.isOrderUpdating}>
+                {renderQuotationModal()}
+              </LoadingOverlay>
+            </div>
+          )}
+          {selectedQuotation && renderQuotationDetails()}
         </div>
-        <button
-          className='mt-6 bg-blue hover:bg-blue text-white font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110'
-          onClick={() => {
-            try {
-              setNewQuotation({
-                created_at: new Date().toISOString(),
-                total_price: 0,
-                note: '',
-                products: [],
-                status: 'pending',
-                include_vat: false,
-                vat_amount: 0,
-                order_number: '0',
-                discounts: {},
-                currency: 'usd',
-                payment_term: '30% deposit 70% before shipping',
-                delivery_date: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString(),
-                client_id: undefined,
-                shipping_fee: 0
-              })
-              setError(null)
-              setShowModal(true)
-            } catch (error) {
-              console.error('Error creating new order:', error)
-              toast.error('Failed to create new order')
-            }
-          }}>
-          <FaPlus className='inline-block mr-2' /> Create New Order
-        </button>
-        {showModal && (
-          <div className='fixed z-10 inset-0 overflow-y-auto'>
-            <LoadingOverlay isLoading={loadingStates.isOrderCreating || loadingStates.isOrderUpdating}>
-              {renderQuotationModal()}
-            </LoadingOverlay>
-          </div>
-        )}
-        {selectedQuotation && renderQuotationDetails()}
       </div>
     </ErrorBoundary>
   )

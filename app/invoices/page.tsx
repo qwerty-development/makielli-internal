@@ -32,7 +32,8 @@ import {
 	FaShippingFast,
 	FaCheckCircle,
 	FaExclamationCircle,
-	FaFileAlt
+	FaFileAlt,
+	FaTimes
 } from 'react-icons/fa'
 import { generatePDF } from '@/utils/pdfGenerator'
 import { debounce } from 'lodash'
@@ -1880,15 +1881,15 @@ const InvoicesPage: React.FC = () => {
 	)
 
 	const renderInvoiceTable = () => (
-		<div className='overflow-x-auto bg-white rounded-lg shadow'>
+		<div className='overflow-x-auto'>
 			{loadingStates.isMainLoading ? (
 				<div className='flex justify-center items-center p-8'>
-					<FaSpinner className='animate-spin text-4xl text-blue' />
+					<FaSpinner className='animate-spin text-4xl text-primary-500' />
 				</div>
 			) : (
 				<table className='w-full table-auto'>
 					<thead>
-						<tr className='bg-gray text-white uppercase text-sm leading-normal'>
+						<tr className='bg-neutral-100 text-neutral-700 uppercase text-xs font-semibold tracking-wider'>
 							<th
 								className='py-3 px-6 text-left cursor-pointer'
 								onClick={() => handleSort('entity_name')}>
@@ -1921,7 +1922,7 @@ const InvoicesPage: React.FC = () => {
 							<th className='py-3 px-6 text-center'>Shipping Status</th>
 						</tr>
 					</thead>
-					<tbody className='text-gray text-sm font-light'>
+					<tbody className='text-neutral-600 text-sm divide-y divide-neutral-200'>
 						{invoices.map(invoice => {
 							const entity = activeTab === 'client'
 								? SafeDataAccess.getClient(clients, invoice.client_id || 0)
@@ -1938,9 +1939,9 @@ const InvoicesPage: React.FC = () => {
 							return (
 								<tr
 									key={invoice.id}
-									className={`border-b border-gray cursor-pointer ${
-										invoice.type === 'return' ? 'bg-red-50' : ''
-									} ${hasDataIssue || hasShippingFeeIssue ? 'bg-yellow-50' : ''}`}
+									className={`cursor-pointer hover:bg-neutral-50 transition-colors duration-150 ${
+										invoice.type === 'return' ? 'bg-error-50' : ''
+									} ${hasDataIssue || hasShippingFeeIssue ? 'bg-warning-50' : ''}`}
 									onClick={() => handleInvoiceClick(invoice)}>
 									<td className='py-3 px-6 text-left whitespace-nowrap'>
 										{entity?.name || 'Entity Not Found'}
@@ -1951,8 +1952,8 @@ const InvoicesPage: React.FC = () => {
 									<td
 										className={`py-3 px-6 text-left ${
 											invoice.type === 'return'
-												? 'text-red-600'
-												: 'text-green-600'
+												? 'text-error-600'
+												: 'text-success-600'
 										}`}>
 										${totalPrice.toFixed(2)}
 										{invoice.type === 'return' && ' (Return)'}
@@ -1960,9 +1961,9 @@ const InvoicesPage: React.FC = () => {
 									<td
 										className={`py-3 px-6 text-left ${
 											remainingAmount > 0
-												? 'text-orange-600'
-												: 'text-green-600'
-										} ${hasDataIssue || hasShippingFeeIssue ? 'font-bold text-red-600' : ''}`}>
+												? 'text-warning-600'
+												: 'text-success-600'
+										} ${hasDataIssue || hasShippingFeeIssue ? 'font-bold text-error-600' : ''}`}>
 										${remainingAmount.toFixed(2)}
 										{(hasDataIssue || hasShippingFeeIssue) && ' ⚠️'}
 									</td>
@@ -1970,8 +1971,8 @@ const InvoicesPage: React.FC = () => {
 									<td className='py-3 px-6 text-center'>
 										{invoice.quotation_id ? (
 											<div className="flex items-center justify-center">
-												<FaLink className="text-blue mr-1" />
-												<span className="text-blue text-xs" title={`Created from Quotation #${invoice.quotation_id}`}>
+												<FaLink className="text-primary-600 mr-1" />
+												<span className="text-primary-600 text-xs" title={`Created from Quotation #${invoice.quotation_id}`}>
 													Q#{invoice.quotation_id}
 												</span>
 											</div>
@@ -1986,7 +1987,7 @@ const InvoicesPage: React.FC = () => {
 									</td>
 									<td className='py-3 px-6 text-center'>
 										{invoice.files && invoice.files.length > 0 ? (
-											<FaFile className='inline text-blue' />
+											<FaFile className='inline text-primary-600' />
 										) : (
 											'-'
 										)}
@@ -1994,7 +1995,7 @@ const InvoicesPage: React.FC = () => {
 									<td className='py-3 px-6 text-center'>
 										<div className='flex item-center justify-center'>
 											<button
-												className='mr-2 bg-blue text-white p-1 rounded-lg text-nowrap transform hover:scale-110'
+												className='mr-2 btn-primary px-3 py-1 text-sm text-nowrap transform hover:scale-105 transition-transform'
 												onClick={e => {
 													e.stopPropagation()
 													handleSendEmail(invoice)
@@ -2002,7 +2003,7 @@ const InvoicesPage: React.FC = () => {
 												Send Email
 											</button>
 											<button
-												className='w-4 mr-2 transform text-blue hover:text-purple-500 hover:scale-110'
+												className='w-4 mr-2 transform text-primary-600 hover:text-primary-700 hover:scale-110 transition-all'
 												onClick={e => {
 													e.stopPropagation()
 													handleEditInvoice(invoice)
@@ -2010,7 +2011,7 @@ const InvoicesPage: React.FC = () => {
 												<FaEdit />
 											</button>
 											<button
-												className='w-4 mr-2 transform text-blue hover:text-red-500 hover:scale-110'
+												className='w-4 mr-2 transform text-error-600 hover:text-error-700 hover:scale-110 transition-all'
 												onClick={e => {
 													e.stopPropagation()
 													handleDeleteInvoice(invoice.id)
@@ -2020,31 +2021,31 @@ const InvoicesPage: React.FC = () => {
 											{invoice.type !== 'return' && (
 												<>
 													<button
-														className='mr-2 bg-green-500 text-white p-1 rounded-lg text-nowrap transform hover:scale-110'
+														className='mr-2 btn-success px-3 py-1 text-sm text-nowrap transform hover:scale-105 transition-transform flex items-center gap-1'
 														onClick={e => {
 															e.stopPropagation()
 															handleCreateShippingInvoice(invoice)
 														}}>
-														<FaShippingFast className="inline mr-1" />
+														<FaShippingFast />
 														Ship
 													</button>
 													<button
-														className='mr-2 bg-purple-500 text-white p-1 rounded-lg text-nowrap transform hover:scale-110'
+														className='mr-2 btn-outline px-3 py-1 text-sm text-nowrap transform hover:scale-105 transition-transform flex items-center gap-1'
 														onClick={e => {
 															e.stopPropagation()
 															handleViewShippingHistory(invoice)
 														}}>
-														<FaTruck className="inline mr-1" />
+														<FaTruck />
 														History
 													</button>
 													{invoice.shipping_status !== 'unshipped' && (
 														<button
-															className='mr-2 bg-orange-500 text-white p-1 rounded-lg text-nowrap transform hover:scale-110'
+															className='mr-2 bg-secondary-500 hover:bg-secondary-600 text-white px-3 py-1 text-sm rounded-lg text-nowrap transform hover:scale-105 transition-all flex items-center gap-1'
 															onClick={e => {
 																e.stopPropagation()
 																handleDownloadLatestShippingPDF(invoice)
 															}}>
-															<FaFileAlt className="inline mr-1" />
+															<FaFileAlt />
 															PDF
 														</button>
 													)}
@@ -2079,14 +2080,14 @@ const InvoicesPage: React.FC = () => {
 	const renderPagination = () => {
 		const totalPages = Math.ceil(totalInvoices / itemsPerPage)
 		return (
-			<div className='flex justify-center mt-4'>
+			<div className='flex justify-center mt-6'>
 				<nav
-					className='relative z-0 inline-flex rounded-md shadow-sm -space-x-px'
+					className='inline-flex rounded-lg shadow-soft overflow-hidden'
 					aria-label='Pagination'>
 					<button
 						onClick={() => setCurrentPage(1)}
 						disabled={currentPage === 1}
-						className={`relative inline-flex items-center text-blue px-2 py-2 rounded-l-md border border-gray bg-white text-sm font-medium hover:bg-neutral-50 ${
+						className={`px-3 py-2 border border-neutral-300 bg-white text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition-colors ${
 							currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>First</span>⟪
@@ -2094,12 +2095,12 @@ const InvoicesPage: React.FC = () => {
 					<button
 						onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
 						disabled={currentPage === 1}
-						className={`relative inline-flex text-blue items-center px-2 py-2 border border-gray bg-white text-sm font-medium hover:bg-neutral-50 ${
+						className={`px-3 py-2 border-t border-b border-neutral-300 bg-white text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition-colors ${
 							currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>Previous</span>⟨
 					</button>
-					<span className='relative inline-flex items-center px-4 py-2 border border-gray bg-white text-sm font-medium text-gray'>
+					<span className='px-4 py-2 border-t border-b border-neutral-300 bg-neutral-50 text-sm font-medium text-neutral-700'>
 						{currentPage} of {totalPages === 0 ? 1 : totalPages}
 					</span>
 					<button
@@ -2107,10 +2108,18 @@ const InvoicesPage: React.FC = () => {
 							setCurrentPage(Math.min(totalPages, currentPage + 1))
 						}
 						disabled={currentPage === totalPages}
-						className={`relative inline-flex items-center text-blue px-2 py-2 rounded-r-md border border-gray bg-white text-sm font-medium hover:bg-neutral-50 ${
+						className={`px-3 py-2 border-t border-b border-neutral-300 bg-white text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition-colors ${
 							currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''
 						}`}>
 						<span className='sr-only'>Next</span>⟩
+					</button>
+					<button
+						onClick={() => setCurrentPage(totalPages)}
+						disabled={currentPage === totalPages}
+						className={`px-3 py-2 border border-neutral-300 bg-white text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition-colors ${
+							currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''
+						}`}>
+						<span className='sr-only'>Last</span>⟫
 					</button>
 				</nav>
 			</div>
@@ -2127,10 +2136,10 @@ const InvoicesPage: React.FC = () => {
 					startDate={filterStartDate}
 					endDate={filterEndDate}
 					placeholderText='Start Date'
-					className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
+					className='input pl-10'
 				/>
 				<div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-					<FaFilter className='h-5 w-5 text-gray' />
+					<FaFilter className='h-5 w-5 text-neutral-400' />
 				</div>
 			</div>
 
@@ -2143,10 +2152,10 @@ const InvoicesPage: React.FC = () => {
 					endDate={filterEndDate}
 					minDate={filterStartDate}
 					placeholderText='End Date'
-					className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
+					className='input pl-10'
 				/>
 				<div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-					<FaFilter className='h-5 w-5 text-gray' />
+					<FaFilter className='h-5 w-5 text-neutral-400' />
 				</div>
 			</div>
 
@@ -2156,10 +2165,10 @@ const InvoicesPage: React.FC = () => {
 					value={orderNumberSearch}
 					onChange={handleOrderNumberSearch}
 					placeholder='Search by Order Number'
-					className='block w-full pl-10 pr-3 py-2 border border-gray rounded-md leading-5 bg-white placeholder-gray focus:outline-none focus:ring-1 focus:ring-blue focus:border-blue sm:text-sm'
+					className='input pl-10'
 				/>
 				<div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-					<FaSearch className='h-5 w-5 text-gray' />
+					<FaSearch className='h-5 w-5 text-neutral-400' />
 				</div>
 			</div>
 
@@ -2179,7 +2188,7 @@ const InvoicesPage: React.FC = () => {
 					setFilterQuotationLinked(e.target.value || null)
 					setCurrentPage(1)
 				}}
-				className='block min-w-[180px] pl-3 pr-10 py-2 text-base border-gray rounded-md focus:outline-none focus:ring-blue sm:text-sm'
+				className='input min-w-[180px]'
 			>
 				<option value=''>All Sources</option>
 				<option value='linked'>From Quotation</option>
@@ -2190,32 +2199,35 @@ const InvoicesPage: React.FC = () => {
 
 	const renderInvoiceModal = () => (
 		<div
-			className={`fixed z-10 inset-0 overflow-y-auto ${showModal ? '' : 'hidden'}`}>
-			<div className='flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0'>
-				<div className='fixed inset-0 transition-opacity' aria-hidden='true'>
-					<div className='absolute inset-0 bg-gray opacity-75'></div>
+			className={`modal-overlay ${showModal ? '' : 'hidden'}`}
+			onClick={(e) => {
+				if (e.target === e.currentTarget) {
+					setShowModal(false)
+				}
+			}}>
+			<div className='modal-content max-w-2xl' onClick={(e) => e.stopPropagation()}>
+				<div className='flex items-center justify-between p-6 border-b border-neutral-200'>
+					<h2 className='text-2xl font-bold text-neutral-800'>
+						{newInvoice.id ? 'Edit Invoice' : 'Create New Invoice'}
+					</h2>
+					<button
+						onClick={() => setShowModal(false)}
+						className='p-2 rounded-lg hover:bg-neutral-100 transition-colors text-neutral-500 hover:text-neutral-700'>
+						<FaTimes className='w-5 h-5' />
+					</button>
 				</div>
-				<span
-					className='hidden sm:inline-block sm:align-middle sm:h-screen'
-					aria-hidden='true'>
-					&#8203;
-				</span>
-				<div className='inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full'>
-					<div className='bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4'>
-						<h3 className='text-lg leading-6 font-medium text-gray mb-4'>
-							{newInvoice.id ? 'Edit Invoice' : 'Create New Invoice'}
-						</h3>
 
-						{newInvoice.id && newInvoice.quotation_id && (
-							<div className="mb-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-blue-700">
-								<div className="flex items-center">
-									<FaLink className="mr-2" />
-									<p className="text-sm font-medium">
-										This invoice was created from Quotation #{newInvoice.quotation_id}
-									</p>
-								</div>
+				<div className='p-6'>
+					{newInvoice.id && newInvoice.quotation_id && (
+						<div className="mb-4 p-3 bg-primary-50 border-l-4 border-primary-400 text-primary-700">
+							<div className="flex items-center">
+								<FaLink className="mr-2" />
+								<p className="text-sm font-medium">
+									This invoice was created from Quotation #{newInvoice.quotation_id}
+								</p>
 							</div>
-						)}
+						</div>
+					)}
 
 						<ErrorDisplay 
 							errors={validationErrors} 
@@ -2233,14 +2245,14 @@ const InvoicesPage: React.FC = () => {
 							className='overflow-y-auto max-h-[70vh]'>
 							<div className='mb-4'>
 								{newInvoice.type === 'return' && (
-									<div className='mb-4 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700'>
+									<div className='mb-4 p-4 bg-warning-50 border-l-4 border-warning-400 text-warning-700'>
 										<p className='font-medium'>Return Invoice Notice</p>
 										<p className='text-sm'>
 											This is a return invoice. The total amount will be deducted from the entity balance and products will be added back to inventory.
 										</p>
 									</div>
 								)}
-								<label className='block text-gray text-sm font-bold mb-2' htmlFor='date'>
+								<label className='block text-neutral-700 text-sm font-medium mb-2' htmlFor='date'>
 									Date
 								</label>
 								<DatePicker
@@ -2251,17 +2263,17 @@ const InvoicesPage: React.FC = () => {
 											created_at: date ? date.toISOString() : new Date().toISOString()
 										})
 									}
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									className='input'
 								/>
 							</div>
 
 							{activeTab === 'client' && (
 								<div className='mb-4'>
-									<label className='block text-gray text-sm font-bold mb-2'>
+									<label className='block text-neutral-700 text-sm font-medium mb-2'>
 										Invoice Type
 									</label>
 									<select
-										className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+										className='input'
 										value={newInvoice.type || 'regular'}
 										onChange={e =>
 											setNewInvoice({
@@ -2291,17 +2303,17 @@ const InvoicesPage: React.FC = () => {
 							</div>
 
 							<div className='mb-4'>
-								<label className='block text-gray text-sm font-bold mb-2'>Products</label>
+								<label className='block text-neutral-700 text-sm font-medium mb-2'>Products</label>
 								<div className='flex mb-2'>
 									<input
 										type='text'
 										placeholder='Search products...'
-										className='flex-grow shadow appearance-none border rounded py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+										className='flex-grow input'
 										onChange={e => handleProductSearch(e.target.value)}
 									/>
 									<button
 										type='button'
-										className='ml-2 bg-blue hover:bg-blue text-white font-bold py-2 px-4 rounded'
+										className='ml-2 btn-primary'
 										onClick={() => setProductSearch('')}>
 										<FaSearch />
 									</button>
@@ -2346,7 +2358,7 @@ const InvoicesPage: React.FC = () => {
 										</label>
 										<input
 											type='number'
-											className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
+											className='input mb-2'
 											value={newInvoice.discounts?.[selectedProduct.id] || 0}
 											min={0}
 											onChange={e =>
@@ -2363,7 +2375,7 @@ const InvoicesPage: React.FC = () => {
 											return (
 												<div key={index} className='mb-2 p-2 border rounded'>
 													<select
-														className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
+														className='input mb-2'
 														value={variant.product_variant_id}
 														onChange={e =>
 															handleVariantChange(
@@ -2383,7 +2395,7 @@ const InvoicesPage: React.FC = () => {
 													<input
 														type='number'
 														min='1'
-														className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
+														className='input mb-2'
 														value={variant.quantity}
 														onChange={e =>
 															handleVariantChange(
@@ -2395,7 +2407,7 @@ const InvoicesPage: React.FC = () => {
 														placeholder='Quantity'
 													/>
 													<textarea
-														className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline mb-2'
+														className='input mb-2'
 														value={variant.note}
 														onChange={e =>
 															handleVariantChange(index, 'note', e.target.value)
@@ -2413,13 +2425,13 @@ const InvoicesPage: React.FC = () => {
 										})}
 										<button
 											type='button'
-											className='bg-blue hover:bg-blue text-white font-bold py-1 px-2 rounded text-xs mr-2'
+											className='btn-outline text-xs py-1 px-2 mr-2'
 											onClick={handleAddVariant}>
 											Add Another Variant
 										</button>
 										<button
 											type='button'
-											className='bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-xs'
+											className='btn-success text-xs py-1 px-2'
 											onClick={handleAddSelectedProductToInvoice}>
 											Add to Invoice
 										</button>
@@ -2442,13 +2454,13 @@ const InvoicesPage: React.FC = () => {
 												<div className='space-x-2'>
 													<button
 														type='button'
-														className='bg-blue hover:bg-indigo-700 text-white font-bold py-1 px-2 rounded text-xs'
+														className='btn-primary text-xs py-1 px-2'
 														onClick={() => handleEditExistingProduct(index)}>
 														Edit
 													</button>
 													<button
 														type='button'
-														className='bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs'
+														className='btn-danger text-xs py-1 px-2'
 														onClick={() => handleRemoveProduct(index)}>
 														Remove
 													</button>
@@ -2475,14 +2487,14 @@ const InvoicesPage: React.FC = () => {
 							</div>
 
 							<div className='mb-4'>
-								<label className='block text-gray text-sm font-bold mb-2' htmlFor='order_number'>
+								<label className='block text-neutral-700 text-sm font-medium mb-2' htmlFor='order_number'>
 									Order Number
 								</label>
 								<input
 									id='order_number'
 									type='text'
 									required
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									className='input'
 									value={newInvoice.order_number}
 									onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
 										setNewInvoice({
@@ -2494,12 +2506,12 @@ const InvoicesPage: React.FC = () => {
 							</div>
 
 							<div className='mb-4'>
-								<label className='block text-gray text-sm font-bold mb-2' htmlFor='currency'>
+								<label className='block text-neutral-700 text-sm font-medium mb-2' htmlFor='currency'>
 									Currency
 								</label>
 								<select
 									id='currency'
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									className='input'
 									value={newInvoice.currency || 'usd'}
 									onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
 										setNewInvoice({
@@ -2514,12 +2526,12 @@ const InvoicesPage: React.FC = () => {
 							</div>
 
 							<div className='mb-4'>
-								<label className='block text-gray text-sm font-bold mb-2' htmlFor='payment_term'>
+								<label className='block text-neutral-700 text-sm font-medium mb-2' htmlFor='payment_term'>
 									Payment Terms
 								</label>
 								<select
 									id='payment_term'
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									className='input'
 									value={newInvoice.payment_term || ''}
 									onChange={(e: any) =>
 										setNewInvoice({
@@ -2538,7 +2550,7 @@ const InvoicesPage: React.FC = () => {
 							</div>
 
 							<div className='mb-4'>
-								<label className='block text-gray text-sm font-bold mb-2' htmlFor='delivery_date'>
+								<label className='block text-neutral-700 text-sm font-medium mb-2' htmlFor='delivery_date'>
 									Delivery Date
 								</label>
 								<DatePicker
@@ -2551,7 +2563,7 @@ const InvoicesPage: React.FC = () => {
 												: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString()
 										})
 									}
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									className='input'
 									minDate={new Date()}
 									placeholderText='Select delivery date'
 									required
@@ -2560,7 +2572,7 @@ const InvoicesPage: React.FC = () => {
 
 							{/* FIXED: Enhanced shipping fee input with better validation */}
 							<div className='mb-4'>
-								<label className='block text-gray text-sm font-bold mb-2' htmlFor='shipping_fee'>
+								<label className='block text-neutral-700 text-sm font-medium mb-2' htmlFor='shipping_fee'>
 									Shipping Fee
 								</label>
 								<div className='relative'>
@@ -2570,7 +2582,7 @@ const InvoicesPage: React.FC = () => {
 										type='number'
 										min='0'
 										step='0.01'
-										className='shadow appearance-none border rounded w-full py-2 pl-8 pr-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+										className='input pl-8'
 										value={newInvoice.shipping_fee || ''}
 										onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
 											const value = e.target.value
@@ -2625,12 +2637,12 @@ const InvoicesPage: React.FC = () => {
 							</div>
 
 							<div className='mb-4'>
-								<label className='block text-gray text-sm font-bold mb-2'>
+								<label className='block text-neutral-700 text-sm font-medium mb-2'>
 									Total Price (including VAT and shipping if applicable)
 								</label>
 								<input
 									type='number'
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									className='input'
 									value={newInvoice.total_price || 0}
 									readOnly
 								/>
@@ -2638,12 +2650,12 @@ const InvoicesPage: React.FC = () => {
 
 							{newInvoice.include_vat && (
 								<div className='mb-4'>
-									<label className='block text-gray text-sm font-bold mb-2'>
+									<label className='block text-neutral-700 text-sm font-medium mb-2'>
 										VAT Amount (11%)
 									</label>
 									<input
 										type='number'
-										className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+										className='input'
 										value={newInvoice.vat_amount || 0}
 										readOnly
 									/>
@@ -2651,11 +2663,11 @@ const InvoicesPage: React.FC = () => {
 							)}
 
 							<div className='mb-4'>
-								<label className='block text-gray text-sm font-bold mb-2'>
+								<label className='block text-neutral-700 text-sm font-medium mb-2'>
 									Payment Information
 								</label>
 								<select
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									className='input'
 									value={newInvoice.payment_info || 'frisson_llc'}
 									onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
 										e.preventDefault()
@@ -2676,18 +2688,18 @@ const InvoicesPage: React.FC = () => {
 							</div>
 
 							<div className='mb-4'>
-								<label className='block text-gray text-sm font-bold mb-2'>Files</label>
+								<label className='block text-neutral-700 text-sm font-medium mb-2'>Files</label>
 								<input
 									type='file'
 									onChange={handleFileChange}
-									className='shadow appearance-none border rounded w-full py-2 px-3 text-gray leading-tight focus:outline-none focus:shadow-outline'
+									className='input'
 								/>
 								{selectedFile && (
 									<button
 										type='button'
 										onClick={handleFileUpload}
 										disabled={uploadingFile}
-										className='mt-2 bg-blue hover:bg-blue text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline'>
+										className='mt-2 btn-primary disabled:opacity-50 disabled:cursor-not-allowed'>
 										{uploadingFile ? 'Uploading...' : 'Upload File'}
 									</button>
 								)}
@@ -2714,10 +2726,10 @@ const InvoicesPage: React.FC = () => {
 					<div className='bg-neutral-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse'>
 						<button
 							type='button'
-							className={`w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 text-base font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 sm:ml-3 sm:w-auto sm:text-sm ${
-								validationErrors.length > 0 
-									? 'bg-neutral-400 cursor-not-allowed' 
-									: 'bg-blue hover:bg-blue focus:ring-blue'
+							className={`btn-primary w-full sm:w-auto ${
+								validationErrors.length > 0
+									? '!bg-neutral-400 cursor-not-allowed'
+									: ''
 							}`}
 							onClick={handleCreateInvoice}
 							disabled={validationErrors.length > 0}>
@@ -2725,7 +2737,7 @@ const InvoicesPage: React.FC = () => {
 						</button>
 						<button
 							type='button'
-							className='mt-3 w-full inline-flex justify-center rounded-md border border-gray shadow-sm px-4 py-2 bg-white text-base font-medium text-gray hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
+							className='btn-ghost w-full sm:w-auto sm:ml-3'
 							onClick={() => {
 								setShowModal(false)
 								resetInvoiceState()
@@ -2735,7 +2747,6 @@ const InvoicesPage: React.FC = () => {
 					</div>
 				</div>
 			</div>
-		</div>
 	)
 
 const renderInvoiceDetails = () => {
@@ -3150,34 +3161,17 @@ const renderInvoiceDetails = () => {
 	}
 
 	return (
-		<div className='mx-auto px-4 py-8 text-gray'>
-			<h1 className='text-3xl font-bold text-gray mb-6'>Invoice Management</h1>
-			<div className='bg-white shadow-md rounded-lg'>
-				<div className='flex border-b'>
-					<button
-						className={`flex-1 py-4 px-6 text-center ${
-							activeTab === 'client' ? 'bg-blue text-white' : 'bg-gray text-white'
-						}`}
-						onClick={() => setActiveTab('client')}>
-						Client Invoices
-					</button>
-					<button
-						className={`flex-1 py-4 px-6 text-center ${
-							activeTab === 'supplier' ? 'bg-blue text-white' : 'bg-gray text-white'
-						}`}
-						onClick={() => setActiveTab('supplier')}>
-						Supplier Invoices
-					</button>
-				</div>
-				<div className='p-6'>
-					{renderFilters()}
-					{renderInvoiceTable()}
-					{renderPagination()}
-				</div>
-			</div>
-			<button
-				className='mt-6 bg-blue hover:bg-blue text-white font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110'
-				onClick={() => {
+		<div className='min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 p-6 sm:p-8'>
+			<div className='max-w-7xl mx-auto'>
+				<div className='mb-8 animate-fade-in'>
+					<div className='flex items-center justify-between mb-4'>
+						<div>
+							<h1 className='text-4xl font-bold text-neutral-800 mb-2'>Invoice Management</h1>
+							<p className='text-neutral-600'>Create and manage client and supplier invoices</p>
+						</div>
+						<button
+							className='btn-primary flex items-center gap-2'
+							onClick={() => {
 					setNewInvoice({
 						created_at: new Date().toISOString(),
 						total_price: 0,
@@ -3200,8 +3194,39 @@ const renderInvoiceDetails = () => {
 					})
 					setShowModal(true)
 				}}>
-				<FaPlus className='inline-block mr-2' /> Create New Invoice
+				<FaPlus /> Create New Invoice
 			</button>
+					</div>
+				</div>
+
+				<div className='card overflow-hidden mb-6'>
+					<div className='flex border-b border-neutral-200'>
+						<button
+							className={`flex-1 py-4 px-6 text-center font-medium transition-all duration-300 ${
+								activeTab === 'client'
+									? 'bg-primary-500 text-white'
+									: 'bg-white text-neutral-700 hover:bg-neutral-50'
+							}`}
+							onClick={() => setActiveTab('client')}>
+							Client Invoices
+						</button>
+						<button
+							className={`flex-1 py-4 px-6 text-center font-medium transition-all duration-300 ${
+								activeTab === 'supplier'
+									? 'bg-primary-500 text-white'
+									: 'bg-white text-neutral-700 hover:bg-neutral-50'
+							}`}
+							onClick={() => setActiveTab('supplier')}>
+							Supplier Invoices
+						</button>
+					</div>
+					<div className='p-6'>
+						{renderFilters()}
+						{renderInvoiceTable()}
+						{renderPagination()}
+					</div>
+				</div>
+			</div>
 
 			{showModal && (
 				<div className='fixed z-10 inset-0 overflow-y-auto'>
