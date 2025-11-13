@@ -1306,7 +1306,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
         ) : (
           <table className='w-full table-auto'>
             <thead>
-              <tr className='bg-gray text-white uppercase text-sm leading-normal'>
+              <tr className='bg-neutral-100 text-neutral-700 uppercase text-xs font-semibold tracking-wider'>
                 <th
                   className='py-3 px-6 text-left cursor-pointer'
                   onClick={() => handleSort('entity_name')}>
@@ -1335,14 +1335,14 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                 <th className='py-3 px-6 text-center'>Actions</th>
               </tr>
             </thead>
-            <tbody className='text-neutral-700 text-sm font-light'>
+            <tbody className='text-neutral-600 text-sm divide-y divide-neutral-200'>
               {quotations.map(quotation => {
                 const client = findClientSafely(quotation.client_id)
                 
                 return (
                   <tr
                     key={quotation.id}
-                    className='border-b border-neutral-300 hover:bg-neutral-100 cursor-pointer'
+                    className='cursor-pointer hover:bg-neutral-50 transition-colors duration-150'
                     onClick={() => handleQuotationClick(quotation)}>
                     <td className='py-3 px-6 text-left whitespace-nowrap'>
                       {client?.name || '-'}
@@ -2081,11 +2081,11 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                     <img src="/logo/logo.png" alt="Company Logo" className="h-16 w-auto" />
                   </div>
                   <div className='text-right'>
-                    <h4 className='font-bold'>Company Information</h4>
-                    <p className='text-sm'>Frisson International LLC</p>
-                    <p className='text-sm'>1441 Caribbean breeze drive</p>
-                    <p className='text-sm'>Tampa Florida, 33613</p>
-                    <p className='text-sm'>United States Of America</p>
+                    <h4 className='font-bold text-neutral-900'>Company Information</h4>
+                    <p className='text-sm text-neutral-700'>Frisson International LLC</p>
+                    <p className='text-sm text-neutral-700'>1441 Caribbean breeze drive</p>
+                    <p className='text-sm text-neutral-700'>Tampa Florida, 33613</p>
+                    <p className='text-sm text-neutral-700'>United States Of America</p>
                   </div>
                 </div>
   
@@ -2095,26 +2095,26 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
   
                 <div className='flex justify-between mb-6'>
                   <div className='w-1/2 pr-4'>
-                    <h4 className='font-bold mb-2'>Order To:</h4>
-                    <p className='text-sm'>{client?.name || 'N/A'}</p>
-                    <p className='text-sm'>{client?.address || 'N/A'}</p>
-                    <p className='text-sm'>Phone: {client?.phone || 'N/A'}</p>
-                    <p className='text-sm'>Email: {client?.email || 'N/A'}</p>
-                    <p className='text-sm'>Tax Number: {client?.tax_number || 'N/A'}</p>
+                    <h4 className='font-bold mb-2 text-neutral-900'>Order To:</h4>
+                    <p className="text-sm text-neutral-700">{client?.name || 'N/A'}</p>
+                    <p className="text-sm text-neutral-700">{client?.address || 'N/A'}</p>
+                    <p className="text-sm text-neutral-700">Phone: {client?.phone || 'N/A'}</p>
+                    <p className="text-sm text-neutral-700">Email: {client?.email || 'N/A'}</p>
+                    <p className="text-sm text-neutral-700">Tax Number: {client?.tax_number || 'N/A'}</p>
                   </div>
   
                   <div className='w-1/2 pl-4'>
-                    <h4 className='font-bold mb-2'>Order Details:</h4>
-                    <p className='text-sm'>Order Number: {selectedQuotation.id || 'N/A'}</p>
-                    <p className='text-sm'>Date: {selectedQuotation.created_at ? format(new Date(selectedQuotation.created_at), 'PP') : 'N/A'}</p>
-                    <p className='text-sm'>Order Number: {selectedQuotation.order_number || 'N/A'}</p>
+                    <h4 className='font-bold mb-2 text-neutral-900'>Order Details:</h4>
+                    <p className="text-sm text-neutral-700">Order Number: {selectedQuotation.id || 'N/A'}</p>
+                    <p className="text-sm text-neutral-700">Date: {selectedQuotation.created_at ? format(new Date(selectedQuotation.created_at), 'PP') : 'N/A'}</p>
+                    <p className="text-sm text-neutral-700">Order Number: {selectedQuotation.order_number || 'N/A'}</p>
                     {selectedQuotation.delivery_date && (
-                      <p className='text-sm'>Delivery Date: {format(new Date(selectedQuotation.delivery_date), 'PP')}</p>
+                      <p className="text-sm text-neutral-700">Delivery Date: {format(new Date(selectedQuotation.delivery_date), 'PP')}</p>
                     )}
                     {selectedQuotation.payment_term && (
-                      <p className='text-sm'>Payment Term: {selectedQuotation.payment_term}</p>
+                      <p className="text-sm text-neutral-700">Payment Term: {selectedQuotation.payment_term}</p>
                     )}
-                    <p className='text-sm'>Status: <span className={`px-2 py-1 rounded-full text-xs ${
+                    <p className="text-sm text-neutral-700">Status: <span className={`px-2 py-1 rounded-full text-xs ${
                       selectedQuotation.status === 'pending'
                         ? 'bg-warning-200 text-warning-800'
                         : selectedQuotation.status === 'accepted'
@@ -2128,19 +2128,19 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                   <table className='min-w-full border border-neutral-300 text-xs'>
                     <thead>
                       <tr className='bg-neutral-100'>
-                        <th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'>IMAGE</th>
-                        <th className='w-20 p-1 text-xs font-bold text-center border border-neutral-300'>STYLE</th>
-                        <th className='w-20 p-1 text-xs font-bold text-center border border-neutral-300'>DESCRIPTION</th>
-                        <th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'>COLOR</th>
+                        <th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'text-neutral-900 >IMAGE</th>
+                        <th className='w-20 p-1 text-xs font-bold text-center border border-neutral-300'text-neutral-900 >STYLE</th>
+                        <th className='w-20 p-1 text-xs font-bold text-center border border-neutral-300'text-neutral-900 >DESCRIPTION</th>
+                        <th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'text-neutral-900 >COLOR</th>
                         {sizeOptions.map(size => (
-                          <th key={size} className='w-7 p-0.5 text-xs font-bold text-center border border-neutral-300'>{size}</th>
+                          <th key={size} className='w-7 p-0.5 text-xs font-bold text-center border border-neutral-300'text-neutral-900 >{size}</th>
                         ))}
-                        <th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'>TOTAL PCS</th>
-                        <th className='w-16 p-1 text-xs font-bold text-center border border-neutral-300'>UNIT PRICE</th>
+                        <th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'text-neutral-900 >TOTAL PCS</th>
+                        <th className='w-16 p-1 text-xs font-bold text-center border border-neutral-300'text-neutral-900 >UNIT PRICE</th>
                         {Object.values(productsByNameColor).some((p: any) => (p.discount || 0) > 0) && (
-                          <th className='w-16 p-1 text-xs font-bold text-center border border-neutral-300'>DISCOUNT</th>
+                          <th className='w-16 p-1 text-xs font-bold text-center border border-neutral-300'text-neutral-900 >DISCOUNT</th>
                         )}
-                        <th className='w-18 p-1 text-xs font-bold text-center border border-neutral-300'>TOTAL</th>
+                        <th className='w-18 p-1 text-xs font-bold text-center border border-neutral-300'text-neutral-900 >TOTAL</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2262,7 +2262,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                 {selectedQuotation.note && (
                   <div className='mb-6'>
                     <h4 className='font-bold mb-2'>Additional Notes:</h4>
-                    <p className='text-sm'>{selectedQuotation.note}</p>
+                    <p className="text-sm text-neutral-700">{selectedQuotation.note}</p>
                   </div>
                 )}
   

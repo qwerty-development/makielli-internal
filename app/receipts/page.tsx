@@ -1052,9 +1052,19 @@ const handleDeleteReceipt = async (id: number) => {
 		return (
 			<div className={`modal-overlay ${showModal ? '' : 'hidden'}`}>
 				<div className='modal-content max-w-3xl'>
-					<h3 className='text-2xl font-bold text-neutral-800 mb-6'>
-						{isEditing ? 'Edit Receipt' : 'Create New Receipt'}
-					</h3>
+					<div className='flex justify-between items-start mb-6 px-2'>
+						<h3 className='text-2xl font-bold text-neutral-800'>
+							{isEditing ? 'Edit Receipt' : 'Create New Receipt'}
+						</h3>
+						<button
+							type='button'
+							onClick={() => setShowModal(false)}
+							className='p-2 rounded-lg hover:bg-neutral-100 transition-colors text-neutral-500 hover:text-neutral-700'>
+							<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+							</svg>
+						</button>
+					</div>
 
 							{/* Enhanced validation display */}
 							{(validationErrors.length > 0 || validationWarnings.length > 0) && (
