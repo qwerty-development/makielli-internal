@@ -2877,7 +2877,7 @@ const renderInvoiceDetails = () => {
 
 							{/* Show quotation reference if invoice was created from a quotation */}
 							{selectedInvoice.quotation_id && (
-								<div className='mt-2 bg-blue-50 p-2 rounded-md'>
+								<div className='mt-2 bg-primary-50 p-2 rounded-md'>
 									<p className='text-primary-600 text-sm font-medium'>
 										📋 Created from Order #{selectedInvoice.quotation_id}
 									</p>
@@ -3144,12 +3144,12 @@ const renderInvoiceDetails = () => {
 
 						<div className='flex justify-center space-x-4 mt-6'>
 							<button
-								className='px-4 py-2 bg-blue text-white font-medium rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none'
+								className="btn-primary"
 								onClick={() => handlePDFGeneration(selectedInvoice)}>
 								Download PDF
 							</button>
 							<button
-								className='px-4 py-2 bg-gray text-white font-medium rounded-md shadow-sm hover:bg-neutral-700 focus:outline-none'
+								className="btn-outline"
 								onClick={() => setSelectedInvoice(null)}>
 								Close
 							</button>
@@ -3232,7 +3232,7 @@ const renderInvoiceDetails = () => {
 				<div className='fixed z-10 inset-0 overflow-y-auto'>
 					<div className='flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0'>
 						<div className='fixed inset-0 transition-opacity' aria-hidden='true'>
-							<div className='absolute inset-0 bg-gray opacity-75'></div>
+							<div className='absolute inset-0 bg-neutral-900 opacity-75'></div>
 						</div>
 						<span className='hidden sm:inline-block sm:align-middle sm:h-screen' aria-hidden='true'>
 							&#8203;
@@ -3298,11 +3298,11 @@ const renderInvoiceDetails = () => {
 									</h3>
 								</div>
 								
-								<div className='mb-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-primary-500-700'>
-									<p className='text-sm'>
+								<div className='mb-4 p-3 bg-primary-50 border-l-4 border-primary-400'>
+									<p className='text-sm text-primary-700'>
 										Order Number: {selectedInvoiceForHistory.order_number}
 									</p>
-									<p className='text-xs mt-1'>
+									<p className='text-xs text-primary-600 mt-1'>
 										Status: <ShippingStatusBadge status={selectedInvoiceForHistory.shipping_status || 'unshipped'} />
 									</p>
 								</div>
@@ -3325,7 +3325,7 @@ const renderInvoiceDetails = () => {
 										setShowShippingHistory(false)
 										setSelectedInvoiceForHistory(null)
 									}}
-									className='w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-neutral-700-700 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm'
+									className='btn-outline w-full sm:ml-3 sm:w-auto'
 								>
 									Close
 								</button>

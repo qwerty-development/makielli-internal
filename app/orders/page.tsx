@@ -2272,22 +2272,22 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
   
                 <div className='flex justify-center space-x-4 mt-6'>
                   <button
-                    className='px-4 py-2 bg-blue text-white font-medium rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none'
+                    className='btn-primary'
                     onClick={() => handlePDFGeneration(selectedQuotation)}>
                     Download PDF
                   </button>
-  
+
                   <button
-                    className='px-4 py-2 bg-blue text-white font-medium rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none'
+                    className='btn-primary'
                     onClick={() => {
                       setSelectedQuotation(null);
                       handleEditQuotation(selectedQuotation);
                     }}>
                     Edit Order
                   </button>
-  
+
                   <button
-                    className='px-4 py-2 bg-gray text-white font-medium rounded-md shadow-sm hover:bg-neutral-700 focus:outline-none'
+                    className='btn-outline'
                     onClick={() => setSelectedQuotation(null)}>
                     Close
                   </button>
