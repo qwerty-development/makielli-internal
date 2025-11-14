@@ -1,0 +1,80 @@
+REDESIGNED INVOICE MODAL STRUCTURE:
+
+=====================================
+HEADER (Fixed at top)
+=====================================
+- Title: Create/Edit Invoice
+- Close button (X)
+- Alert if created from quotation
+
+=====================================
+SECTION TABS / STEPS
+=====================================
+Step 1: Basic Information
+Step 2: Products
+Step 3: Financial Details
+Step 4: Review & Submit
+
+OR use expandable sections with headers
+
+=====================================
+SECTION 1: BASIC INFORMATION
+=====================================
+[Icon: FaFileInvoice] Basic Information
+
+Grid Layout (2 columns on desktop):
+- Date picker (left)
+- Invoice Type (right) [client only]
+- Client/Supplier dropdown (full width)
+- Order Number (left)
+- Currency (right)
+
+=====================================
+SECTION 2: PRODUCTS
+=====================================
+[Icon: FaBox] Products
+
+Product Search:
+- Search bar with icon
+- Product list (cards with hover)
+
+Selected Product Panel:
+- Product name as header
+- Discount input
+- Variants in clean cards (not cramped)
+- Add to Invoice button (prominent)
+
+Added Products List:
+- Show as compact cards with preview
+- Quantity, variant, price visible
+- Edit/Remove buttons
+
+=====================================
+SECTION 3: FINANCIAL DETAILS
+=====================================
+[Icon: FaDollarSign] Financial Details
+
+Grid Layout (2 columns):
+- Payment Terms (left)
+- Delivery Date (right)
+- Shipping Fee (left)
+- VAT checkbox (right)
+- Total Price (readonly, highlighted)
+- VAT Amount (readonly, if applicable)
+- Payment Info (full width)
+
+=====================================
+SECTION 4: FILES
+=====================================
+[Icon: FaFile] Attachments
+
+- File upload
+- List of uploaded files
+
+=====================================
+FOOTER (Fixed at bottom)
+=====================================
+- Cancel button (left)
+- Create/Update Invoice button (right, primary)
+- Validation errors summary if any
+

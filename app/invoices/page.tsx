@@ -33,7 +33,13 @@ import {
 	FaCheckCircle,
 	FaExclamationCircle,
 	FaFileAlt,
-	FaTimes
+	FaTimes,
+	FaBox,
+	FaDollarSign,
+	FaChevronDown,
+	FaChevronUp,
+	FaCalendar,
+	FaCheck
 } from 'react-icons/fa'
 import { generatePDF } from '@/utils/pdfGenerator'
 import { debounce } from 'lodash'
@@ -515,6 +521,12 @@ const InvoicesPage: React.FC = () => {
 	const [suppliers, setSuppliers] = useState<Supplier[]>([])
 	const [products, setProducts] = useState<Product[]>([])
 	const [showModal, setShowModal] = useState(false)
+	const [expandedSections, setExpandedSections] = useState({
+		basic: true,
+		products: true,
+		financial: true,
+		files: true
+	})
 	const [currentPage, setCurrentPage] = useState(1)
 	const [itemsPerPage] = useState(10)
 	const [sortField, setSortField] = useState<keyof Invoice | 'entity_name'>('created_at')
@@ -2197,6 +2209,13 @@ const InvoicesPage: React.FC = () => {
 		</div>
 	)
 
+	const toggleSection = (section: keyof typeof expandedSections) => {
+		setExpandedSections(prev => ({
+			...prev,
+			[section]: !prev[section]
+		}))
+	}
+
 	const renderInvoiceModal = () => (
 		<div
 			className={`modal-overlay ${showModal ? '' : 'hidden'}`}
@@ -2242,7 +2261,27 @@ const InvoicesPage: React.FC = () => {
 							ref={formRef}
 							onScroll={saveScrollPosition}
 							onSubmit={e => e.preventDefault()}
-							className='overflow-y-auto max-h-[70vh]'>
+							className='overflow-y-auto max-h-[70vh] px-4'>
+
+							{/* Basic Information Section */}
+							<div className='mb-6'>
+								<button
+									type='button'
+									onClick={() => toggleSection('basic')}
+									className='w-full flex items-center justify-between p-4 bg-gradient-to-r from-primary-50 to-primary-100 hover:from-primary-100 hover:to-primary-200 rounded-lg transition-all duration-200 border border-primary-200'>
+									<div className='flex items-center'>
+										<FaFileInvoice className='text-primary-600 text-xl mr-3' />
+										<h3 className='text-lg font-semibold text-neutral-900'>Basic Information</h3>
+									</div>
+									{expandedSections.basic ? (
+										<FaChevronUp className='text-primary-600' />
+									) : (
+										<FaChevronDown className='text-primary-600' />
+									)}
+								</button>
+
+								{expandedSections.basic && (
+									<div className='mt-4 space-y-4 px-2'>
 							<div className='mb-4'>
 								{newInvoice.type === 'return' && (
 									<div className='mb-4 p-4 bg-warning-50 border-l-4 border-warning-400 text-warning-700'>
@@ -2252,40 +2291,45 @@ const InvoicesPage: React.FC = () => {
 										</p>
 									</div>
 								)}
-								<label className='block text-neutral-700 text-sm font-medium mb-2' htmlFor='date'>
-									Date
-								</label>
-								<DatePicker
-									selected={newInvoice.created_at ? new Date(newInvoice.created_at) : null}
-									onChange={(date: Date | null) =>
-										setNewInvoice({
-											...newInvoice,
-											created_at: date ? date.toISOString() : new Date().toISOString()
-										})
-									}
-									className='input'
-								/>
-							</div>
+								<div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+									<div>
+										<label className='block text-neutral-700 text-sm font-medium mb-2 flex items-center' htmlFor='date'>
+											<FaCalendar className='mr-2 text-primary-500' />
+											Date
+										</label>
+										<DatePicker
+											selected={newInvoice.created_at ? new Date(newInvoice.created_at) : null}
+											onChange={(date: Date | null) =>
+												setNewInvoice({
+													...newInvoice,
+													created_at: date ? date.toISOString() : new Date().toISOString()
+												})
+											}
+											className='input'
+										/>
+									</div>
 
-							{activeTab === 'client' && (
-								<div className='mb-4'>
-									<label className='block text-neutral-700 text-sm font-medium mb-2'>
-										Invoice Type
-									</label>
-									<select
-										className='input text-neutral-900'
-										value={newInvoice.type || 'regular'}
-										onChange={e =>
-											setNewInvoice({
-												...newInvoice,
-												type: e.target.value as 'regular' | 'return'
-											})
-										}>
-										<option value='regular' className='text-neutral-900 bg-white'>Regular Invoice</option>
-										<option value='return' className='text-neutral-900 bg-white'>Return Invoice</option>
-									</select>
+									{activeTab === 'client' && (
+										<div>
+											<label className='block text-neutral-700 text-sm font-medium mb-2'>
+												Invoice Type
+											</label>
+											<select
+												className='input text-neutral-900'
+												value={newInvoice.type || 'regular'}
+												onChange={e =>
+													setNewInvoice({
+														...newInvoice,
+														type: e.target.value as 'regular' | 'return'
+													})
+												}>
+												<option value='regular' className='text-neutral-900 bg-white'>Regular Invoice</option>
+												<option value='return' className='text-neutral-900 bg-white'>Return Invoice</option>
+											</select>
+										</div>
+									)}
 								</div>
-							)}
+							</div>
 
 							<div className='mb-4'>
 								<SearchableSelect
@@ -2485,184 +2529,160 @@ const InvoicesPage: React.FC = () => {
 									)
 								})}
 							</div>
-
-							<div className='mb-4'>
-								<label className='block text-neutral-700 text-sm font-medium mb-2' htmlFor='order_number'>
-									Order Number
-								</label>
-								<input
-									id='order_number'
-									type='text'
-									required
-									className='input'
-									value={newInvoice.order_number}
-									onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-										setNewInvoice({
-											...newInvoice,
-											order_number: e.target.value
-										})
-									}
-								/>
+									</div>
+								)}
 							</div>
 
-							<div className='mb-4'>
-								<label className='block text-neutral-700 text-sm font-medium mb-2' htmlFor='currency'>
-									Currency
-								</label>
-								<select
-									id='currency'
-									className='input'
-									value={newInvoice.currency || 'usd'}
-									onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-										setNewInvoice({
-											...newInvoice,
-											currency: e.target.value as 'usd' | 'euro'
-										})
-									}
-									required>
-									<option value='usd'>USD ($)</option>
-									<option value='euro'>EUR (€)</option>
-								</select>
-							</div>
+							{/* Financial Details Section */}
+							<div className='mb-6'>
+								<button
+									type='button'
+									onClick={() => toggleSection('financial')}
+									className='w-full flex items-center justify-between p-4 bg-gradient-to-r from-info-50 to-info-100 hover:from-info-100 hover:to-info-200 rounded-lg transition-all duration-200 border border-info-200'>
+									<div className='flex items-center'>
+										<FaDollarSign className='text-info-600 text-xl mr-3' />
+										<h3 className='text-lg font-semibold text-neutral-900'>Financial Details</h3>
+									</div>
+									{expandedSections.financial ? (
+										<FaChevronUp className='text-info-600' />
+									) : (
+										<FaChevronDown className='text-info-600' />
+									)}
+								</button>
 
-							<div className='mb-4'>
-								<label className='block text-neutral-700 text-sm font-medium mb-2' htmlFor='payment_term'>
-									Payment Terms
-								</label>
-								<select
-									id='payment_term'
-									className='input'
-									value={newInvoice.payment_term || ''}
-									onChange={(e: any) =>
-										setNewInvoice({
-											...newInvoice,
-											payment_term: e.target.value
-										})
-									}
-									required>
-									<option value=''>Select Payment Term</option>
-									<option value='100% after delivery'>100% after delivery</option>
-									<option value='30% deposit 70% before shipping'>30% deposit 70% before shipping</option>
-									<option value='30 days after shipping'>30 days after shipping</option>
-									<option value='60 days after shipping'>60 days after shipping</option>
-									<option value='100% prepayment'>100% prepayment</option>
-								</select>
-							</div>
+								{expandedSections.financial && (
+									<div className='mt-4 space-y-4 px-2'>
+							<div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+								<div>
+									<label className='block text-neutral-700 text-sm font-medium mb-2' htmlFor='payment_term'>
+										Payment Terms
+									</label>
+									<select
+										id='payment_term'
+										className='input'
+										value={newInvoice.payment_term || ''}
+										onChange={(e: any) =>
+											setNewInvoice({
+												...newInvoice,
+												payment_term: e.target.value
+											})
+										}
+										required>
+										<option value=''>Select Payment Term</option>
+										<option value='100% after delivery'>100% after delivery</option>
+										<option value='30% deposit 70% before shipping'>30% deposit 70% before shipping</option>
+										<option value='30 days after shipping'>30 days after shipping</option>
+										<option value='60 days after shipping'>60 days after shipping</option>
+										<option value='100% prepayment'>100% prepayment</option>
+									</select>
+								</div>
 
-							<div className='mb-4'>
-								<label className='block text-neutral-700 text-sm font-medium mb-2' htmlFor='delivery_date'>
-									Delivery Date
-								</label>
-								<DatePicker
-									selected={newInvoice.delivery_date ? new Date(newInvoice.delivery_date) : null}
-									onChange={(date: Date | null) =>
-										setNewInvoice({
-											...newInvoice,
-											delivery_date: date
-												? date.toISOString()
-												: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString()
-										})
-									}
-									className='input'
-									minDate={new Date()}
-									placeholderText='Select delivery date'
-									required
-								/>
+								<div>
+									<label className='block text-neutral-700 text-sm font-medium mb-2 flex items-center' htmlFor='delivery_date'>
+										<FaCalendar className='mr-2 text-info-500' />
+										Delivery Date
+									</label>
+									<DatePicker
+										selected={newInvoice.delivery_date ? new Date(newInvoice.delivery_date) : null}
+										onChange={(date: Date | null) =>
+											setNewInvoice({
+												...newInvoice,
+												delivery_date: date
+													? date.toISOString()
+													: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString()
+											})
+										}
+										className='input'
+										minDate={new Date()}
+										placeholderText='Select delivery date'
+										required
+									/>
+								</div>
 							</div>
 
 							{/* FIXED: Enhanced shipping fee input with better validation */}
-							<div className='mb-4'>
-								<label className='block text-neutral-700 text-sm font-medium mb-2' htmlFor='shipping_fee'>
-									Shipping Fee
-								</label>
-								<div className='relative'>
-									<span className='absolute left-3 top-2 text-neutral-700'>$</span>
-									<input
-										id='shipping_fee'
-										type='number'
-										min='0'
-										step='0.01'
-										className='input pl-8'
-										value={newInvoice.shipping_fee || ''}
-										onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-											const value = e.target.value
-											// Allow empty string for clearing the field
-											if (value === '') {
-												handleShippingFeeChange(0)
-											} else {
-												const numValue = parseFloat(value)
-												if (!isNaN(numValue) && numValue >= 0) {
-													handleShippingFeeChange(numValue)
+							<div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+								<div>
+									<label className='block text-neutral-700 text-sm font-medium mb-2' htmlFor='shipping_fee'>
+										Shipping Fee
+									</label>
+									<div className='relative'>
+										<span className='absolute left-3 top-2 text-neutral-700'>$</span>
+										<input
+											id='shipping_fee'
+											type='number'
+											min='0'
+											step='0.01'
+											className='input pl-8'
+											value={newInvoice.shipping_fee || ''}
+											onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+												const value = e.target.value
+												// Allow empty string for clearing the field
+												if (value === '') {
+													handleShippingFeeChange(0)
+												} else {
+													const numValue = parseFloat(value)
+													if (!isNaN(numValue) && numValue >= 0) {
+														handleShippingFeeChange(numValue)
+													}
 												}
-											}
-										}}
-										placeholder='0.00'
-									/>
+											}}
+											placeholder='0.00'
+										/>
+									</div>
+									<p className='text-xs text-neutral-500 mt-1'>
+										Shipping fee will be included in the total price and remaining amount calculations.
+									</p>
 								</div>
-								<p className='text-xs text-neutral-500 mt-1'>
-									Shipping fee will be included in the total price and remaining amount calculations.
-								</p>
+
+								<div className='flex items-center justify-center'>
+									<label className='flex items-center cursor-pointer p-4 bg-neutral-50 rounded-lg hover:bg-neutral-100 transition-colors'>
+										<input
+											type='checkbox'
+											checked={newInvoice.include_vat}
+											onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+												const includeVAT = e.target.checked
+
+												// Use functional update to avoid race conditions
+												setNewInvoice(prev => {
+													const { totalPrice, vatAmount } = calculateTotalPrice(
+														prev.products || [],
+														prev.discounts || {},
+														activeTab === 'client',
+														includeVAT,
+														prev.shipping_fee || 0
+													)
+
+													return {
+														...prev,
+														include_vat: includeVAT,
+														vat_amount: vatAmount,
+														total_price: totalPrice
+													}
+												})
+											}}
+											className='form-checkbox h-5 w-5 text-primary-500'
+										/>
+										<span className='ml-2 text-neutral-700 text-sm font-medium'>Include 11% VAT</span>
+									</label>
+								</div>
 							</div>
 
-							<div className='mb-4'>
-								<label className='flex items-center'>
-									<input
-										type='checkbox'
-										checked={newInvoice.include_vat}
-										onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-											const includeVAT = e.target.checked
-
-											// Use functional update to avoid race conditions
-											setNewInvoice(prev => {
-												const { totalPrice, vatAmount } = calculateTotalPrice(
-													prev.products || [],
-													prev.discounts || {},
-													activeTab === 'client',
-													includeVAT,
-													prev.shipping_fee || 0
-												)
-
-												return {
-													...prev,
-													include_vat: includeVAT,
-													vat_amount: vatAmount,
-													total_price: totalPrice
-												}
-											})
-										}}
-										className='form-checkbox h-5 w-5 text-primary-500'
-									/>
-									<span className='ml-2 text-neutral-700 text-sm'>Include 11% VAT</span>
-								</label>
-							</div>
-
-							<div className='mb-4'>
-								<label className='block text-neutral-700 text-sm font-medium mb-2'>
+							<div className='bg-gradient-to-r from-success-50 to-success-100 p-4 rounded-lg border border-success-200'>
+								<label className='block text-success-700 text-sm font-semibold mb-2'>
 									Total Price (including VAT and shipping if applicable)
 								</label>
-								<input
-									type='number'
-									className='input'
-									value={newInvoice.total_price || 0}
-									readOnly
-								/>
+								<div className='text-3xl font-bold text-success-700'>
+									${Number(newInvoice.total_price || 0).toFixed(2)}
+								</div>
+								{newInvoice.include_vat && (
+									<p className='text-sm text-success-600 mt-2'>
+										Includes VAT: ${Number(newInvoice.vat_amount || 0).toFixed(2)} (11%)
+									</p>
+								)}
 							</div>
 
-							{newInvoice.include_vat && (
-								<div className='mb-4'>
-									<label className='block text-neutral-700 text-sm font-medium mb-2'>
-										VAT Amount (11%)
-									</label>
-									<input
-										type='number'
-										className='input'
-										value={newInvoice.vat_amount || 0}
-										readOnly
-									/>
-								</div>
-							)}
-
-							<div className='mb-4'>
+							<div>
 								<label className='block text-neutral-700 text-sm font-medium mb-2'>
 									Payment Information
 								</label>
@@ -2686,9 +2706,30 @@ const InvoicesPage: React.FC = () => {
 									))}
 								</select>
 							</div>
+									</div>
+								)}
+							</div>
 
-							<div className='mb-4'>
-								<label className='block text-neutral-700 text-sm font-medium mb-2'>Files</label>
+							{/* Files Section */}
+							<div className='mb-6'>
+								<button
+									type='button'
+									onClick={() => toggleSection('files')}
+									className='w-full flex items-center justify-between p-4 bg-gradient-to-r from-warning-50 to-warning-100 hover:from-warning-100 hover:to-warning-200 rounded-lg transition-all duration-200 border border-warning-200'>
+									<div className='flex items-center'>
+										<FaFile className='text-warning-600 text-xl mr-3' />
+										<h3 className='text-lg font-semibold text-neutral-900'>Attachments</h3>
+									</div>
+									{expandedSections.files ? (
+										<FaChevronUp className='text-warning-600' />
+									) : (
+										<FaChevronDown className='text-warning-600' />
+									)}
+								</button>
+
+								{expandedSections.files && (
+									<div className='mt-4 space-y-4 px-2'>
+							<div>
 								<input
 									type='file'
 									onChange={handleFileChange}
@@ -2703,23 +2744,31 @@ const InvoicesPage: React.FC = () => {
 										{uploadingFile ? 'Uploading...' : 'Upload File'}
 									</button>
 								)}
-								{newInvoice.files?.map((file, index) => (
-									<div key={index} className='flex items-center mt-2'>
-										<a
-											href={file}
-											target='_blank'
-											rel='noopener noreferrer'
-											className='text-primary-500 hover:underline mr-2'>
-											{file.split('/').pop() || 'File'}
-										</a>
-										<button
-											type='button'
-											onClick={() => handleFileDelete(file)}
-											className='text-error-500 hover:text-error-700'>
-											<FaTrash />
-										</button>
+								{newInvoice.files && newInvoice.files.length > 0 && (
+									<div className='mt-4 space-y-2'>
+										<p className='text-sm font-medium text-neutral-700'>Uploaded Files:</p>
+										{newInvoice.files.map((file, index) => (
+											<div key={index} className='flex items-center justify-between p-2 bg-neutral-50 rounded-lg hover:bg-neutral-100 transition-colors'>
+												<a
+													href={file}
+													target='_blank'
+													rel='noopener noreferrer'
+													className='text-primary-500 hover:underline flex-1'>
+													{file.split('/').pop() || 'File'}
+												</a>
+												<button
+													type='button'
+													onClick={() => handleFileDelete(file)}
+													className='text-error-500 hover:text-error-700 ml-2'>
+													<FaTrash />
+												</button>
+											</div>
+										))}
 									</div>
-								))}
+								)}
+							</div>
+									</div>
+								)}
 							</div>
 						</form>
 					</div>
