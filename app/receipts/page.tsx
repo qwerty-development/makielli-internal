@@ -13,7 +13,8 @@ import {
 	FaPlus,
 	FaFile,
 	FaDownload,
-	FaExclamationTriangle
+	FaExclamationTriangle,
+	FaReceipt
 } from 'react-icons/fa'
 import { generatePDF } from '@/utils/pdfGenerator'
 import SearchableSelect from '@/components/SearchableSelect'
@@ -233,20 +234,27 @@ const ReceiptsPage: React.FC = () => {
 	// FIXED: Enhanced invoice fetching with shipping fee
 	const fetchInvoices = async () => {
 		const table = activeTab === 'client' ? 'ClientInvoices' : 'SupplierInvoices'
-		const selectFields = activeTab === 'client' 
+		const selectFields = activeTab === 'client'
 		  ? 'id, total_price, remaining_amount, client_id, currency, type, shipping_fee'
-		  : 'id, total_price, remaining_amount, supplier_id, currency, type, shipping_fee'
-		
-		const { data, error } = await supabase
+		  : 'id, total_price, remaining_amount, supplier_id, currency, shipping_fee'
+
+		let query = supabase
 		  .from(table)
 		  .select(selectFields)
 		  .gt('remaining_amount', 0)
-		  .neq('type', 'return') // Exclude return invoices
+
+		// Only filter by type for client invoices (SupplierInvoices doesn't have a type column)
+		if (activeTab === 'client') {
+		  query = query.neq('type', 'return')
+		}
+
+		const { data, error } = await query
+
 		if (error) {
 		  toast.error(`Error fetching invoices: ${error.message}`)
 		} else {
-		  setInvoices(data || [])
-		  setFilteredInvoices(data || [])
+		  setInvoices((data || []) as any)
+		  setFilteredInvoices((data || []) as any)
 		}
 	}
 
@@ -1103,7 +1111,7 @@ const handleDeleteReceipt = async (id: number) => {
 								</div>
 							)}
 
-							<form>
+							<form className='px-4'>
 								<div className='mb-4'>
 									<label
 										className='block text-neutral-700 text-sm font-bold mb-2'
@@ -1186,7 +1194,7 @@ const handleDeleteReceipt = async (id: number) => {
 																setValidationWarnings([]);
 															}}
 														>
-															<div className='font-medium'>Invoice #{invoice.id}</div>
+															<div className='font-medium text-neutral-900'>Invoice #{invoice.id}</div>
 															<div className='text-sm text-neutral-600'>
 																Total: {invCurrencySymbol}{invoiceTotal.toFixed(2)} 
 																{shippingFee > 0 && ` (incl. ${invCurrencySymbol}${shippingFee.toFixed(2)} shipping)`}
@@ -1332,52 +1340,101 @@ const handleDeleteReceipt = async (id: number) => {
 		return (
 			<div className='modal-overlay' onClick={() => setSelectedReceipt(null)}>
 				<div className='modal-content max-w-2xl' onClick={e => e.stopPropagation()}>
-					<div className='mt-3 text-center'>
-						<h3 className='text-lg leading-6 font-medium text-neutral-900'>
-							Receipt Details
-						</h3>
-						<div className='mt-2 px-7 py-3'>
-							<p className='text-sm text-neutral-500'>ID: {selectedReceipt.id}</p>
-							<p className='text-sm text-neutral-500'>
-								Date: {new Date(selectedReceipt.paid_at).toLocaleDateString()}
+					<div className='flex justify-between items-start mb-6 px-2'>
+						<div>
+							<h3 className='text-2xl font-bold text-neutral-900 flex items-center'>
+								<FaReceipt className="mr-3 text-success-500" />
+								Receipt #{selectedReceipt.id}
+							</h3>
+							<p className='text-sm text-neutral-600 mt-1'>
+								{new Date(selectedReceipt.paid_at).toLocaleDateString('en-US', {
+									year: 'numeric',
+									month: 'long',
+									day: 'numeric'
+								})}
 							</p>
-							<p className='text-sm text-neutral-500'>
-								Amount: {currencySymbol}{Number(selectedReceipt.amount).toFixed(2)} ({currency?.toUpperCase()})
-							</p>
-							<p className='text-sm text-neutral-500'>
-								Invoice ID: {selectedReceipt.invoice_id}
-							</p>
-							<h4 className='text-sm font-medium text-neutral-900 mt-4'>Files:</h4>
-							<ul className='list-disc list-inside'>
-								{selectedReceipt.files.map((file, index) => (
-									<li key={index} className='text-sm text-neutral-500'>
-										<a
-											href={file}
-											target='_blank'
-											rel='noopener noreferrer'
-											className='text-primary-500 hover:underline'>
-											{file.split('/').pop()}
-										</a>
-									</li>
-								))}
-							</ul>
 						</div>
-						<div className='items-center px-4 py-3 space-y-3'>
-							<button
-								className='btn-primary w-full flex items-center justify-center gap-2'
-								onClick={() => {
-									// Pass currency information to PDF generator
-									generatePDF('receipt', {
-										...selectedReceipt,
-										currency: currency
-									})
-								}}>
-								<FaDownload /> Download PDF
-							</button>
-							<button className='btn-ghost w-full' onClick={() => setSelectedReceipt(null)}>
-								Close
-							</button>
+						<button
+							onClick={() => setSelectedReceipt(null)}
+							className='p-2 rounded-lg hover:bg-neutral-100 transition-colors text-neutral-500 hover:text-neutral-700'>
+							<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+							</svg>
+						</button>
+					</div>
+
+					<div className="bg-neutral-50 rounded-lg p-6 space-y-4 mb-6">
+						<div className='grid grid-cols-2 gap-4'>
+							<div>
+								<p className='text-xs text-neutral-600 mb-1'>Receipt ID</p>
+								<p className='text-lg font-bold text-neutral-900'>#{selectedReceipt.id}</p>
+							</div>
+							<div>
+								<p className='text-xs text-neutral-600 mb-1'>Invoice ID</p>
+								<p className='text-lg font-bold text-neutral-900'>#{selectedReceipt.invoice_id}</p>
+							</div>
 						</div>
+						<div className='border-t border-neutral-200 pt-4'>
+							<p className='text-xs text-neutral-600 mb-1'>Payment Amount</p>
+							<p className='text-3xl font-bold text-success-600'>
+								{currencySymbol}{Number(selectedReceipt.amount).toFixed(2)}
+							</p>
+							<p className='text-xs text-neutral-500 mt-1'>{currency?.toUpperCase()}</p>
+						</div>
+						<div className='border-t border-neutral-200 pt-4'>
+							<p className='text-xs text-neutral-600 mb-1'>Payment Date</p>
+							<p className='text-lg font-semibold text-neutral-900'>
+								{new Date(selectedReceipt.paid_at).toLocaleDateString('en-US', {
+									weekday: 'long',
+									year: 'numeric',
+									month: 'long',
+									day: 'numeric'
+								})}
+							</p>
+						</div>
+					</div>
+
+					{selectedReceipt.files && selectedReceipt.files.length > 0 && (
+						<div className="bg-white border border-neutral-200 rounded-lg mb-6">
+							<div className="px-4 py-3 border-b border-neutral-200 bg-neutral-50">
+								<h4 className='font-semibold text-neutral-800 flex items-center'>
+									<FaFile className="mr-2 text-primary-500" />
+									Attached Files ({selectedReceipt.files.length})
+								</h4>
+							</div>
+							<div className="p-4">
+								<ul className='space-y-2'>
+									{selectedReceipt.files.map((file, index) => (
+										<li key={index}>
+											<a
+												href={file}
+												target='_blank'
+												rel='noopener noreferrer'
+												className='flex items-center gap-2 text-primary-600 hover:text-primary-700 transition-colors p-2 hover:bg-primary-50 rounded'>
+												<FaDownload className='text-sm' />
+												<span className='text-sm font-medium'>{file.split('/').pop()}</span>
+											</a>
+										</li>
+									))}
+								</ul>
+							</div>
+						</div>
+					)}
+
+					<div className='flex gap-3'>
+						<button
+							className='btn-primary flex-1 flex items-center justify-center gap-2'
+							onClick={() => {
+								generatePDF('receipt', {
+									...selectedReceipt,
+									currency: currency
+								})
+							}}>
+							<FaDownload /> Download PDF
+						</button>
+						<button className='btn-outline flex-1' onClick={() => setSelectedReceipt(null)}>
+							Close
+						</button>
 					</div>
 				</div>
 			</div>
