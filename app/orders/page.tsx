@@ -16,7 +16,13 @@ import {
   FaCheck,
   FaSearch,
   FaSpinner,
-  FaExclamationTriangle
+  FaExclamationTriangle,
+  FaFileInvoice,
+  FaBox,
+  FaDollarSign,
+  FaChevronDown,
+  FaChevronUp,
+  FaCalendar
 } from 'react-icons/fa'
 import { generatePDF } from '@/utils/pdfGenerator'
 import { debounce } from 'lodash'
@@ -293,6 +299,11 @@ const QuotationsPage: React.FC = () => {
   const [clients, setClients] = useState<Client[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [showModal, setShowModal] = useState(false)
+  const [expandedSections, setExpandedSections] = useState({
+    basic: true,
+    products: true,
+    financial: true
+  })
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
   const [sortField, setSortField] = useState<keyof Quotation | 'entity_name'>('created_at')
@@ -368,6 +379,14 @@ const QuotationsPage: React.FC = () => {
       return null
     }
   }, [clients])
+
+  // Toggle collapsible sections
+  const toggleSection = (section: keyof typeof expandedSections) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }))
+  }
 
   useEffect(() => {
     try {
@@ -1563,45 +1582,163 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                   </div>
                 )}
 
-                <form>
-                  <div className='mb-4'>
-                    <label className='block text-neutral-700 text-sm font-bold mb-2' htmlFor='date'>
-                      Date
-                    </label>
-                    <DatePicker
-                      selected={newQuotation.created_at ? new Date(newQuotation.created_at) : new Date()}
-                      onChange={(date: Date | null) =>
-                        setNewQuotation({
-                          ...newQuotation,
-                          created_at: date ? date.toISOString() : new Date().toISOString()
-                        })
-                      }
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none'
-                    />
+                <form className='overflow-y-auto max-h-[70vh] px-4'>
+                  {/* Basic Information Section */}
+                  <div className='mb-6'>
+                    <button
+                      type='button'
+                      onClick={() => toggleSection('basic')}
+                      className='w-full flex items-center justify-between p-4 bg-gradient-to-r from-primary-50 to-primary-100 hover:from-primary-100 hover:to-primary-200 rounded-lg transition-all duration-200 border border-primary-200'>
+                      <div className='flex items-center'>
+                        <FaFileInvoice className='text-primary-600 text-xl mr-3' />
+                        <h3 className='text-lg font-semibold text-neutral-900'>Basic Information</h3>
+                      </div>
+                      {expandedSections.basic ? (
+                        <FaChevronUp className='text-primary-600' />
+                      ) : (
+                        <FaChevronDown className='text-primary-600' />
+                      )}
+                    </button>
+
+                    {expandedSections.basic && (
+                      <div className='mt-4 space-y-4 px-2'>
+                        <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                          <div>
+                            <label className='block text-neutral-700 text-sm font-medium mb-2 flex items-center' htmlFor='date'>
+                              <FaCalendar className='mr-2 text-primary-500' />
+                              Date
+                            </label>
+                            <DatePicker
+                              selected={newQuotation.created_at ? new Date(newQuotation.created_at) : new Date()}
+                              onChange={(date: Date | null) =>
+                                setNewQuotation({
+                                  ...newQuotation,
+                                  created_at: date ? date.toISOString() : new Date().toISOString()
+                                })
+                              }
+                              className='input'
+                            />
+                          </div>
+
+                          <div>
+                            <label className='block text-neutral-700 text-sm font-medium mb-2' htmlFor='order_number'>
+                              Order Number
+                            </label>
+                            <input
+                              type='text'
+                              id='order_number'
+                              required
+                              className='input'
+                              value={newQuotation.order_number}
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                setNewQuotation({ ...newQuotation, order_number: e.target.value })
+                              }
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <SearchableSelect
+                            options={clients}
+                            value={newQuotation.client_id}
+                            onChange={(clientId) => setNewQuotation({ ...newQuotation, client_id: Number(clientId) })}
+                            placeholder="Select Client"
+                            label="Client"
+                            idField="client_id"
+                            required
+                          />
+                        </div>
+
+                        <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                          <div>
+                            <label className='block text-neutral-700 text-sm font-medium mb-2' htmlFor='currency'>
+                              Currency
+                            </label>
+                            <select
+                              required
+                              value={newQuotation.currency || 'usd'}
+                              onChange={(e: any) =>
+                                setNewQuotation({
+                                  ...newQuotation,
+                                  currency: e.target.value || 'usd'
+                                })
+                              }
+                              className='input'>
+                              <option value='usd'>USD ($)</option>
+                              <option value='euro'>EUR (€)</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className='block text-neutral-700 text-sm font-medium mb-2' htmlFor='note'>
+                              Note
+                            </label>
+                            <textarea
+                              id='note'
+                              className='input'
+                              value={newQuotation.note}
+                              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                                setNewQuotation({ ...newQuotation, note: e.target.value })
+                              }
+                            />
+                          </div>
+                        </div>
+
+                        {newQuotation.id && (
+                          <div>
+                            <label className='block text-neutral-700 text-sm font-medium mb-2'>
+                              Status
+                            </label>
+                            <select
+                              className='input'
+                              value={newQuotation.status}
+                              onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                                setNewQuotation({
+                                  ...newQuotation,
+                                  status: e.target.value as 'pending' | 'accepted' | 'rejected'
+                                })
+                              }>
+                              <option value='pending'>Pending</option>
+                              <option value='accepted'>Accepted</option>
+                              <option value='rejected'>Rejected</option>
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div className='mb-4'>
-                    <SearchableSelect
-                      options={clients}
-                      value={newQuotation.client_id}
-                      onChange={(clientId) => setNewQuotation({ ...newQuotation, client_id: Number(clientId) })}
-                      placeholder="Select Client"
-                      label="Client"
-                      idField="client_id"
-                      required
-                    />
-                  </div>
-                  <div className='mb-4'>
-                    <label className='block text-neutral-700 text-sm font-bold mb-2'>Products</label>
+
+                  {/* Products Section */}
+                  <div className='mb-6'>
+                    <button
+                      type='button'
+                      onClick={() => toggleSection('products')}
+                      className='w-full flex items-center justify-between p-4 bg-gradient-to-r from-success-50 to-success-100 hover:from-success-100 hover:to-success-200 rounded-lg transition-all duration-200 border border-success-200'>
+                      <div className='flex items-center'>
+                        <FaBox className='text-success-600 text-xl mr-3' />
+                        <h3 className='text-lg font-semibold text-neutral-900'>Products</h3>
+                      </div>
+                      {expandedSections.products ? (
+                        <FaChevronUp className='text-success-600' />
+                      ) : (
+                        <FaChevronDown className='text-success-600' />
+                      )}
+                    </button>
+
+                    {expandedSections.products && (
+                      <div className='mt-4 space-y-4 px-2'>
+                  <div>
+                    <label className='block text-neutral-700 text-sm font-medium mb-2'>Products</label>
                     <div className='flex mb-2'>
                       <input
                         type='text'
                         placeholder='Search products...'
-                        className='flex-grow shadow appearance-none border rounded py-2 px-3 text-neutral-700 leading-tight focus:outline-none'
+                        className='flex-grow input'
                         onChange={e => handleProductSearch(e.target.value)}
                       />
                       <button
                         type='button'
-                        className='ml-2 bg-blue hover:bg-blue text-white font-bold py-2 px-4 rounded'
+                        className='ml-2 btn-primary'
                         onClick={() => setProductSearch('')}>
                         <FaSearch />
                       </button>
@@ -1624,12 +1761,12 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                     {selectedProduct && (
                       <div className='mb-4 p-2 border rounded'>
                         <h4 className='font-bold mb-2 text-neutral-900'>{selectedProduct.name}</h4>
-                        <label className='block text-neutral-700 text-sm font-semibold mb-2' htmlFor='discount'>
+                        <label className='block text-neutral-700 text-sm font-medium mb-2' htmlFor='discount'>
                           Discount per item
                         </label>
                         <input
                           type='number'
-                          className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none mb-2'
+                          className='input mb-2'
                           value={newQuotation.discounts?.[selectedProduct.id] || 0}
                           min={0}
                           onChange={e =>
@@ -1640,7 +1777,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                         {selectedVariants.map((variant, index) => (
                           <div key={index} className='mb-2 p-2 border rounded'>
                             <select
-                              className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none mb-2'
+                              className='input mb-2'
                               value={variant.product_variant_id}
                               onChange={e =>
                                 handleVariantChange(index, 'product_variant_id', e.target.value)
@@ -1654,7 +1791,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                             </select>
                             <input
                               type='number'
-                              className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none mb-2'
+                              className='input mb-2'
                               value={variant.quantity}
                               onChange={e =>
                                 handleVariantChange(index, 'quantity', Number(e.target.value))
@@ -1662,7 +1799,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                               placeholder='Quantity'
                             />
                             <textarea
-                              className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none mb-2'
+                              className='input mb-2'
                               value={variant.note}
                               onChange={e =>
                                 handleVariantChange(index, 'note', e.target.value)
@@ -1671,7 +1808,7 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                             />
                             <button
                               type='button'
-                              className='bg-error-500 hover:bg-error-700 text-white font-bold py-1 px-2 rounded text-xs'
+                              className='btn-danger text-xs py-1 px-2'
                               onClick={() => handleRemoveVariant(index)}>
                               Remove Variant
                             </button>
@@ -1679,13 +1816,13 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                         ))}
                         <button
                           type='button'
-                          className='bg-blue hover:bg-blue text-white font-bold py-1 px-2 rounded text-xs mr-2'
+                          className='btn-outline text-xs py-1 px-2 mr-2'
                           onClick={handleAddVariant}>
                           Add Another Variant
                         </button>
                         <button
                           type='button'
-                          className='bg-success-500 hover:bg-success-700 text-white font-bold py-1 px-2 rounded text-xs'
+                          className='btn-success text-xs py-1 px-2'
                           onClick={handleAddSelectedProductToQuotation}>
                           Add to Order
                         </button>
@@ -1706,13 +1843,13 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                             <div className='space-x-2'>
                               <button
                                 type='button'
-                                className='bg-primary-500 hover:bg-primary-600 text-white font-bold py-1 px-2 rounded text-xs'
+                                className='btn-primary text-xs py-1 px-2'
                                 onClick={() => handleEditExistingProduct(index)}>
                                 Edit
                               </button>
                               <button
                                 type='button'
-                                className='bg-error-500 hover:bg-error-700 text-white font-bold py-1 px-2 rounded text-xs'
+                                className='btn-danger text-xs py-1 px-2'
                                 onClick={() => {
                                   try {
                                     // Use functional update to avoid race conditions
@@ -1756,114 +1893,136 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                       )
                     })}
                   </div>
-                  <div className='mb-4'>
-                    <label className='block text-neutral-700 text-sm font-bold mb-2' htmlFor='note'>
-                      Note
-                    </label>
-                    <textarea
-                      id='note'
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none'
-                      value={newQuotation.note}
-                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                        setNewQuotation({ ...newQuotation, note: e.target.value })
-                      }
-                    />
+                      </div>
+                    )}
                   </div>
-                  <div className='mb-4'>
-                    <label className='block text-neutral-700 text-sm font-bold mb-2' htmlFor='order_number'>
-                      Order Number
-                    </label>
-                    <input
-                      type='text'
-                      id='order_number'
-                      required
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none'
-                      value={newQuotation.order_number}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        setNewQuotation({ ...newQuotation, order_number: e.target.value })
-                      }
-                    />
+
+                  {/* Financial Details Section */}
+                  <div className='mb-6'>
+                    <button
+                      type='button'
+                      onClick={() => toggleSection('financial')}
+                      className='w-full flex items-center justify-between p-4 bg-gradient-to-r from-info-50 to-info-100 hover:from-info-100 hover:to-info-200 rounded-lg transition-all duration-200 border border-info-200'>
+                      <div className='flex items-center'>
+                        <FaDollarSign className='text-info-600 text-xl mr-3' />
+                        <h3 className='text-lg font-semibold text-neutral-900'>Financial Details</h3>
+                      </div>
+                      {expandedSections.financial ? (
+                        <FaChevronUp className='text-info-600' />
+                      ) : (
+                        <FaChevronDown className='text-info-600' />
+                      )}
+                    </button>
+
+                    {expandedSections.financial && (
+                      <div className='mt-4 space-y-4 px-2'>
+                  <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                    <div>
+                      <label className='block text-neutral-700 text-sm font-medium mb-2' htmlFor='payment_term'>
+                        Payment Terms
+                      </label>
+                      <select
+                        required
+                        value={newQuotation.payment_term || '30% deposit 70% before shipping'}
+                        onChange={(e:any) =>
+                          setNewQuotation({
+                            ...newQuotation,
+                            payment_term: e.target.value || '30% deposit 70% before shipping'
+                          })
+                        }
+                        className='input'>
+                        <option value=''>Select Payment Term</option>
+                        <option value='100% after delivery'>100% after delivery</option>
+                        <option value='30% deposit 70% before shipping'>30% deposit 70% before shipping</option>
+                        <option value='30 days after shipping'>30 days after shipping</option>
+                        <option value='60 days after shipping'>60 days after shipping</option>
+                        <option value='100% prepayment'>100% prepayment</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className='block text-neutral-700 text-sm font-medium mb-2 flex items-center' htmlFor='delivery_date'>
+                        <FaCalendar className='mr-2 text-info-500' />
+                        Delivery Date
+                      </label>
+                      <DatePicker
+                        selected={newQuotation.delivery_date ? new Date(newQuotation.delivery_date) : new Date(new Date().setMonth(new Date().getMonth() + 1))}
+                        onChange={(date: Date | null) =>
+                          setNewQuotation({
+                            ...newQuotation,
+                            delivery_date: date ? date.toISOString() : new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString()
+                          })
+                        }
+                        className='input'
+                        minDate={new Date()}
+                        placeholderText='Select delivery date'
+                        required
+                      />
+                    </div>
                   </div>
-                  <div className='mb-4'>
-                    <label className='block text-neutral-700 text-sm font-bold mb-2' htmlFor='currency'>
-                      Currency
-                    </label>
-                    <select
-                      required
-                      value={newQuotation.currency || 'usd'}
-                      onChange={(e: any) =>
-                        setNewQuotation({
-                          ...newQuotation,
-                          currency: e.target.value || 'usd'
-                        })
-                      }
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none'>
-                      <option value='usd'>USD ($)</option>
-                      <option value='euro'>EUR (€)</option>
-                    </select>
+
+                  <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                    <div>
+                      <label className='block text-neutral-700 text-sm font-medium mb-2' htmlFor='shipping_fee'>
+                        Shipping Fee
+                      </label>
+                      <input
+                        id='shipping_fee'
+                        type='number'
+                        min='0'
+                        step='0.01'
+                        className='input'
+                        value={newQuotation.shipping_fee || 0}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                          handleShippingFeeChange(Number(e.target.value))
+                        }
+                        placeholder='Enter shipping fee'
+                      />
+                    </div>
+
+                    <div className='flex items-center justify-center'>
+                      <label className='flex items-center cursor-pointer p-4 bg-neutral-50 rounded-lg hover:bg-neutral-100 transition-colors'>
+                        <input
+                          type='checkbox'
+                          checked={newQuotation.include_vat}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                            try {
+                              const includeVAT = e.target.checked
+
+                              // Use functional update to avoid race conditions
+                              setNewQuotation(prev => {
+                                const { totalPrice, vatAmount} = calculateTotalPrice(
+                                  prev.products || [],
+                                  prev.discounts || {},
+                                  includeVAT,
+                                  prev.shipping_fee || 0
+                                )
+
+                                return {
+                                  ...prev,
+                                  include_vat: includeVAT,
+                                  vat_amount: vatAmount,
+                                  total_price: totalPrice
+                                }
+                              })
+                            } catch (error) {
+                              console.error('Error handling VAT change:', error)
+                              toast.error('Failed to update VAT')
+                            }
+                          }}
+                          className='form-checkbox h-5 w-5 text-primary-500'
+                        />
+                        <span className='ml-2 text-neutral-700 text-sm font-medium'>Include 11% VAT</span>
+                      </label>
+                    </div>
                   </div>
-                  <div className='mb-4'>
-                    <label className='block text-neutral-700 text-sm font-bold mb-2' htmlFor='payment_term'>
-                      Payment Terms
-                    </label>
-                    <select
-                      required
-                      value={newQuotation.payment_term || '30% deposit 70% before shipping'}
-                      onChange={(e:any) =>
-                        setNewQuotation({
-                          ...newQuotation,
-                          payment_term: e.target.value || '30% deposit 70% before shipping'
-                        })
-                      }
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none'>
-                      <option value=''>Select Payment Term</option>
-                      <option value='100% after delivery'>100% after delivery</option>
-                      <option value='30% deposit 70% before shipping'>30% deposit 70% before shipping</option>
-                      <option value='30 days after shipping'>30 days after shipping</option>
-                      <option value='60 days after shipping'>60 days after shipping</option>
-                      <option value='100% prepayment'>100% prepayment</option>
-                    </select>
-                  </div>
-                  <div className='mb-4'>
-                    <label className='block text-neutral-700 text-sm font-bold mb-2' htmlFor='delivery_date'>
-                      Delivery Date
-                    </label>
-                    <DatePicker
-                      selected={newQuotation.delivery_date ? new Date(newQuotation.delivery_date) : new Date(new Date().setMonth(new Date().getMonth() + 1))}
-                      onChange={(date: Date | null) =>
-                        setNewQuotation({
-                          ...newQuotation,
-                          delivery_date: date ? date.toISOString() : new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString()
-                        })
-                      }
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none'
-                      minDate={new Date()}
-                      placeholderText='Select delivery date'
-                      required
-                    />
-                  </div>
-                  <div className='mb-4'>
-                    <label className='block text-neutral-700 text-sm font-bold mb-2' htmlFor='shipping_fee'>
-                      Shipping Fee
-                    </label>
-                    <input
-                      id='shipping_fee'
-                      type='number'
-                      min='0'
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none focus:shadow-outline'
-                      value={newQuotation.shipping_fee || 0}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        handleShippingFeeChange(Number(e.target.value))
-                      }
-                      placeholder='Enter shipping fee'
-                    />
-                  </div>
-                  <div className='mb-4'>
-                    <label className='block text-neutral-700 text-sm font-bold mb-2'>
+
+                  <div>
+                    <label className='block text-neutral-700 text-sm font-medium mb-2'>
                       Payment Information
                     </label>
                     <select
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none focus:shadow-outline'
+                      className='input'
                       value={newQuotation.payment_info || 'frisson_llc'}
                       onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                         e.preventDefault()
@@ -1882,108 +2041,35 @@ const updateRelatedInvoices = async (quotation: Partial<Quotation>) => {
                       ))}
                     </select>
                   </div>
-                  <div className='mb-4'>
-                    <label className='flex items-center'>
-                      <input
-                        type='checkbox'
-                        checked={newQuotation.include_vat}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                          try {
-                            const includeVAT = e.target.checked
 
-                            // Use functional update to avoid race conditions
-                            setNewQuotation(prev => {
-                              const { totalPrice, vatAmount } = calculateTotalPrice(
-                                prev.products || [],
-                                prev.discounts || {},
-                                includeVAT,
-                                prev.shipping_fee || 0
-                              )
-
-                              return {
-                                ...prev,
-                                include_vat: includeVAT,
-                                vat_amount: vatAmount,
-                                total_price: totalPrice
-                              }
-                            })
-                          } catch (error) {
-                            console.error('Error handling VAT change:', error)
-                            toast.error('Failed to update VAT')
-                          }
-                        }}
-                        className='form-checkbox h-5 w-5 text-primary-500'
-                      />
-                      <span className='ml-2 text-neutral-700 text-sm'>Include 11% VAT</span>
-                    </label>
-                  </div>
-                  <div className='mb-4'>
-                    <label className='block text-neutral-700 text-sm font-bold mb-2'>
+                  <div className='bg-gradient-to-r from-success-50 to-success-100 p-4 rounded-lg border border-success-200'>
+                    <label className='block text-success-700 text-sm font-semibold mb-2'>
                       Total Price (including VAT and shipping if applicable)
                     </label>
-                    <input
-                      type='number'
-                      className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none'
-                      value={newQuotation.total_price || 0}
-                      readOnly
-                    />
+                    <div className='text-3xl font-bold text-success-700'>
+                      ${Number(newQuotation.total_price || 0).toFixed(2)}
+                    </div>
+                    {newQuotation.include_vat && (
+                      <p className='text-sm text-success-600 mt-2'>
+                        Includes VAT: ${Number(newQuotation.vat_amount || 0).toFixed(2)} (11%)
+                      </p>
+                    )}
                   </div>
-                  {newQuotation.include_vat && (
-                    <div className='mb-4'>
-                      <label className='block text-neutral-700 text-sm font-bold mb-2'>
-                        VAT Amount (11%)
-                      </label>
-                      <input
-                        type='number'
-                        className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none'
-                        value={newQuotation.vat_amount || 0}
-                        readOnly
-                      />
-                    </div>
-                  )}
-                  {newQuotation.id && (
-                    <div className='mb-4'>
-                      <label className='block text-neutral-700 text-sm font-bold mb-2'>
-                        Status
-                      </label>
-                      <select
-                        className='shadow appearance-none border rounded w-full py-2 px-3 text-neutral-700 leading-tight focus:outline-none'
-                        value={newQuotation.status}
-                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                          setNewQuotation({
-                            ...newQuotation,
-                            status: e.target.value as 'pending' | 'accepted' | 'rejected'
-                          })
-                        }>
-                        <option value='pending'>Pending</option>
-                        <option value='accepted'>Accepted</option>
-                        <option value='rejected'>Rejected</option>
-                      </select>
-                      {isAcceptedOrder && newQuotation.status !== 'accepted' && (
-                        <p className="mt-1 text-xs text-error-600">
-                          Warning: Changing the status from accepted will not remove the related invoice.
-                        </p>
-                      )}
-                      {!isAcceptedOrder && newQuotation.status === 'accepted' && (
-                        <p className="mt-1 text-xs text-success-600">
-                          This order will be converted to an invoice when saved.
-                        </p>
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    )}
+                  </div>
                 </form>
               </div>
               <div className='bg-neutral-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse'>
                 <button
                   type='button'
-                  className='w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue text-base font-medium text-white hover:bg-blue focus:outline-none sm:ml-3 sm:w-auto sm:text-sm'
-                  onClick={handleCreateQuotation}
-                  disabled={loadingStates.isOrderCreating || loadingStates.isOrderUpdating}>
+                  className='btn-primary w-full sm:w-auto'
+                  onClick={handleCreateQuotation}>
                   {newQuotation.id ? 'Update Order' : 'Create Order'}
                 </button>
                 <button
                   type='button'
-                  className='mt-3 w-full inline-flex justify-center rounded-md border border-neutral-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-neutral-700 hover:bg-neutral-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm'
+                  className='btn-ghost w-full sm:w-auto sm:ml-3'
                   onClick={() => handleCloseModal()}>
                   Cancel
                 </button>
