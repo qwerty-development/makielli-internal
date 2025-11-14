@@ -2856,11 +2856,11 @@ const renderInvoiceDetails = () => {
 								<img src="/logo/logo.png" alt="Company Logo" className="h-16 w-auto" />
 							</div>
 							<div className='text-right'>
-								<h4 className='font-bold'>Company Information</h4>
-								<p className='text-sm'>Frisson International LLC</p>
-								<p className='text-sm'>1441 Caribbean breeze drive</p>
-								<p className='text-sm'>Tampa Florida, 33613</p>
-								<p className='text-sm'>United States Of America</p>
+								<h4 className='font-bold text-neutral-900'>Company Information</h4>
+								<p className='text-sm text-neutral-700'>Frisson International LLC</p>
+								<p className='text-sm text-neutral-700'>1441 Caribbean breeze drive</p>
+								<p className='text-sm text-neutral-700'>Tampa Florida, 33613</p>
+								<p className='text-sm text-neutral-700'>United States Of America</p>
 							</div>
 						</div>
 
@@ -2887,31 +2887,31 @@ const renderInvoiceDetails = () => {
 
 						<div className='flex justify-between mb-6'>
 							<div className='w-1/2 pr-4'>
-								<h4 className='font-bold mb-2'>{isClientInvoice ? 'Bill To:' : 'Supplier:'}</h4>
-								<p className='text-sm'>{entity?.name || 'Entity Not Found'}</p>
-								<p className='text-sm'>{isClientInvoice ? entity?.address : entity?.location}</p>
-								<p className='text-sm'>Phone: {entity?.phone || 'N/A'}</p>
-								<p className='text-sm'>Email: {entity?.email || 'N/A'}</p>
-								{isClientInvoice && <p className='text-sm'>Tax Number: {entity?.tax_number || 'N/A'}</p>}
+								<h4 className='font-bold text-neutral-900 mb-2'>{isClientInvoice ? 'Bill To:' : 'Supplier:'}</h4>
+								<p className='text-sm text-neutral-700'>{entity?.name || 'Entity Not Found'}</p>
+								<p className='text-sm text-neutral-700'>{isClientInvoice ? entity?.address : entity?.location}</p>
+								<p className='text-sm text-neutral-700'>Phone: {entity?.phone || 'N/A'}</p>
+								<p className='text-sm text-neutral-700'>Email: {entity?.email || 'N/A'}</p>
+								{isClientInvoice && <p className='text-sm text-neutral-700'>Tax Number: {entity?.tax_number || 'N/A'}</p>}
 							</div>
 
 							<div className='w-1/2 pl-4'>
-								<h4 className='font-bold mb-2'>Invoice Details:</h4>
-								<p className='text-sm'>Invoice Number: {selectedInvoice.id || 'N/A'}</p>
-								<p className='text-sm'>Date: {selectedInvoice.created_at ? format(new Date(selectedInvoice.created_at), 'PP') : 'N/A'}</p>
-								<p className='text-sm'>Order Number: {selectedInvoice.order_number || 'N/A'}</p>
+								<h4 className='font-bold text-neutral-900 mb-2'>Invoice Details:</h4>
+								<p className='text-sm text-neutral-700'>Invoice Number: {selectedInvoice.id || 'N/A'}</p>
+								<p className='text-sm text-neutral-700'>Date: {selectedInvoice.created_at ? format(new Date(selectedInvoice.created_at), 'PP') : 'N/A'}</p>
+								<p className='text-sm text-neutral-700'>Order Number: {selectedInvoice.order_number || 'N/A'}</p>
 								{selectedInvoice.quotation_id && (
 									<p className='text-sm text-primary-600'>Source Order: #{selectedInvoice.quotation_id}</p>
 								)}
 								{selectedInvoice.delivery_date && (
-									<p className='text-sm'>Delivery Date: {format(new Date(selectedInvoice.delivery_date), 'PP')}</p>
+									<p className='text-sm text-neutral-700'>Delivery Date: {format(new Date(selectedInvoice.delivery_date), 'PP')}</p>
 								)}
 								{selectedInvoice.payment_term && (
-									<p className='text-sm'>Payment Term: {selectedInvoice.payment_term}</p>
+									<p className='text-sm text-neutral-700'>Payment Term: {selectedInvoice.payment_term}</p>
 								)}
-						
+
 								{shippingFee > 0 && (
-									<p className='text-sm'>Shipping Fee: {currencySymbol}{shippingFee.toFixed(2)}</p>
+									<p className='text-sm text-neutral-700'>Shipping Fee: {currencySymbol}{shippingFee.toFixed(2)}</p>
 								)}
 							</div>
 						</div>
@@ -2921,19 +2921,19 @@ const renderInvoiceDetails = () => {
 							<table className='min-w-full border border-neutral-300 text-xs'>
 								<thead>
 									<tr className='bg-neutral-100'>
-										<th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'>IMAGE</th>
-										<th className='w-20 p-1 text-xs font-bold text-center border border-neutral-300'>STYLE</th>
-										<th className='w-20 p-1 text-xs font-bold text-center border border-neutral-300'>DESCRIPTION</th>
-										<th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'>COLOR</th>
+										<th className='w-14 p-1 text-xs font-bold text-neutral-900 text-center border border-neutral-300'>IMAGE</th>
+										<th className='w-20 p-1 text-xs font-bold text-neutral-900 text-center border border-neutral-300'>STYLE</th>
+										<th className='w-20 p-1 text-xs font-bold text-neutral-900 text-center border border-neutral-300'>DESCRIPTION</th>
+										<th className='w-14 p-1 text-xs font-bold text-neutral-900 text-center border border-neutral-300'>COLOR</th>
 										{sizeOptions.map(size => (
-											<th key={size} className='w-8 p-0.5 text-xs font-bold text-center border border-neutral-300'>{size}</th>
+											<th key={size} className='w-8 p-0.5 text-xs font-bold text-neutral-900 text-center border border-neutral-300'>{size}</th>
 										))}
-										<th className='w-14 p-1 text-xs font-bold text-center border border-neutral-300'>TOTAL PCS</th>
-										<th className='w-16 p-1 text-xs font-bold text-center border border-neutral-300'>UNIT PRICE</th>
+										<th className='w-14 p-1 text-xs font-bold text-neutral-900 text-center border border-neutral-300'>TOTAL PCS</th>
+										<th className='w-16 p-1 text-xs font-bold text-neutral-900 text-center border border-neutral-300'>UNIT PRICE</th>
 										{Object.values(productsByNameColor).some((p: any) => p.discount > 0) && (
-											<th className='w-16 p-1 text-xs font-bold text-center border border-neutral-300'>DISCOUNT</th>
+											<th className='w-16 p-1 text-xs font-bold text-neutral-900 text-center border border-neutral-300'>DISCOUNT</th>
 										)}
-										<th className='w-20 p-1 text-xs font-bold text-center border border-neutral-300'>TOTAL</th>
+										<th className='w-20 p-1 text-xs font-bold text-neutral-900 text-center border border-neutral-300'>TOTAL</th>
 									</tr>
 								</thead>
 								<tbody>
