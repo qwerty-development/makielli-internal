@@ -1,4 +1,5 @@
 import { supabase } from '../supabase'
+import { shippingInvoiceFunctions } from './shipping-invoices'
 
 export interface ProductHistoryEntry {
   id: string
@@ -52,6 +53,8 @@ export interface ProductHistorySummary {
   first_sale_date: string | null
   last_sale_date: string | null
   avg_sale_quantity: number
+  total_shipped: number
+  total_unshipped: number
 }
 
 export interface VariantSalesDetail {
@@ -61,18 +64,24 @@ export interface VariantSalesDetail {
   total_sold: number
   current_stock: number
   unique_customers: number
+  shipped: number
+  unshipped: number
 }
 
 export interface CustomerPurchaseHistory {
   client_id: number
   client_name: string
   total_purchased: number
+  total_shipped: number
+  total_unshipped: number
   last_purchase_date: string
   purchase_count: number
   variants_purchased: {
     size: string
     color: string
     quantity: number
+    shipped: number
+    unshipped: number
   }[]
 }
 
@@ -264,9 +273,19 @@ export const productHistoryFunctions: any = {
   // Summary: prefer invoice-only summary
   async getProductHistorySummary(productId: string): Promise<ProductHistorySummary> {
     try {
-      // Compute from invoice items (single source of truth)
-      const computed = await this.computeSummaryFromInvoices(productId)
-      if (computed) return computed
+      // Fetch shipping stats in parallel with summary computation for performance
+      const [computed, shippingStats] = await Promise.all([
+        this.computeSummaryFromInvoices(productId),
+        shippingInvoiceFunctions.getProductShippingStats(productId)
+      ])
+
+      if (computed) {
+        return {
+          ...computed,
+          total_shipped: shippingStats.total_shipped,
+          total_unshipped: shippingStats.total_unshipped
+        }
+      }
 
       // Fallback to view if compute path fails
       const { data, error } = await supabase
@@ -283,11 +302,18 @@ export const productHistoryFunctions: any = {
           unique_customers: data.unique_customers || 0,
           first_sale_date: data.first_sale_date || null,
           last_sale_date: data.last_sale_date || null,
-          avg_sale_quantity: Number(data.avg_sale_quantity) || 0
+          avg_sale_quantity: Number(data.avg_sale_quantity) || 0,
+          total_shipped: shippingStats.total_shipped,
+          total_unshipped: shippingStats.total_unshipped
         }
       }
 
-      return this.calculateProductHistorySummary(productId)
+      const fallback = await this.calculateProductHistorySummary(productId)
+      return {
+        ...fallback,
+        total_shipped: shippingStats.total_shipped,
+        total_unshipped: shippingStats.total_unshipped
+      }
     } catch (error) {
       console.error('Error fetching product history summary, calculating manually:', error)
       return this.calculateProductHistorySummary(productId)
@@ -300,10 +326,10 @@ export const productHistoryFunctions: any = {
       const computed = await this.computeSummaryFromInvoices(productId)
       if (computed) return computed
       // Last resort - zero summary
-      return { total_sold: 0, total_purchased: 0, total_adjusted: 0, unique_customers: 0, first_sale_date: null, last_sale_date: null, avg_sale_quantity: 0 }
+      return { total_sold: 0, total_purchased: 0, total_adjusted: 0, unique_customers: 0, first_sale_date: null, last_sale_date: null, avg_sale_quantity: 0, total_shipped: 0, total_unshipped: 0 }
     } catch (error) {
       console.error('Error calculating product history summary:', error)
-      return { total_sold: 0, total_purchased: 0, total_adjusted: 0, unique_customers: 0, first_sale_date: null, last_sale_date: null, avg_sale_quantity: 0 }
+      return { total_sold: 0, total_purchased: 0, total_adjusted: 0, unique_customers: 0, first_sale_date: null, last_sale_date: null, avg_sale_quantity: 0, total_shipped: 0, total_unshipped: 0 }
     }
   },
 
@@ -317,7 +343,7 @@ export const productHistoryFunctions: any = {
 
       if (itemsError) return null
       const rows = (items || []).filter(r => !!r.client_id)
-      if (rows.length === 0) return { total_sold: 0, total_purchased: 0, total_adjusted: 0, unique_customers: 0, first_sale_date: null, last_sale_date: null, avg_sale_quantity: 0 }
+      if (rows.length === 0) return { total_sold: 0, total_purchased: 0, total_adjusted: 0, unique_customers: 0, first_sale_date: null, last_sale_date: null, avg_sale_quantity: 0, total_shipped: 0, total_unshipped: 0 }
 
       const invoiceIds = Array.from(new Set(rows.map(r => r.invoice_id).filter(Boolean))) as number[]
       let invoiceTypeById: Record<string, string> = {}
@@ -338,7 +364,7 @@ export const productHistoryFunctions: any = {
       // average sale quantity per line-item
       const avg_sale_quantity = filtered.length ? Number((total_sold / filtered.length).toFixed(2)) : 0
 
-      return { total_sold, total_purchased: 0, total_adjusted: 0, unique_customers, first_sale_date, last_sale_date, avg_sale_quantity }
+      return { total_sold, total_purchased: 0, total_adjusted: 0, unique_customers, first_sale_date, last_sale_date, avg_sale_quantity, total_shipped: 0, total_unshipped: 0 }
     } catch (e) {
       console.error('Error computing summary from invoices:', e)
       return null
@@ -348,17 +374,23 @@ export const productHistoryFunctions: any = {
   // Variant sales: compute from expanded invoices
   async getVariantSalesDetails(productId: string): Promise<VariantSalesDetail[]> {
     try {
-      const { data, error } = await supabase
-        .from('client_invoice_items_expanded')
-        .select('variant_id, quantity')
-        .eq('product_id', productId)
+      // Fetch variant data and shipping stats in parallel for performance
+      const [invoiceItemsResult, variantsResult, shippingStats] = await Promise.all([
+        supabase
+          .from('client_invoice_items_expanded')
+          .select('variant_id, quantity')
+          .eq('product_id', productId),
+        supabase
+          .from('ProductVariants')
+          .select('id, size, color, quantity')
+          .eq('product_id', productId),
+        shippingInvoiceFunctions.getProductShippingStats(productId)
+      ])
+
+      const { data, error } = invoiceItemsResult
+      const { data: variants } = variantsResult
 
       if (error) return this.calculateVariantSalesDetails(productId)
-
-      const { data: variants } = await supabase
-        .from('ProductVariants')
-        .select('id, size, color, quantity')
-        .eq('product_id', productId)
 
       const totals: Record<string, number> = {}
       ;(data || []).forEach((row: any) => {
@@ -366,14 +398,19 @@ export const productHistoryFunctions: any = {
         totals[row.variant_id] = (totals[row.variant_id] || 0) + (row.quantity || 0)
       })
 
-      const result: VariantSalesDetail[] = (variants || []).map(v => ({
-        variant_id: v.id,
-        size: v.size,
-        color: v.color,
-        total_sold: totals[v.id] || 0,
-        current_stock: v.quantity,
-        unique_customers: 0
-      }))
+      const result: VariantSalesDetail[] = (variants || []).map(v => {
+        const variantShipping = shippingStats.by_variant[v.id] || { sold: 0, shipped: 0, unshipped: 0 }
+        return {
+          variant_id: v.id,
+          size: v.size,
+          color: v.color,
+          total_sold: totals[v.id] || 0,
+          current_stock: v.quantity,
+          unique_customers: 0,
+          shipped: variantShipping.shipped,
+          unshipped: variantShipping.unshipped
+        }
+      })
 
       return result.sort((a, b) => b.total_sold - a.total_sold)
     } catch (error) {
@@ -399,18 +436,51 @@ export const productHistoryFunctions: any = {
       const rows = (items || []).filter(r => !!r.client_id)
       if (rows.length === 0) return []
 
-      // Fetch invoice types to exclude returns
+      // Fetch invoice types and shipping status
       const invoiceIds = Array.from(new Set(rows.map(r => r.invoice_id).filter(Boolean))) as number[]
-      let invoiceTypeById: Record<string, string> = {}
+      let invoiceTypeById: Record<number, string> = {}
+      let invoiceShippingStatusById: Record<number, string | null> = {}
+      
       if (invoiceIds.length > 0) {
         const { data: invoices } = await supabase
           .from('ClientInvoices')
-          .select('id, type')
+          .select('id, type, shipping_status')
           .in('id', invoiceIds)
-        ;(invoices || []).forEach(inv => { invoiceTypeById[inv.id] = inv.type })
+        ;(invoices || []).forEach(inv => { 
+          invoiceTypeById[inv.id] = inv.type 
+          invoiceShippingStatusById[inv.id] = inv.shipping_status
+        })
       }
 
       const filtered = rows.filter(r => invoiceTypeById[r.invoice_id] !== 'return')
+
+      // Identify partially shipped invoices that need detailed lookup
+      const partiallyShippedInvoiceIds = invoiceIds.filter(id => 
+        invoiceShippingStatusById[id] === 'partially_shipped'
+      )
+
+      // Fetch shipping invoice details for partially shipped invoices
+      let shippedByInvoiceVariant = new Map<string, number>()
+      if (partiallyShippedInvoiceIds.length > 0) {
+        const { data: shippingInvoices } = await supabase
+          .from('ClientShippingInvoices')
+          .select('invoice_id, products, status')
+          .in('invoice_id', partiallyShippedInvoiceIds)
+          .neq('status', 'cancelled')
+
+        if (shippingInvoices) {
+          for (const shipment of shippingInvoices) {
+            const products = shipment.products as { product_id: string; product_variant_id: string; quantity: number }[] || []
+            for (const product of products) {
+              if (product.product_id === productId) {
+                const key = `${shipment.invoice_id}_${product.product_variant_id}`
+                const current = shippedByInvoiceVariant.get(key) || 0
+                shippedByInvoiceVariant.set(key, current + product.quantity)
+              }
+            }
+          }
+        }
+      }
 
       // Fetch clients to get names
       const clientIds = Array.from(new Set(filtered.map(r => r.client_id))) as number[]
@@ -430,8 +500,9 @@ export const productHistoryFunctions: any = {
       const variantById: Record<string, { size: string; color: string }> = {}
       ;(variants || []).forEach(v => { variantById[v.id] = { size: v.size, color: v.color } })
 
-      // Group by customer
+      // Group by customer with shipping data
       const customerMap = new Map<number, CustomerPurchaseHistory>()
+      
       for (const r of filtered) {
         const clientId = r.client_id as number
         const clientName = clientNameById[clientId]
@@ -442,6 +513,8 @@ export const productHistoryFunctions: any = {
             client_id: clientId,
             client_name: clientName,
             total_purchased: 0,
+            total_shipped: 0,
+            total_unshipped: 0,
             last_purchase_date: r.created_at,
             purchase_count: 0,
             variants_purchased: []
@@ -456,15 +529,45 @@ export const productHistoryFunctions: any = {
           customer.last_purchase_date = r.created_at
         }
 
-        // Variant details
+        // Calculate shipped/unshipped for this item
+        const shippingStatus = invoiceShippingStatusById[r.invoice_id]
+        let itemShipped = 0
+        let itemUnshipped = 0
+
+        if (shippingStatus === null || shippingStatus === undefined || shippingStatus === 'fully_shipped') {
+          // Legacy or fully shipped = all shipped
+          itemShipped = qty
+          itemUnshipped = 0
+        } else if (shippingStatus === 'unshipped') {
+          itemShipped = 0
+          itemUnshipped = qty
+        } else if (shippingStatus === 'partially_shipped') {
+          const key = `${r.invoice_id}_${r.variant_id}`
+          const shippedQty = shippedByInvoiceVariant.get(key) || 0
+          itemShipped = Math.min(shippedQty, qty)
+          itemUnshipped = Math.max(0, qty - shippedQty)
+        }
+
+        customer.total_shipped += itemShipped
+        customer.total_unshipped += itemUnshipped
+
+        // Variant details with shipping
         const v = r.variant_id ? variantById[r.variant_id] : { size: '', color: '' }
         const existingVariant = customer.variants_purchased.find(
           x => x.size === (v?.size || '') && x.color === (v?.color || '')
         )
         if (existingVariant) {
           existingVariant.quantity += qty
+          existingVariant.shipped += itemShipped
+          existingVariant.unshipped += itemUnshipped
         } else {
-          customer.variants_purchased.push({ size: v?.size || '', color: v?.color || '', quantity: qty })
+          customer.variants_purchased.push({ 
+            size: v?.size || '', 
+            color: v?.color || '', 
+            quantity: qty,
+            shipped: itemShipped,
+            unshipped: itemUnshipped
+          })
         }
       }
 

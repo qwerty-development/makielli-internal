@@ -436,5 +436,162 @@ export const shippingInvoiceFunctions = {
       console.error('Error fetching all shipping invoices:', error)
       throw error
     }
+  },
+
+  // Get shipping statistics for a specific product across all client invoices
+  // Used for product history page to show shipped vs unshipped quantities
+  getProductShippingStats: async (productId: string): Promise<{
+    total_sold: number
+    total_shipped: number
+    total_unshipped: number
+    by_variant: Record<string, { sold: number; shipped: number; unshipped: number }>
+  }> => {
+    try {
+      // Step 1: Get all invoice items for this product from expanded view
+      const { data: invoiceItems, error: itemsError } = await supabase
+        .from('client_invoice_items_expanded')
+        .select('invoice_id, variant_id, quantity, created_at')
+        .eq('product_id', productId)
+
+      if (itemsError) {
+        console.error('Error fetching invoice items for shipping stats:', itemsError)
+        return { total_sold: 0, total_shipped: 0, total_unshipped: 0, by_variant: {} }
+      }
+
+      if (!invoiceItems || invoiceItems.length === 0) {
+        return { total_sold: 0, total_shipped: 0, total_unshipped: 0, by_variant: {} }
+      }
+
+      // Get unique invoice IDs
+      const invoiceIds = Array.from(new Set(invoiceItems.map(item => item.invoice_id).filter(Boolean))) as number[]
+
+      if (invoiceIds.length === 0) {
+        return { total_sold: 0, total_shipped: 0, total_unshipped: 0, by_variant: {} }
+      }
+
+      // Step 2: Get invoice details including shipping_status and type (exclude return invoices)
+      const { data: invoices, error: invoicesError } = await supabase
+        .from('ClientInvoices')
+        .select('id, shipping_status, type')
+        .in('id', invoiceIds)
+
+      if (invoicesError) {
+        console.error('Error fetching invoices for shipping stats:', invoicesError)
+        return { total_sold: 0, total_shipped: 0, total_unshipped: 0, by_variant: {} }
+      }
+
+      // Create lookup maps
+      const invoiceStatusMap = new Map<number, string | null>()
+      const invoiceTypeMap = new Map<number, string>()
+      
+      for (const inv of invoices || []) {
+        invoiceStatusMap.set(inv.id, inv.shipping_status)
+        invoiceTypeMap.set(inv.id, inv.type || 'regular')
+      }
+
+      // Filter out return invoices from items
+      const regularItems = invoiceItems.filter(item => 
+        invoiceTypeMap.get(item.invoice_id) !== 'return'
+      )
+
+      // Step 3: Group items by variant and invoice to calculate totals
+      const variantStats: Record<string, { sold: number; shipped: number; unshipped: number }> = {}
+      const invoicesNeedingShippingData: number[] = []
+
+      // First pass: calculate sold quantities and identify which invoices need shipping data lookup
+      for (const item of regularItems) {
+        const variantId = item.variant_id
+        const invoiceId = item.invoice_id
+        const quantity = Math.abs(Number(item.quantity) || 0)
+        
+        if (!variantId) continue
+
+        if (!variantStats[variantId]) {
+          variantStats[variantId] = { sold: 0, shipped: 0, unshipped: 0 }
+        }
+        variantStats[variantId].sold += quantity
+
+        const shippingStatus = invoiceStatusMap.get(invoiceId)
+        
+        // Legacy invoices (null shipping_status) or fully shipped = all shipped
+        if (shippingStatus === null || shippingStatus === undefined || shippingStatus === 'fully_shipped') {
+          variantStats[variantId].shipped += quantity
+        } else if (shippingStatus === 'unshipped') {
+          variantStats[variantId].unshipped += quantity
+        } else if (shippingStatus === 'partially_shipped') {
+          // Need to look up actual shipping data
+          if (!invoicesNeedingShippingData.includes(invoiceId)) {
+            invoicesNeedingShippingData.push(invoiceId)
+          }
+        }
+      }
+
+      // Step 4: For partially shipped invoices, get actual shipped quantities from ClientShippingInvoices
+      if (invoicesNeedingShippingData.length > 0) {
+        const { data: shippingInvoices, error: shippingError } = await supabase
+          .from('ClientShippingInvoices')
+          .select('invoice_id, products, status')
+          .in('invoice_id', invoicesNeedingShippingData)
+          .neq('status', 'cancelled')
+
+        if (!shippingError && shippingInvoices) {
+          // Build a map of shipped quantities per invoice per variant
+          const shippedByInvoiceVariant = new Map<string, number>()
+
+          for (const shipment of shippingInvoices) {
+            const products = shipment.products as ShippingProduct[] || []
+            for (const product of products) {
+              if (product.product_id === productId) {
+                const key = `${shipment.invoice_id}_${product.product_variant_id}`
+                const current = shippedByInvoiceVariant.get(key) || 0
+                shippedByInvoiceVariant.set(key, current + product.quantity)
+              }
+            }
+          }
+
+          // Now process partially shipped items
+          for (const item of regularItems) {
+            const invoiceId = item.invoice_id
+            const variantId = item.variant_id
+            const quantity = Math.abs(Number(item.quantity) || 0)
+            
+            if (!variantId) continue
+            
+            const shippingStatus = invoiceStatusMap.get(invoiceId)
+            
+            if (shippingStatus === 'partially_shipped') {
+              const key = `${invoiceId}_${variantId}`
+              const shippedQty = shippedByInvoiceVariant.get(key) || 0
+              const unshippedQty = Math.max(0, quantity - shippedQty)
+              
+              variantStats[variantId].shipped += shippedQty
+              variantStats[variantId].unshipped += unshippedQty
+            }
+          }
+        }
+      }
+
+      // Calculate totals
+      let total_sold = 0
+      let total_shipped = 0
+      let total_unshipped = 0
+
+      for (const variantId in variantStats) {
+        const stats = variantStats[variantId]
+        total_sold += stats.sold
+        total_shipped += stats.shipped
+        total_unshipped += stats.unshipped
+      }
+
+      return {
+        total_sold,
+        total_shipped,
+        total_unshipped,
+        by_variant: variantStats
+      }
+    } catch (error) {
+      console.error('Error calculating product shipping stats:', error)
+      return { total_sold: 0, total_shipped: 0, total_unshipped: 0, by_variant: {} }
+    }
   }
 }

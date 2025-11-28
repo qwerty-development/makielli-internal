@@ -20,7 +20,12 @@ import {
   FaChartBar,
   FaUserTag,
   FaFilter,
-  FaTag
+  FaTag,
+  FaTruck,
+  FaBoxOpen,
+  FaTable,
+  FaCheck,
+  FaClock
 } from 'react-icons/fa'
 import { format } from 'date-fns'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
@@ -228,8 +233,10 @@ export default function ProductHistoryDetailPage({ params }: { params: { product
 
         {/* Summary Stats */}
         {summary && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-6 mb-6">
                 <StatCard title="Total Sold" value={summary.total_sold} icon={FaHistory} color="green" />
+                <StatCard title="Shipped" value={summary.total_shipped} icon={FaTruck} color="indigo" />
+                <StatCard title="Unshipped" value={summary.total_unshipped} icon={FaBoxOpen} color="red" />
                 <StatCard title="Total Purchased" value={summary.total_purchased} icon={FaBox} color="blue" />
                 <StatCard title="Adjustments" value={summary.total_adjusted} icon={FaTag} color="yellow" />
                 <StatCard title="Unique Customers" value={summary.unique_customers} icon={FaUsers} color="purple" />
@@ -249,10 +256,100 @@ export default function ProductHistoryDetailPage({ params }: { params: { product
                         <Tooltip />
                         <Legend />
                         <Bar dataKey="total_sold" fill={COLORS.secondary} name="Total Sold" />
+                        <Bar dataKey="shipped" fill={COLORS.primary} name="Shipped" />
+                        <Bar dataKey="unshipped" fill={COLORS.warning} name="Unshipped" />
                         <Bar dataKey="current_stock" fill={COLORS.info} name="Current Stock" />
                     </BarChart>
                 </ResponsiveContainer>
             </ChartCard>
+        </div>
+
+        {/* Variant Quick Stats Table */}
+        <div className="bg-white rounded-xl shadow-md p-6 mb-6">
+            <div className="flex items-center gap-3 mb-4">
+                <FaTable className="text-xl text-indigo-600" />
+                <h3 className="font-semibold text-neutral-700 text-lg">Variant Quick Stats</h3>
+            </div>
+            <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-neutral-200">
+                    <thead className="bg-neutral-50">
+                        <tr>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-600 uppercase tracking-wider">Variant</th>
+                            <th className="px-4 py-3 text-right text-xs font-semibold text-neutral-600 uppercase tracking-wider">Current Stock</th>
+                            <th className="px-4 py-3 text-right text-xs font-semibold text-neutral-600 uppercase tracking-wider">Total Sold</th>
+                            <th className="px-4 py-3 text-right text-xs font-semibold text-neutral-600 uppercase tracking-wider">Shipped</th>
+                            <th className="px-4 py-3 text-right text-xs font-semibold text-neutral-600 uppercase tracking-wider">Unshipped</th>
+                            <th className="px-4 py-3 text-right text-xs font-semibold text-neutral-600 uppercase tracking-wider">% Shipped</th>
+                            <th className="px-4 py-3 text-center text-xs font-semibold text-neutral-600 uppercase tracking-wider">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-neutral-200">
+                        {variantSales.map((v, index) => {
+                            const percentShipped = v.total_sold > 0 ? Math.round((v.shipped / v.total_sold) * 100) : 100
+                            const isFullyShipped = v.unshipped === 0
+                            return (
+                                <tr key={v.variant_id || index} className="hover:bg-neutral-50 transition-colors">
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-3 h-3 rounded-full bg-indigo-400"></div>
+                                            <span className="font-medium text-neutral-800">{v.size} / {v.color}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-right">
+                                        <span className={`font-semibold ${v.current_stock <= 0 ? 'text-red-600' : v.current_stock < 10 ? 'text-yellow-600' : 'text-neutral-800'}`}>
+                                            {v.current_stock}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-right font-semibold text-green-600">
+                                        {v.total_sold}
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-right">
+                                        <span className="font-semibold text-indigo-600">{v.shipped}</span>
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-right">
+                                        <span className={`font-semibold ${v.unshipped > 0 ? 'text-orange-600' : 'text-neutral-400'}`}>
+                                            {v.unshipped}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-right">
+                                        <div className="flex items-center justify-end gap-2">
+                                            <div className="w-16 bg-neutral-200 rounded-full h-2">
+                                                <div 
+                                                    className={`h-2 rounded-full ${percentShipped === 100 ? 'bg-green-500' : percentShipped >= 50 ? 'bg-indigo-500' : 'bg-orange-500'}`}
+                                                    style={{ width: `${percentShipped}%` }}
+                                                ></div>
+                                            </div>
+                                            <span className="text-sm font-medium text-neutral-600 w-10">{percentShipped}%</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-center">
+                                        {isFullyShipped ? (
+                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                <FaCheck className="text-xs" /> Shipped
+                                            </span>
+                                        ) : v.shipped === 0 ? (
+                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                                <FaClock className="text-xs" /> Pending
+                                            </span>
+                                        ) : (
+                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                                <FaTruck className="text-xs" /> Partial
+                                            </span>
+                                        )}
+                                    </td>
+                                </tr>
+                            )
+                        })}
+                        {variantSales.length === 0 && (
+                            <tr>
+                                <td colSpan={7} className="px-4 py-8 text-center text-neutral-500">
+                                    No variant data available
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         {/* Customer & History Section */}
@@ -303,6 +400,24 @@ export default function ProductHistoryDetailPage({ params }: { params: { product
                                     </div>
                                 </div>
 
+                                {/* Shipping Status Summary */}
+                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                    <div className="text-center p-2 bg-green-50 rounded-lg border border-green-200">
+                                        <div className="flex items-center justify-center gap-1">
+                                            <FaTruck className="text-green-600 text-sm" />
+                                            <p className="text-lg font-bold text-green-600">{c.total_shipped}</p>
+                                        </div>
+                                        <p className="text-xs text-green-700 font-medium">Shipped</p>
+                                    </div>
+                                    <div className="text-center p-2 bg-orange-50 rounded-lg border border-orange-200">
+                                        <div className="flex items-center justify-center gap-1">
+                                            <FaClock className="text-orange-600 text-sm" />
+                                            <p className="text-lg font-bold text-orange-600">{c.total_unshipped}</p>
+                                        </div>
+                                        <p className="text-xs text-orange-700 font-medium">Pending</p>
+                                    </div>
+                                </div>
+
                                 {/* Additional Details */}
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between text-sm">
@@ -317,29 +432,51 @@ export default function ProductHistoryDetailPage({ params }: { params: { product
 
                                 {/* Variants Section */}
                                 <div className="mt-4 pt-4 border-t border-neutral-200">
-                                    <p className="text-sm font-bold text-neutral-700 mb-3">Favorite Variants:</p>
-                                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                                    <p className="text-sm font-bold text-neutral-700 mb-3">Variant Details ({c.variants_purchased.length}):</p>
+                                    <div className="space-y-2 max-h-64 overflow-y-auto">
                                         {c.variants_purchased
                                             .sort((a, b) => b.quantity - a.quantity)
-                                            .slice(0, 5)
-                                            .map((v, i) => (
-                                            <div key={i} className="flex items-center justify-between p-2 bg-white rounded-md shadow-sm">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-3 h-3 bg-indigo-400 rounded-full"></div>
-                                                    <span className="text-sm font-medium text-neutral-800">
-                                                        {v.size} / {v.color}
-                                                    </span>
-                                                </div>
-                                                <span className="text-sm font-bold text-indigo-600">
-                                                    {v.quantity} units
-                                                </span>
-                                            </div>
-                                        ))}
-                                        {c.variants_purchased.length > 5 && (
-                                            <p className="text-xs text-neutral-500 text-center pt-1">
-                                                +{c.variants_purchased.length - 5} more variants
-                                            </p>
-                                        )}
+                                            .map((v, i) => {
+                                                const isFullyShipped = v.unshipped === 0
+                                                const isPartiallyShipped = v.shipped > 0 && v.unshipped > 0
+                                                return (
+                                                    <div key={i} className="p-2 bg-white rounded-md shadow-sm">
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-3 h-3 bg-indigo-400 rounded-full"></div>
+                                                                <span className="text-sm font-medium text-neutral-800">
+                                                                    {v.size} / {v.color}
+                                                                </span>
+                                                            </div>
+                                                            <span className="text-sm font-bold text-indigo-600">
+                                                                {v.quantity} units
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center justify-between text-xs pl-5">
+                                                            <div className="flex items-center gap-3">
+                                                                <span className="text-green-600">
+                                                                    <FaTruck className="inline mr-1 text-[10px]" />{v.shipped} shipped
+                                                                </span>
+                                                                {v.unshipped > 0 && (
+                                                                    <span className="text-orange-600">
+                                                                        <FaClock className="inline mr-1 text-[10px]" />{v.unshipped} pending
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {isFullyShipped ? (
+                                                                <FaCheck className="text-green-500" />
+                                                            ) : isPartiallyShipped ? (
+                                                                <div className="w-12 bg-neutral-200 rounded-full h-1.5">
+                                                                    <div 
+                                                                        className="h-1.5 rounded-full bg-yellow-500"
+                                                                        style={{ width: `${Math.round((v.shipped / v.quantity) * 100)}%` }}
+                                                                    ></div>
+                                                                </div>
+                                                            ) : null}
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
                                     </div>
                                 </div>
 

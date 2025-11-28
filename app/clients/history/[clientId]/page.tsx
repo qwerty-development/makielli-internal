@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import { clientHistoryFunctions, ClientPurchaseHistoryRecord } from '@/utils/functions/clientHistory';
 import { clientFunctions, Client } from '@/utils/functions/clients';
-import { FaBox, FaSpinner, FaArrowLeft, FaSearch, FaSortAmountDown, FaSortAmountUp, FaCalendarAlt, FaTags } from 'react-icons/fa';
+import { FaBox, FaSpinner, FaArrowLeft, FaSearch, FaSortAmountDown, FaSortAmountUp, FaCalendarAlt, FaTags, FaTruck, FaClock, FaCheck } from 'react-icons/fa';
 import { format } from 'date-fns';
 
 export default function ClientHistoryPage({ params }: { params: { clientId: string } }) {
@@ -138,37 +138,105 @@ export default function ClientHistoryPage({ params }: { params: { clientId: stri
 
         {/* Product Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredHistory.map(product => (
-            <div key={product.product_id} className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 flex flex-col overflow-hidden">
-              <div className="relative h-48 bg-neutral-100 cursor-pointer" onClick={() => router.push(`/products/history/${product.product_id}`)}>
-                {product.product_photo ? (
-                  <img src={product.product_photo} alt={product.product_name} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-neutral-200">
-                    <FaBox className="text-5xl text-neutral-400" />
-                  </div>
-                )}
-              </div>
-              <div className="p-4 flex flex-col flex-grow">
-                <h3 className="font-bold text-lg text-neutral-800 mb-2 truncate cursor-pointer" onClick={() => router.push(`/products/history/${product.product_id}`)}>{product.product_name}</h3>
-                <div className="space-y-2 text-sm text-neutral-600 flex-grow mb-4">
-                  <InfoRow icon={FaBox} label="Total Purchased" value={`${product.total_purchased} units`} />
-                  <InfoRow icon={FaCalendarAlt} label="Last Purchase" value={format(new Date(product.last_purchase_date), 'MMM d, yyyy')} />
-                  <InfoRow icon={FaTags} label="Purchase Events" value={`${product.purchase_count} times`} />
-                </div>
-                <div>
-                  <h4 className="font-semibold text-sm text-neutral-700 mb-2">Variants Purchased:</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {product.variants.map((v, i) => (
-                      <span key={i} className="px-2 py-1 bg-indigo-100 text-indigo-800 text-xs rounded-full font-medium">
-                        {v.size} / {v.color} ({v.quantity})
+          {filteredHistory.map(product => {
+            const isFullyShipped = product.total_unshipped === 0;
+            const isPartiallyShipped = product.total_shipped > 0 && product.total_unshipped > 0;
+            const percentShipped = product.total_purchased > 0 ? Math.round((product.total_shipped / product.total_purchased) * 100) : 100;
+            
+            return (
+              <div key={product.product_id} className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 flex flex-col overflow-hidden">
+                <div className="relative h-48 bg-neutral-100 cursor-pointer" onClick={() => router.push(`/products/history/${product.product_id}`)}>
+                  {product.product_photo ? (
+                    <img src={product.product_photo} alt={product.product_name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-neutral-200">
+                      <FaBox className="text-5xl text-neutral-400" />
+                    </div>
+                  )}
+                  {/* Shipping Status Badge */}
+                  <div className="absolute top-2 right-2">
+                    {isFullyShipped ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 shadow-sm">
+                        <FaCheck className="text-xs" /> Shipped
                       </span>
-                    ))}
+                    ) : product.total_shipped === 0 ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 shadow-sm">
+                        <FaClock className="text-xs" /> Pending
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 shadow-sm">
+                        <FaTruck className="text-xs" /> {percentShipped}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="p-4 flex flex-col flex-grow">
+                  <h3 className="font-bold text-lg text-neutral-800 mb-2 truncate cursor-pointer" onClick={() => router.push(`/products/history/${product.product_id}`)}>{product.product_name}</h3>
+                  <div className="space-y-2 text-sm text-neutral-600 mb-4">
+                    <InfoRow icon={FaBox} label="Total Purchased" value={`${product.total_purchased} units`} />
+                    <InfoRow icon={FaTruck} label="Shipped" value={`${product.total_shipped} units`} />
+                    {product.total_unshipped > 0 && (
+                      <InfoRow icon={FaClock} label="Pending" value={`${product.total_unshipped} units`} />
+                    )}
+                    <InfoRow icon={FaCalendarAlt} label="Last Purchase" value={format(new Date(product.last_purchase_date), 'MMM d, yyyy')} />
+                    <InfoRow icon={FaTags} label="Purchase Events" value={`${product.purchase_count} times`} />
+                  </div>
+                  
+                  {/* Shipping Progress Bar */}
+                  {product.total_purchased > 0 && (
+                    <div className="mb-4">
+                      <div className="flex justify-between text-xs text-neutral-500 mb-1">
+                        <span>Shipping Progress</span>
+                        <span>{percentShipped}%</span>
+                      </div>
+                      <div className="w-full bg-neutral-200 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full ${percentShipped === 100 ? 'bg-green-500' : percentShipped >= 50 ? 'bg-indigo-500' : 'bg-orange-500'}`}
+                          style={{ width: `${percentShipped}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="flex-grow">
+                    <h4 className="font-semibold text-sm text-neutral-700 mb-2">Variants Purchased ({product.variants.length}):</h4>
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                      {product.variants.map((v, i) => {
+                        const variantFullyShipped = v.unshipped === 0;
+                        return (
+                          <div key={i} className="p-2 bg-neutral-50 rounded-lg border border-neutral-200">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-sm font-medium text-neutral-800">
+                                {v.size} / {v.color}
+                              </span>
+                              <span className="text-sm font-bold text-indigo-600">
+                                {v.quantity} units
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <div className="flex items-center gap-2">
+                                <span className="text-green-600">
+                                  <FaTruck className="inline mr-1 text-[10px]" />{v.shipped}
+                                </span>
+                                {v.unshipped > 0 && (
+                                  <span className="text-orange-600">
+                                    <FaClock className="inline mr-1 text-[10px]" />{v.unshipped}
+                                  </span>
+                                )}
+                              </div>
+                              {variantFullyShipped && (
+                                <FaCheck className="text-green-500 text-xs" />
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {filteredHistory.length === 0 && !isLoading && (
