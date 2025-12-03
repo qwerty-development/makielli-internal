@@ -6,8 +6,9 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import { clientHistoryFunctions, ClientPurchaseHistoryRecord } from '@/utils/functions/clientHistory';
 import { clientFunctions, Client } from '@/utils/functions/clients';
-import { FaBox, FaSpinner, FaArrowLeft, FaSearch, FaSortAmountDown, FaSortAmountUp, FaCalendarAlt, FaTags, FaTruck, FaClock, FaCheck } from 'react-icons/fa';
+import { FaBox, FaSpinner, FaArrowLeft, FaSearch, FaSortAmountDown, FaSortAmountUp, FaCalendarAlt, FaTags, FaTruck, FaClock, FaCheck, FaFilePdf } from 'react-icons/fa';
 import { format } from 'date-fns';
+import { generatePDF } from '@/utils/pdfGenerator';
 
 export default function ClientHistoryPage({ params }: { params: { clientId: string } }) {
   const router = useRouter();
@@ -76,6 +77,27 @@ export default function ClientHistoryPage({ params }: { params: { clientId: stri
     setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
   }
 
+  const handleExportPDF = async () => {
+    if (!client || purchaseHistory.length === 0) {
+      toast.error('No data to export');
+      return;
+    }
+    
+    try {
+      toast.loading('Generating PDF report...', { id: 'pdf-export' });
+      
+      await generatePDF('clientHistory', {
+        client: client,
+        purchaseHistory: purchaseHistory
+      });
+      
+      toast.success('PDF report generated successfully!', { id: 'pdf-export' });
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error('Failed to generate PDF report', { id: 'pdf-export' });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-neutral-50">
@@ -97,13 +119,22 @@ export default function ClientHistoryPage({ params }: { params: { clientId: stri
               <h1 className="text-3xl font-bold text-neutral-800">Purchase History for {client?.name}</h1>
               <p className="text-neutral-500 mt-1">Showing all products purchased by this client.</p>
             </div>
-            <button
-              onClick={() => router.push(`/clients/details/${clientId}`)}
-              className="mt-4 sm:mt-0 flex items-center gap-2 px-4 py-2 bg-neutral-200 text-neutral-700 rounded-lg hover:bg-neutral-300 transition-colors"
-            >
-              <FaArrowLeft />
-              Back to Client Details
-            </button>
+            <div className="flex items-center gap-3 mt-4 sm:mt-0">
+              <button
+                onClick={() => router.push(`/clients/details/${clientId}`)}
+                className="flex items-center gap-2 px-4 py-2 bg-neutral-200 text-neutral-700 rounded-lg hover:bg-neutral-300 transition-colors"
+              >
+                <FaArrowLeft />
+                Back
+              </button>
+              <button
+                onClick={handleExportPDF}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                <FaFilePdf />
+                Export PDF
+              </button>
+            </div>
           </div>
         </div>
 

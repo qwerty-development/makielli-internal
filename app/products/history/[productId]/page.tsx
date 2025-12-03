@@ -15,6 +15,7 @@ import {
   FaBox,
   FaSpinner,
   FaFileCsv,
+  FaFilePdf,
   FaArrowLeft,
   FaChartLine,
   FaChartBar,
@@ -29,6 +30,7 @@ import {
 } from 'react-icons/fa'
 import { format } from 'date-fns'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { generatePDF } from '@/utils/pdfGenerator'
 
 const COLORS = {
   primary: '#4F46E5',
@@ -151,6 +153,33 @@ export default function ProductHistoryDetailPage({ params }: { params: { product
     }
   }
 
+  const handleExportPDF = async () => {
+    if (!productInfo || !summary) {
+      toast.error('Product data not loaded yet')
+      return
+    }
+    
+    try {
+      toast.loading('Generating PDF report...', { id: 'pdf-export' })
+      
+      await generatePDF('productHistory', {
+        productInfo: {
+          name: productInfo.name,
+          photo: productInfo.photo
+        },
+        summary: summary,
+        variantSales: variantSales,
+        customerPurchases: customerPurchases,
+        history: filteredHistory
+      })
+      
+      toast.success('PDF report generated successfully!', { id: 'pdf-export' })
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      toast.error('Failed to generate PDF report', { id: 'pdf-export' })
+    }
+  }
+
   const salesOverTimeData = useMemo(() => {
     const sales = filteredHistory
         .filter(h => h.source_type === 'invoice' || h.source_type === 'quotation')
@@ -219,6 +248,13 @@ export default function ProductHistoryDetailPage({ params }: { params: { product
                     >
                         <FaArrowLeft />
                         Back
+                    </button>
+                    <button
+                        onClick={handleExportPDF}
+                        className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                        <FaFilePdf />
+                        Export PDF
                     </button>
                     <button
                         onClick={handleExportCSV}

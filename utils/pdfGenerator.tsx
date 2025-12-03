@@ -5,6 +5,8 @@ import QuotationPDF from './pdfTemplates/QuotationPDF'
 import ClientFinancialReportPDF from './pdfTemplates/ClientFinancialReportPDF'
 import SupplierFinancialReportPDF from './pdfTemplates/SupplierFinancialReportPDF'
 import ShippingInvoicePDF from './pdfTemplates/ShippingInvoicePDF'
+import ProductHistoryPDF from './pdfTemplates/ProductHistoryPDF'
+import ClientHistoryPDF from './pdfTemplates/ClientHistoryPDF'
 import { supabase } from './supabase'
 import { format } from 'date-fns'
 
@@ -1044,6 +1046,59 @@ export const generatePDF = async (
         financialData: supplierFinancialData
       })
       fileName = `financial_report_${supplierData.name.replace(/\s+/g, '_') || 'supplier'}.pdf`
+      break
+    }
+
+    case 'productHistory': {
+      if (!data.productInfo || !data.summary) {
+        throw new Error('Invalid product history report: missing productInfo or summary.')
+      }
+      
+      console.log(`📊 Generating product history report for: ${data.productInfo.name}`)
+      
+      // Process product image if available
+      let processedProductInfo = { ...data.productInfo }
+      if (data.productInfo.photo) {
+        try {
+          const base64Image = await convertImageToBase64(data.productInfo.photo, data.productInfo.name)
+          if (base64Image) {
+            processedProductInfo.photo = base64Image
+          }
+        } catch (error) {
+          console.warn('Failed to process product image:', error)
+          processedProductInfo.photo = null
+        }
+      }
+      
+      component = ProductHistoryPDF({
+        productInfo: processedProductInfo,
+        summary: data.summary,
+        variantSales: data.variantSales || [],
+        customerPurchases: data.customerPurchases || [],
+        history: data.history || [],
+        logoBase64: data.logoBase64 || null
+      })
+      
+      const safeProductName = (data.productInfo.name || 'product').replace(/[^a-zA-Z0-9]/g, '_')
+      fileName = `product_history_${safeProductName}_${format(new Date(), 'yyyy-MM-dd')}.pdf`
+      break
+    }
+
+    case 'clientHistory': {
+      if (!data.client || !data.purchaseHistory) {
+        throw new Error('Invalid client history report: missing client or purchaseHistory.')
+      }
+      
+      console.log(`📊 Generating client history report for: ${data.client.name}`)
+      
+      component = ClientHistoryPDF({
+        client: data.client,
+        purchaseHistory: data.purchaseHistory || [],
+        logoBase64: data.logoBase64 || null
+      })
+      
+      const safeClientName = (data.client.name || 'client').replace(/[^a-zA-Z0-9]/g, '_')
+      fileName = `client_history_${safeClientName}_${format(new Date(), 'yyyy-MM-dd')}.pdf`
       break
     }
 
